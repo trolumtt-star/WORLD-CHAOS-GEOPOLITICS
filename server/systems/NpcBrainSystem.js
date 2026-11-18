@@ -139,7 +139,8 @@ export class NpcBrainSystem {
       const dist = Math.abs(b.door.x - npc.x) + Math.abs(b.door.z - npc.z);
       // Fiyat hassasiyeti: fakir NPC fiyata, zengin mesafeye bakar
       const priceWeight = npc.balance < 300 ? 3 : 1;
-      const score = b.stock[product].price * priceWeight + dist / 25;
+      let score = b.stock[product].price * priceWeight + dist / 25;
+      if ((b.adUntil ?? 0) > world.clockHours()) score *= 0.45; // reklamı tutmuş dükkan cazip
       if (score < bestScore) { bestScore = score; best = b; }
     }
     npc.targets[activity] = best?.id ?? null;

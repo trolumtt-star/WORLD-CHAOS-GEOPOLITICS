@@ -195,7 +195,23 @@ export class Effects {
     });
   }
 
+  melee(a, b) {
+    for (let k = 0; k < 6; k++) this.fireP.spawn(b[0] + R(), 1.6, b[1] + R(), R() * 5, 3 + Math.random() * 4, R() * 5, 0.25, 0.8, 0.2, [1, 0.95, 0.7, 1], [1, 0.6, 0.2, 0], 0.5, -20);
+    this.audio?.playAt('clang', a[0], a[1], { minGap: 70, vol: 0.8 });
+  }
+
   tracer(a, b, kind) {
+    if (kind === 'archer') {
+      const i = this.tracerNext;
+      this.tracerNext = (i + 1) % this.tracerCap;
+      this.tracerPos.set([a[0], 2.2, a[1], b[0] + R(), 1.5, b[1] + R()], i * 6);
+      this.tracerBase.set([0.75, 0.55, 0.3], i * 3);
+      this.tracerLife[i] = 0.2;
+      this.audio?.playAt('whoosh', a[0], a[1], { minGap: 90, vol: 0.4 });
+      return;
+    }
+    if (kind === 'cannon') kind = 'tank';
+    if (kind === 'musketeer') for (let k = 0; k < 3; k++) this.smoke(a[0] + R(), 1.8, a[1] + R(), 0.5);
     const i = this.tracerNext;
     this.tracerNext = (i + 1) % this.tracerCap;
     const cannon = kind === 'tank';

@@ -5,7 +5,8 @@ import { createRng } from '../core/rng.js';
 import { EventBus } from '../core/EventBus.js';
 import { GameEngine } from '../core/GameEngine.js';
 import { World } from '../world/World.js';
-import { generateWorld } from '../world/WorldGenerator.js';
+import { generateWorld, createVillage } from '../world/WorldGenerator.js';
+import { TECHS, techCost, techHours } from '../data/tech.js';
 import { Player } from '../entities/Player.js';
 import { UNIT_TYPES, MISSILE_TYPES } from '../data/military.js';
 import { ACTIONS, catalog } from '../actions/index.js';
@@ -26,6 +27,8 @@ import { TaxSystem } from '../systems/TaxSystem.js';
 import { MilitarySystem } from '../systems/MilitarySystem.js';
 import { MissileSystem } from '../systems/MissileSystem.js';
 import { PopulationSystem } from '../systems/PopulationSystem.js';
+import { TechSystem } from '../systems/TechSystem.js';
+import { TerritorySystem } from '../systems/TerritorySystem.js';
 
 const COLORS = ['#ff4d4d', '#3ddc84', '#ffd23f', '#a06cff', '#2ec4ff', '#ff8c42', '#ff5fa2', '#00e0b8', '#c0ff3e', '#ffffff'];
 
@@ -66,6 +69,8 @@ export class Room {
       .use(new MilitarySystem())
       .use(new MissileSystem())
       .use(new PopulationSystem())
+      .use(new TechSystem())
+      .use(new TerritorySystem())
       .use(new NetworkSyncSystem(io, code));
     this.ctx = this.engine.ctx;
     this.engine.start();
@@ -127,7 +132,16 @@ export class Room {
         maxSpeed: config.player.speed * config.player.sprintMultiplier,
       });
       world.players.set(player.id, player);
-      bus.news('player', `✈️ ${player.name} şehre ₺${player.balance.toLocaleString('tr-TR')} ile adım attı.`);
+      if (this.sandbox) player.techs = Object.keys(TECHS);
+      const v = createVillage(world, rng, config, player);
+      if (v) {
+        player.x = v.hall.door.x;
+        player.z = v.hall.door.z;
+        for (const n of v.npcs) bus.emit('net:spawn', { kind: 'npc', data: n.toMeta() });
+        bus.news('player', `🏰 ${player.name} yeni bir köy kurdu! (${v.npcs.length} köylü)`);
+      } else {
+        bus.news('player', `✈️ ${player.name} şehre ₺${player.balance.toLocaleString('tr-TR')} ile adım attı.`);
+      }
     } else {
       bus.news('player', `🔌 ${player.name} geri döndü.`);
     }
@@ -212,7 +226,13 @@ export class Room {
         sprintMultiplier: config.player.sprintMultiplier,
         airDefenseRange: 150,
       },
-      catalog: { ...catalog(), units: UNIT_TYPES, missiles: MISSILE_TYPES },
+      catalog: {
+        ...catalog(),
+        units: UNIT_TYPES,
+        missiles: MISSILE_TYPES,
+        techCost: Object.fromEntries(Object.keys(TECHS).map((k) => [k, { cost: techCost(k, config), hours: techHours(k) }])),
+      },
+      tiles: world.tilesPublic(),
       world: world.publicStatic(),
       buildings: [...world.buildings.values()].map((b) => b.toPublic()),
       npcs: [...world.npcs.values()].map((n) => n.toMeta()),

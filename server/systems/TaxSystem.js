@@ -13,11 +13,22 @@ export class TaxSystem {
     const { incomeTax, salesTax, propertyTax } = world.policy;
     const c = { income: 0, sales: 0, property: 0 };
 
+    const villageTax = {}; // köy sahibi oyuncu -> toplanan vergi
     for (const who of [...world.npcs.values(), ...world.players.values()]) {
       const tax = Math.min(Math.floor(who.earnedToday * incomeTax), Math.max(0, Math.floor(who.balance)));
       who.balance -= tax;
-      c.income += tax;
       who.earnedToday = 0;
+      // Oyuncunun topraklarında yaşayan NPC'nin vergisi köy sahibine gider
+      const home = world.buildings.get(who.homeId);
+      const lord = home && who.job !== undefined ? world.tileAt(home.x, home.z)?.owner : null;
+      const lordP = lord && lord !== 'state' ? world.players.get(lord) : null;
+      if (lordP && lordP !== who) {
+        lordP.balance += tax;
+        villageTax[lordP.id] = (villageTax[lordP.id] ?? 0) + tax;
+      } else c.income += tax;
+    }
+    for (const [pid, amount] of Object.entries(villageTax)) {
+      if (amount > 0) bus.emit('net:private', { playerId: pid, item: { category: 'tax', text: `🏰 Köyünden ${tl(amount)} vergi toplandı.` } });
     }
 
     for (const b of world.buildings.values()) {

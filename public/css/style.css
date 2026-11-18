@@ -317,3 +317,27 @@ html.native { --sal: max(env(safe-area-inset-left, 0px), 26px); --sar: max(env(s
 .crosshair::before { left: 10px; top: 0; width: 2px; height: 22px; }
 .crosshair::after { top: 10px; left: 0; width: 22px; height: 2px; }
 .lock-hint { position: absolute; left: 50%; bottom: calc(14px + var(--sab)); transform: translateX(-50%); font-size: 12px; color: var(--muted); background: rgba(10,12,20,0.6); padding: 6px 12px; border-radius: 20px; pointer-events: none !important; }
+
+/* ---------- Faz 1: çağ, teknoloji, harita ---------- */
+.st-era { font-size: 12px; font-weight: 700; color: #ffd98a; margin: 2px 0; }
+.map-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 19; }
+.map-hint { position: absolute; left: 50%; top: calc(14px + var(--sat)); transform: translateX(-50%); padding: 8px 14px; border-radius: 20px; background: rgba(10,12,20,0.85); font-size: 13px; font-weight: 700; white-space: nowrap; max-width: 92vw; overflow: hidden; text-overflow: ellipsis; }
+.build-card.locked, .tech-card.locked { opacity: 0.5; filter: grayscale(0.7); }
+.era-sec { display: flex; flex-direction: column; gap: 8px; padding: 8px; border-radius: 14px; }
+.era-sec.current { background: rgba(255, 204, 77, 0.07); border: 1px solid rgba(255, 204, 77, 0.3); }
+.era-sec h4 small { color: var(--muted); font-weight: 400; }
+.tech-card { padding: 10px 6px; border-radius: 14px; background: var(--glass2); border: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; }
+.tech-card.known { border-color: rgba(61, 220, 132, 0.6); background: rgba(61, 220, 132, 0.1); }
+.tech-card.ready { border-color: rgba(255, 204, 77, 0.7); box-shadow: 0 0 14px rgba(255, 204, 77, 0.15); }
+.tech-card.busy { border-color: var(--cyan); animation: pulse 1.6s infinite; }
+.tech-card.wait { opacity: 0.75; }
+.tc-icon { font-size: 26px; } .tc-name { font-size: 13px; font-weight: 800; } .tc-status { font-size: 11px; color: var(--muted); }
+.research-bar { padding: 10px; border-radius: 12px; background: rgba(51, 224, 255, 0.1); border: 1px solid rgba(51, 224, 255, 0.4); font-weight: 700; display: flex; flex-direction: column; gap: 6px; }
+.research-bar .bar { height: 8px; border-radius: 6px; background: rgba(255,255,255,0.1); overflow: hidden; }
+.research-bar .bar i { display: block; height: 100%; background: var(--cyan); }
+.actions { grid-template-columns: repeat(2, auto); }
+.actions .btn.big.tech { background: linear-gradient(180deg, rgba(51, 224, 255, 0.85), rgba(30, 120, 200, 0.9)); color: #fff; }
+@media (max-height: 430px) { .actions .btn.big { width: 54px; height: 54px; font-size: 20px; } .actions { gap: 7px; } }
+
+/* Bildirim katmanları asla dokunuşu yakalamasın */
+.hud > .alert-layer, .app-toasts, .alert-layer, .toast, .banner { pointer-events: none !important; }

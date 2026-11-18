@@ -49,6 +49,16 @@ npx cap open android                                         # Android Studio'da
 | İncele | Bir şeye dokun / 🔍 | Tıkla / E |
 | Ordu / Mülkler / Şehir | Sağ alttaki butonlar | M / B / C |
 
+## 🏰 Faz 1: Açık Dünya, Köyler, Teknoloji
+
+- **Açık dünya:** 20×20 parsellik harita. Ova, orman, karlı dağ sıraları, kıvrılan bir nehir ve ortada tarafsız Merkez Kasaba var.
+- **Kendi köyün:** Her oyuncu 3×3 parsellik köyünde başlar: Köy Konağı, evler, pazar, çiftlik, meyhane, boş arsalar ve 8 köylü. Köyde yaşayanların gelir vergisi sana gelir.
+- **Toprak genişletme:** Haritadan (🗺️) ya da zemine dokunarak bir parsel seç → 🧭 **Kaşif Gönder** (kaşif atla gider ve rapor verir) → boşsa ve sınırına komşuysa 🚩 **Sınırı Ör**. Topraklar sınır çitiyle senin renginde çevrilir. Her yeni parsel daha pahalıdır.
+- **Teknoloji ağacı (🔬):** Orta Çağ'dan 2026'ya 8 çağ ve 29 teknoloji. Her deneme %30 şansla tutar, tutmazsa para gider. Çağ ilerledikçe maliyet artar. Teknolojiler bina, birlik, füze ve reklam kanalı açar. Matbaa olmadan şehir haberlerini göremezsin; Telefon ile 📱 uygulaması açılır.
+- **Reklam (📣):** Dükkanını incele → Reklam Ver. Tellal, gazete, radyo, TV, internet ve sosyal medya kanalları var. %40 ihtimalle müşteri akın eder.
+- **Çağa göre ordu:** Kılıçlı asker, okçu, süvari, tüfekli asker, top bataryası, modern piyade, tank.
+- **Kontrol:** PC'de ekrana tıklayınca fareyle bakış (Esc ile çık); mobilde sürükle ve pinch.
+
 ## 🧩 4. Neler var?
 
 **Dünya:** 64 parsellik şehir. Merkezde saray, çevresinde emniyet, banka ve hastane, dışarıda fabrikalar ve cezaevi. 16 farklı bina tipinin her biri ayrı modelle çiziliyor: kiremit çatılı ev, balkonlu apartman, havuzlu villa, otoparklı market, çizgili tenteli kafe, neonlu bar, alt türüne göre silolu / tanklı / bacalı fabrika, kubbeli saray, kuleli cezaevi ve dönen radarlı hava savunma.

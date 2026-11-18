@@ -2,6 +2,16 @@ import { el, tl, pad, clear } from '../core/dom.js';
 import { Minimap } from './Minimap.js';
 
 const CATEGORY_LABELS = { residential: '🏠 Konut', commercial: '🛍️ Ticaret', industrial: '🏭 Sanayi', military: '🪖 Askeri' };
+export function unlocked(catalog, techs, kind, id) {
+  if (catalog.defaultUnlocks?.[kind]?.includes(id)) return true;
+  return (techs ?? []).some((t) => catalog.techs[t]?.unlocks[kind]?.includes(id));
+}
+export function requiredTechLabel(catalog, kind, id) {
+  const e = Object.entries(catalog.techs).find(([, t]) => t.unlocks[kind]?.includes(id));
+  return e ? `${e[1].icon} ${e[1].label}` : '?';
+}
+const hasFeature = (catalog, techs, f) => (techs ?? []).some((t) => catalog.techs[t]?.unlocks.features?.includes(f));
+
 const WEATHER = (h) => (h >= 6 && h < 19 ? (h < 8 || h >= 17 ? '🌅' : '☀️') : '🌙');
 
 /**
@@ -34,13 +44,25 @@ export class GameUI {
     this.elBalance = el('div', { class: 'st-balance' }, '₺0');
     this.elWanted = el('div', { class: 'st-wanted' });
     this.elTitle = el('div', { class: 'st-title' });
-    const status = el('div', { class: 'glass status' }, this.elClock, this.elBalance, el('div', { class: 'st-row' }, this.elTitle, this.elWanted));
+    this.elEra = el('div', { class: 'st-era' });
+    const status = el('div', { class: 'glass status' }, this.elClock, this.elBalance, this.elEra, el('div', { class: 'st-row' }, this.elTitle, this.elWanted));
 
     const roomChip = btn(`🔗 ${this.room.code}`, 'chip room', () => this.share());
     this.canvasMini = el('canvas', { class: 'minimap' });
-    this.canvasMini.addEventListener('click', () => this.canvasMini.classList.toggle('big'));
+    this.canvasMini.addEventListener('click', (e) => {
+      if (this.canvasMini.classList.contains('big')) {
+        const t = this.minimap.tileFromEvent(e);
+        this.canvasMini.classList.remove('big');
+        this.mapBackdrop.classList.add('hidden');
+        if (t) this.h.onInspect('tile', `${t.i},${t.j}`);
+      } else this.openMap();
+    });
+    this.mapBackdrop = el('div', { class: 'map-backdrop hidden', onClick: () => { this.canvasMini.classList.remove('big'); this.mapBackdrop.classList.add('hidden'); } },
+      el('div', { class: 'map-hint' }, '🗺️ Bir parsele dokun: kaşif gönder, sınırını ör ya da kime ait olduğunu gör'));
     const topRight = el('div', { class: 'top-right' },
       el('div', { class: 'icon-row' },
+        btn('🗺️', 'icon', () => this.openMap(), 'Harita'),
+        (this.phoneBtn = btn('📱', 'icon hidden', () => this.openPhone(), 'Telefon')),
         btn('📰', 'icon', () => this.openNews(), 'Haberler'),
         btn('🏆', 'icon', () => this.openCity('rank'), 'Sıralama'),
         btn('⚙️', 'icon', () => this.h.onMenu(), 'Menü')),
@@ -52,6 +74,7 @@ export class GameUI {
     const actions = el('div', { class: 'actions' },
       btn(el('span', {}, '🔍', el('small', {}, 'İncele')), 'big primary', () => this.h.onInteract()),
       btn(el('span', {}, '🏠', el('small', {}, 'Mülklerim')), 'big', () => this.h.onProperties()),
+      btn(el('span', {}, '🔬', el('small', {}, 'Teknoloji')), 'big tech', () => this.openTech()),
       btn(el('span', {}, '⚔️', el('small', {}, 'Ordu')), 'big danger', () => this.openMilitary()),
       btn(el('span', {}, '🏛️', el('small', {}, 'Şehir')), 'big', () => this.openCity('city')));
 
@@ -78,6 +101,7 @@ export class GameUI {
     this.reconnect = el('div', { class: 'reconnect hidden' }, el('div', { class: 'spinner' }), 'Bağlantı koptu, yeniden bağlanılıyor...');
 
     this.hud = el('div', { class: 'hud' },
+      this.mapBackdrop,
       el('div', { class: 'hud-top' }, status, roomChip, topRight),
       this.ticker, this.hint, actions, this.sprintBtn,
       this.sheet, this.targetBar, this.jail, this.nukeOverlay, this.alertLayer, this.modalLayer, this.reconnect);
@@ -116,7 +140,12 @@ export class GameUI {
     this.elWanted.textContent = s.wanted ? '⭐'.repeat(s.wanted) : '';
     this.elWanted.classList.toggle('flash', s.wanted > 0);
     this.elTitle.textContent = s.title ?? 'Vatandaş';
+    const era = this.catalog.eras?.[s.era ?? 1];
+    if (era) this.elEra.textContent = `${era.icon} ${era.label}${s.research ? ` · 🔬 ${s.research.hoursLeft}sa` : ''}`;
+    this.phoneBtn.classList.toggle('hidden', !hasFeature(this.catalog, s.techs, 'phone'));
+    if (prev.era && s.era > prev.era) this.sfx('success');
     this.setJail(s.jailed);
+    if (this.sheetKind === 'tech') this.openTech();
   }
 
   tickBalance(dt) {
@@ -154,6 +183,14 @@ export class GameUI {
 
   // ------------------------------------------------------------------ bildirimler
   news(item) {
+    const literate = hasFeature(this.catalog, this.self.techs, 'news');
+    if (item.private) {
+      if (item.toast) this.toast(item.text, item.toast);
+      if (item.sfx) this.sfx(item.sfx);
+    } else if (!literate && !['war', 'politics'].includes(item.category)) {
+      // Gazetesi olmayan köy şehir dedikodularını duymaz
+      return;
+    }
     this.newsLog.unshift(item);
     this.newsLog.length = Math.min(this.newsLog.length, 60);
     const n = el('div', { class: `news-item cat-${item.category}` }, el('span', { class: 't' }, item.time?.split(' ')[2] ?? ''), item.text);
@@ -190,6 +227,13 @@ export class GameUI {
     setTimeout(() => b.remove(), 5200);
   }
 
+  openMap() {
+    this.closeSheet();
+    this.canvasMini.classList.add('big');
+    this.mapBackdrop.classList.remove('hidden');
+    this.minimap.dirtyBg = true;
+  }
+
   share() {
     const text = `WORLD CHAOS'a gel! Oda kodu: ${this.room.code}`;
     if (navigator.share) navigator.share({ title: 'WORLD CHAOS', text }).catch(() => {});
@@ -201,7 +245,7 @@ export class GameUI {
     return new Promise((resolve) => {
       const close = (v) => { this.modalLayer.classList.add('hidden'); clear(this.modalLayer); resolve(v); };
       clear(this.modalLayer).append(el('div', { class: 'modal glass' },
-        el('p', {}, text),
+        el('p', { style: { whiteSpace: 'pre-line' } }, text),
         el('div', { class: 'row' },
           el('button', { class: 'btn ghost', onClick: () => close(false) }, 'Vazgeç'),
           el('button', { class: 'btn primary', onClick: () => close(true) }, 'Onayla'))));
@@ -300,30 +344,90 @@ export class GameUI {
     for (const o of this.catalog.buildOptions) (groups[o.category] ??= []).push(o);
     const content = Object.entries(groups).map(([cat, opts]) => el('div', { class: 'build-group' },
       el('h4', {}, CATEGORY_LABELS[cat] ?? cat),
-      el('div', { class: 'card-grid' }, ...opts.map((o) => el('button', {
+      el('div', { class: 'card-grid' }, ...opts.map((o) => unlocked(this.catalog, this.self.techs, 'buildings', o.key) ? el('button', {
         class: `build-card ${(this.self.balance ?? 0) < o.cost ? 'poor' : ''}`,
         onClick: () => this.h.onAction({
           type: 'property:build',
           params: { buildingId, type: o.type, subtype: o.subtype },
           input: { title: `${o.icon} ${o.label} · ${tl(o.cost)} · ${o.hours} saat`, fields: [{ key: 'name', label: 'İşletme adı (boş bırakabilirsin)', kind: 'text', value: '' }] },
         }),
-      }, el('div', { class: 'bc-icon' }, o.icon), el('div', { class: 'bc-name' }, o.label), el('div', { class: 'bc-cost' }, tl(o.cost)), el('div', { class: 'bc-time' }, `⏱ ${o.hours} sa`))))));
+      }, el('div', { class: 'bc-icon' }, o.icon), el('div', { class: 'bc-name' }, o.label), el('div', { class: 'bc-cost' }, tl(o.cost)), el('div', { class: 'bc-time' }, `⏱ ${o.hours} sa`))
+        : el('button', { class: 'build-card locked', onClick: () => { this.sfx('error'); this.toast(`🔒 Gerekli: ${requiredTechLabel(this.catalog, 'buildings', o.key)}`, 'warn'); } },
+          el('div', { class: 'bc-icon' }, '🔒'), el('div', { class: 'bc-name' }, o.label), el('div', { class: 'bc-time' }, requiredTechLabel(this.catalog, 'buildings', o.key)))))));
     this.openSheet('build', { icon: '🏗️', title: 'İnşaat', subtitle: 'Arsana ne dikmek istersin?' }, ...content);
   }
 
   openMilitary(myUnits = this.h.myUnitCount?.() ?? 0) {
     const { units, missiles } = this.catalog;
-    const unitCards = Object.entries(units).map(([k, u]) => el('button', { class: 'build-card mil', onClick: () => this.h.onAction({ type: 'military:train', params: { unitType: k } }) },
+    const lockCard = (kind, k, u) => el('button', { class: 'build-card locked', onClick: () => { this.sfx('error'); this.toast(`🔒 Gerekli: ${requiredTechLabel(this.catalog, kind, k)}`, 'warn'); } },
+      el('div', { class: 'bc-icon' }, '🔒'), el('div', { class: 'bc-name' }, u.label), el('div', { class: 'bc-time' }, requiredTechLabel(this.catalog, kind, k)));
+    const unitCards = Object.entries(units).filter(([, u]) => u.combat !== false).map(([k, u]) => !unlocked(this.catalog, this.self.techs, 'units', k) ? lockCard('units', k, u) : el('button', { class: 'build-card mil', onClick: () => this.h.onAction({ type: 'military:train', params: { unitType: k } }) },
       el('div', { class: 'bc-icon' }, u.icon), el('div', { class: 'bc-name' }, u.label), el('div', { class: 'bc-cost' }, tl(u.cost)),
       el('div', { class: 'bc-time' }, `❤️ ${u.hp} · 🎯 ${u.range}m`)));
-    const missileCards = Object.entries(missiles).map(([k, m]) => el('button', { class: `build-card mil ${k === 'nuclear' ? 'nuke' : ''}`, onClick: () => this.h.onTargetMissile(k, m) },
+    const missileCards = Object.entries(missiles).map(([k, m]) => !unlocked(this.catalog, this.self.techs, 'missiles', k) ? lockCard('missiles', k, m) : el('button', { class: `build-card mil ${k === 'nuclear' ? 'nuke' : ''}`, onClick: () => this.h.onTargetMissile(k, m) },
       el('div', { class: 'bc-icon' }, m.icon), el('div', { class: 'bc-name' }, m.label), el('div', { class: 'bc-cost' }, tl(m.cost)),
       el('div', { class: 'bc-time' }, `💥 ${m.radius}m yarıçap`)));
     this.openSheet('military', { icon: '⚔️', title: 'Genelkurmay', subtitle: `${myUnits} birliğin var` },
-      el('p', { class: 'muted' }, 'Birlik üretmek için bir Kışla, füze için Füze Rampası gerekir. Düşman füzelerine karşı Hava Savunma Sistemi kur. (Boş arsa satın al → İnşa Et → Askeri)'),
+      el('p', { class: 'muted' }, 'Birlik üretmek için köyünde bir Kışla kur (boş arsa → İnşa Et → Askeri). Yeni birlikler ve füzeler teknoloji geliştirdikçe açılır.'),
       el('h4', {}, '🪖 Kara Kuvvetleri'), el('div', { class: 'card-grid' }, ...unitCards),
       el('button', { class: 'btn primary wide', onClick: () => this.h.onTargetMove() }, `🎯 Tüm Birliklerimi Konuşlandır (${myUnits})`),
       el('h4', {}, '🚀 Füze Kuvvetleri'), el('div', { class: 'card-grid' }, ...missileCards));
+  }
+
+  openTech() {
+    const c = this.catalog;
+    const techs = this.self.techs ?? [];
+    const r = this.self.research;
+    const chance = 30 + (hasFeature(c, techs, 'research_bonus') ? 5 : 0) + (hasFeature(c, techs, 'ai_research') ? 15 : 0);
+    const sections = [];
+    for (let e = 1; e <= 8; e++) {
+      const era = c.eras[e];
+      const cards = Object.entries(c.techs).filter(([, t]) => t.era === e).map(([id, t]) => {
+        const known = techs.includes(id);
+        const busy = r?.techId === id;
+        const missing = t.requires.filter((q) => !techs.includes(q));
+        const cost = c.techCost[id];
+        let status, cls = '', onClick = null;
+        if (known) { status = '✅ Biliniyor'; cls = 'known'; }
+        else if (busy) { status = `🔬 ${r.hoursLeft} saat kaldı`; cls = 'busy'; }
+        else if (missing.length) { status = `🔒 ${missing.map((q) => c.techs[q].label).join(', ')}`; cls = 'locked'; }
+        else {
+          status = `${tl(cost.cost)} · ⏱${cost.hours}sa`;
+          cls = r ? 'wait' : 'ready';
+          onClick = () => this.h.onAction({ type: 'tech:research', params: { techId: id }, confirm: `${t.icon} ${t.label} araştırılsın mı?\n\nBedel: ${tl(cost.cost)} · Süre: ${cost.hours} oyun saati\nBaşarı şansı: %${chance} — başarısız olursa para geri gelmez.\n\n${t.desc}` });
+        }
+        return el('button', { class: `tech-card ${cls}`, onClick: () => { if (onClick) onClick(); else this.toast(`${t.icon} ${t.label}: ${t.desc}`, 'info'); } },
+          el('div', { class: 'tc-icon' }, t.icon), el('div', { class: 'tc-name' }, t.label), el('div', { class: 'tc-status' }, status));
+      });
+      sections.push(el('div', { class: `era-sec ${e === (this.self.era ?? 1) ? 'current' : ''}` },
+        el('h4', {}, `${era.icon} ${era.label}`, el('small', {}, ` ${era.years}`)),
+        el('div', { class: 'card-grid' }, ...cards)));
+    }
+    this.openSheet('tech', { icon: '🔬', title: 'Teknoloji Ağacı', subtitle: `Başarı şansı %${chance} · ${techs.length}/${Object.keys(c.techs).length} teknoloji` },
+      r ? el('div', { class: 'research-bar' }, `🔬 ${c.techs[r.techId].icon} ${c.techs[r.techId].label} araştırılıyor`, el('div', { class: 'bar' }, el('i', { style: { width: `${Math.round((1 - r.hoursLeft / r.total) * 100)}%` } }))) : el('p', { class: 'muted' }, 'Bir teknoloji seç. Araştırma bitince zar atılır: tutarsa icat senin, tutmazsa para gider ve tekrar denersin.'),
+      ...sections);
+  }
+
+  openAdvertise(buildingId) {
+    const c = this.catalog;
+    const chance = 40 + (hasFeature(c, this.self.techs, 'ad_bonus') ? 10 : 0);
+    const cards = Object.entries(c.ads).map(([k, a]) => unlocked(c, this.self.techs, 'ads', k)
+      ? el('button', { class: 'build-card', onClick: () => this.h.onAction({ type: 'business:advertise', params: { buildingId, channel: k }, confirm: `${a.icon} ${a.label}\nBedel: ${tl(a.cost)} · Başarı şansı %${chance}\nTutarsa ~${a.power} müşteri akın eder ve ${a.hours} saat öne çıkarsın.` }) },
+        el('div', { class: 'bc-icon' }, a.icon), el('div', { class: 'bc-name' }, a.label), el('div', { class: 'bc-cost' }, tl(a.cost)), el('div', { class: 'bc-time' }, `👥 ~${a.power} · ⏱${a.hours}sa`))
+      : el('button', { class: 'build-card locked', onClick: () => this.toast(`🔒 Gerekli: ${requiredTechLabel(c, 'ads', k)}`, 'warn') },
+        el('div', { class: 'bc-icon' }, '🔒'), el('div', { class: 'bc-name' }, a.label), el('div', { class: 'bc-time' }, requiredTechLabel(c, 'ads', k))));
+    this.openSheet('ads', { icon: '📣', title: 'Reklam Ver', subtitle: `Başarı şansı %${chance} · %${100 - chance} ihtimalle tutmaz` }, el('div', { class: 'card-grid' }, ...cards));
+  }
+
+  openPhone() {
+    const items = [
+      { label: '📰 Haberler', onClick: () => this.openNews() },
+      { label: '📣 İşletmelerime Reklam Ver', onClick: () => this.h.onProperties() },
+      { label: '🔬 Teknoloji', onClick: () => this.openTech() },
+      { label: '🗺️ Harita', onClick: () => this.openMap() },
+      { label: '🏆 Sıralama', onClick: () => this.openCity('rank') },
+    ];
+    this.openSheet('phone', { icon: '📱', title: 'Telefon', subtitle: 'Cebindeki dünya' }, ...items.map((i) => el('button', { class: 'btn wide', onClick: i.onClick }, i.label)));
   }
 
   openCity(tab = 'city', refresh = false) {
@@ -361,7 +465,7 @@ export class GameUI {
       body = el('div', { class: 'rank' }, ...c.leaderboard.map((r, i) => el('div', { class: `rank-row ${r.id === this.selfId ? 'me' : ''}` },
         el('span', { class: 'pos' }, ['🥇', '🥈', '🥉'][i] ?? `${i + 1}.`),
         el('span', { class: 'dot', style: { background: r.color } }),
-        el('span', { class: 'nm' }, r.name, el('small', {}, ` ${r.title}${r.online ? '' : ' · 💤'}`)),
+        el('span', { class: 'nm' }, r.name, el('small', {}, ` ${this.catalog.eras?.[r.era ?? 1]?.icon ?? ''} ${r.tiles ?? 0} parsel${r.online ? '' : ' · 💤'}`)),
         el('b', {}, tl(r.netWorth)))));
     }
     this.openSheet(tab, { icon: tab === 'city' ? '🏛️' : '🏆', title: tab === 'city' ? 'Şehir Durumu' : 'Servet Sıralaması', subtitle: `Oda ${this.room.code} · ${this.room.name}` }, tabs, body);

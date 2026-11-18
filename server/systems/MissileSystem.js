@@ -1,5 +1,6 @@
 import { MISSILE_TYPES, AIR_DEFENSE } from '../data/military.js';
 import { BUILDING_TYPES } from '../data/buildingTypes.js';
+import { isUnlocked, requiredTech, TECHS } from '../data/tech.js';
 
 /**
  * Füzeler sunucuda balistik olarak hesaplanır (parabol, deterministik):
@@ -24,6 +25,7 @@ export class MissileSystem {
     const { world, bus } = ctx;
     const def = MISSILE_TYPES[type];
     if (!def) return { ok: false, error: 'Bilinmeyen füze.' };
+    if (!isUnlocked(player, 'missiles', type)) return { ok: false, error: `Önce ${TECHS[requiredTech('missiles', type)]?.label} teknolojisini geliştir.` };
     if (![x, z].every(Number.isFinite)) return { ok: false, error: 'Geçersiz hedef.' };
     const silos = world.buildingsWhere((b) => b.type === 'missile_silo' && b.ownerKind === 'player' && b.ownerId === player.id && b.operational);
     if (!silos.length) return { ok: false, error: 'Önce bir Füze Rampası inşa etmelisin.' };

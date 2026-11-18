@@ -1,3 +1,5 @@
+import { playerEra } from '../data/tech.js';
+
 const r2 = (n) => Math.round(n * 100) / 100;
 
 export class Player {
@@ -30,14 +32,21 @@ export class Player {
     this.title = 'Vatandaş';
     this.isMayor = false;
 
-    // --- İleride: Tech Tree, ülke, ittifak ---
-    this.techLevel = 2;       // MVP: kara ordusu açık
+    // Köy, toprak, teknoloji
+    this.village = null;      // { i, j } köy merkezi parseli
+    this.homeId = null;       // Köy Konağı
+    this.techs = [];          // öğrenilen teknolojiler
+    this.research = null;     // { techId, hoursLeft, total }
+
+    // --- İleride: ülke, ittifak ---
     this.countryId = null;
     this.allianceIds = [];
   }
 
+  get era() { return playerEra(this); }
+
   toPublic() {
-    return { id: this.id, name: this.name, color: this.color, x: this.x, z: this.z, rotY: this.rotY, title: this.title };
+    return { id: this.id, name: this.name, color: this.color, x: this.x, z: this.z, rotY: this.rotY, title: this.title, era: this.era };
   }
 
   toSnapshot() {
@@ -55,6 +64,12 @@ export class Player {
       isMayor: this.isMayor,
       jobBuildingId: this.jobBuildingId,
       owned: this.ownedBuildingIds,
+      techs: this.techs,
+      research: this.research,
+      era: this.era,
+      village: this.village,
+      homeId: this.homeId,
+      ownedTiles: world.ownedTileCount(this.id),
     };
   }
 }

@@ -7,25 +7,60 @@ import { setupOperations } from './BuildingSetup.js';
 const FEMALE = new Set(['Ayşe', 'Fatma', 'Emine', 'Hatice', 'Zeynep', 'Elif', 'Meryem', 'Selin', 'Deniz', 'Ece', 'Gül', 'Derya', 'Sevgi', 'Aslı', 'Büşra', 'Melike', 'Ebru', 'Nur', 'Pınar', 'İrem']);
 
 /**
- * GENESIS
- *  1) Parseller + bölgeler (merkez / orta / dış)
- *  2) Zorunlu yapılar: saray merkezde, devlet binaları merkez halkasında, cezaevi ve fabrikalar dışarıda
- *  3) Minimum ticaret çeşitliliği + parklar + satılık arsalar
- *  4) Geri kalan parseller bölge ağırlıklarıyla
- *  5) NPC'ler: ev, iş, kişilik; patronlar, ev sahipleri, belediye başkanı
+ * GENESIS (açık dünya)
+ *  1) Arazi: ova, orman lekeleri, kenarlarda dağ sıraları, kıvrılan bir nehir
+ *  2) Merkezde tarafsız bir kasaba (devlet binaları, pazar, fabrikalar)
+ *  3) Kasaba nüfusu, patronlar, ilk belediye başkanı
+ * Oyuncu köyleri, oyuncular katıldıkça createVillage() ile kurulur.
  */
 export function generateWorld(world, rng, config) {
-  const lots = buildLots(world);
-  assignTypes(lots, rng);
+  generateTerrain(world, rng, config);
+  const lots = buildLots(world).filter((l) => l.town);
+  assignTownTypes(lots, rng);
   const ctx = { counters: {}, usedNames: {} };
-  for (const lot of lots) {
-    const b = createBuilding(world, rng, config, lot, ctx);
-    world.addBuilding(b);
-  }
+  for (const lot of lots) world.addBuilding(createBuilding(world, rng, config, lot, ctx));
   spawnNpcs(world, rng, config);
   assignOwnership(world, rng, config);
   electFirstMayor(world, rng);
+  world.dirtyTiles.clear();
   return world.stats();
+}
+
+function townRange(world, config) {
+  const ts = config.world.townSize;
+  const a = Math.floor((world.gridSize - ts) / 2);
+  return { a, b: a + ts - 1 };
+}
+
+function generateTerrain(world, rng, config) {
+  const g = world.gridSize;
+  const { a, b } = townRange(world, config);
+  const waves = Array.from({ length: 4 }, () => ({ fx: rng.range(0.15, 0.5), fy: rng.range(0.15, 0.5), px: rng.range(0, 6.28), py: rng.range(0, 6.28) }));
+  const noise = (i, j) => waves.reduce((s, w) => s + Math.sin(i * w.fx + w.px) * Math.cos(j * w.fy + w.py), 0) / waves.length;
+
+  for (const t of world.tiles) {
+    const edge = Math.min(t.i, t.j, g - 1 - t.i, g - 1 - t.j);
+    const n = noise(t.i, t.j);
+    if (edge <= 1 && n > 0.05) t.terrain = 'm';
+    else if (n > 0.32) t.terrain = 'f';
+    else if (n < -0.55 && edge > 2) t.terrain = 'f';
+    else t.terrain = 'p';
+  }
+  // Nehir: kasabanın bir yanından kıvrılarak akar
+  const side = rng.chance(0.5) ? -1 : 1;
+  const rx0 = Math.floor(g / 2) + side * rng.int(4, 6);
+  const ph = rng.range(0, 6.28);
+  for (let j = 0; j < g; j++) {
+    const rx = rx0 + Math.round(1.6 * Math.sin(j * 0.42 + ph));
+    const t = world.tile(rx, j);
+    if (t && !(rx >= a - 1 && rx <= b + 1)) t.terrain = 'w';
+  }
+  // Kasaba: düz ova, devlete ait
+  for (let j = a; j <= b; j++) for (let i = a; i <= b; i++) {
+    const t = world.tile(i, j);
+    t.terrain = 'p';
+    world.setTileOwner(t, 'state');
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -44,55 +79,26 @@ function buildLots(world) {
         r: dist / (gridSize / 2),
         type: null,
         subtype: null,
+        town: world.tile(i, j).owner === 'state',
       });
     }
   }
   return lots;
 }
 
-const ZONES = [
-  { maxR: 0.4,      weights: [['apartment', 4], ['market', 1], ['cafe', 1], ['restaurant', 1], ['bar', 0.6], ['tech_store', 0.4], ['land', 0.3]] },
-  { maxR: 0.78,     weights: [['house', 5], ['apartment', 2], ['villa', 0.8], ['market', 0.6], ['cafe', 0.5], ['land', 0.8], ['park', 0.3]] },
-  { maxR: Infinity, weights: [['house', 3], ['villa', 1], ['factory', 1], ['land', 1.5]] },
-];
+// Merkez kasaba: 16 parsel, her şey bir arada
+const TOWN = ['police', 'prison', 'hospital', 'bank', 'market', 'market', 'restaurant', 'cafe', 'bar',
+  'factory:food', 'factory:drink', 'factory:steel', 'apartment', 'apartment', 'apartment'];
 
-function assignTypes(lots, rng) {
-  const free = (filter = () => true) => rng.shuffle(lots.filter((l) => !l.type && filter(l)));
-  const place = (type, count, filter, subtype = null) => {
-    for (const lot of free(filter).slice(0, count)) {
-      lot.type = type;
-      lot.subtype = subtype;
-    }
-  };
-
-  // Saray en merkezde
-  [...lots].sort((a, b) => a.r - b.r)[0].type = 'palace';
-
-  const inner = (l) => l.r < 0.45;
-  const mid = (l) => l.r >= 0.25 && l.r < 0.8;
-  const outer = (l) => l.r >= 0.75;
-
-  place('police', 1, inner);
-  place('bank', 1, inner);
-  place('hospital', 1, inner);
-  place('prison', 1, outer);
-  for (const sub of Object.keys(FACTORY_SUBTYPES)) place('factory', 1, outer, sub);
-
-  place('market', 3, (l) => l.r < 0.8);
-  place('cafe', 2, (l) => l.r < 0.7);
-  place('restaurant', 2, (l) => l.r < 0.7);
-  place('bar', 2, (l) => l.r < 0.7);
-  place('tech_store', 1, inner);
-  place('gun_shop', 1, mid);
-  place('park', 2, mid);
-  place('land', 4, outer);
-  place('land', 4, mid);
-
-  for (const lot of lots.filter((l) => !l.type)) {
-    const zone = ZONES.find((z) => lot.r < z.maxR);
-    lot.type = rng.weighted(zone.weights);
-    if (lot.type === 'factory') lot.subtype = rng.pick(['food', 'drink', 'steel']);
-  }
+function assignTownTypes(lots, rng) {
+  const byCenter = [...lots].sort((x, y) => x.r - y.r);
+  byCenter[0].type = 'palace';
+  const rest = rng.shuffle(byCenter.slice(1));
+  rest.forEach((lot, k) => {
+    const [type, sub] = (TOWN[k] ?? 'house').split(':');
+    lot.type = type;
+    lot.subtype = sub ?? null;
+  });
 }
 
 function createBuilding(world, rng, config, lot, ctx) {
@@ -253,4 +259,78 @@ function electFirstMayor(world, rng) {
   const mayor = rng.pick(candidates) ?? [...world.npcs.values()][0];
   world.politics.mayor = { kind: 'npc', id: mayor.id, name: mayor.name, party: rng.pick(NPC_MAYOR_PARTIES) };
   world.politics.opposition = { name: `${rng.pick(FIRST_NAMES)} ${rng.pick(LAST_NAMES)}`, party: rng.pick(NPC_MAYOR_PARTIES) };
+}
+
+
+// ---------------------------------------------------------------------------
+// OYUNCU KÖYÜ: 3x3 parsel; merkezde Köy Konağı, etrafında evler, pazar, çiftlik, meyhane, boş arsalar
+const VILLAGE = ['house', 'house', 'house', 'market', 'factory:food', 'bar', 'land', 'land'];
+
+export function createVillage(world, rng, config, player) {
+  const g = world.gridSize;
+  const { a, b } = townRange(world, config);
+  const minD = config.territory.villageMinDistance;
+  const villages = [...world.players.values()].filter((p) => p.village && p !== player).map((p) => p.village);
+  const ok = (ci, cj, dist) => {
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+      const t = world.tile(ci + di, cj + dj);
+      if (!t || t.owner || t.terrain === 'w' || t.terrain === 'm') return false;
+    }
+    const dTown = Math.max(Math.max(a - ci, ci - b, 0), Math.max(a - cj, cj - b, 0));
+    if (dTown < 3) return false;
+    return villages.every((v) => Math.max(Math.abs(v.i - ci), Math.abs(v.j - cj)) >= dist);
+  };
+  let spot = null;
+  for (const dist of [minD, minD - 1, 3]) {
+    const cands = [];
+    for (let cj = 2; cj < g - 2; cj++) for (let ci = 2; ci < g - 2; ci++) if (ok(ci, cj, dist)) cands.push({ i: ci, j: cj });
+    if (cands.length) { spot = rng.pick(cands); break; }
+  }
+  if (!spot) return null;
+
+  const ctx = { counters: { street: world.buildings.size + 100 }, usedNames: {} };
+  const lots = [];
+  for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+    const t = world.tile(spot.i + di, spot.j + dj);
+    if (t.terrain === 'f') t.terrain = 'p';
+    world.setTileOwner(t, player.id);
+    const c = world.lotCenter(t.i, t.j);
+    lots.push({ i: t.i, j: t.j, x: c.x, z: c.z, r: 1, center: di === 0 && dj === 0 });
+  }
+  const types = rng.shuffle(VILLAGE);
+  const created = [];
+  for (const lot of lots) {
+    const [type, sub] = (lot.center ? 'town_hall' : types.pop()).split(':');
+    lot.type = type;
+    lot.subtype = sub ?? null;
+    const bld = createBuilding(world, rng, config, lot, ctx);
+    if (type === 'town_hall') bld.name = `${player.name} Köy Konağı`;
+    else if (type === 'market') bld.name = `${player.name} Pazarı`;
+    else if (type === 'bar') bld.name = `${player.name} Meyhanesi`;
+    else if (type === 'factory') bld.name = `${player.name} Çiftliği`;
+    else if (type === 'land') bld.name = `Arsa · ${player.name} Köyü`;
+    bld.balance = { market: 600, bar: 400, factory: 1000 }[type] ?? 0;
+    bld.forSale = false;
+    world.addBuilding(bld);
+    world.setOwner(bld, 'player', player.id);
+    created.push(bld);
+  }
+  const hall = created.find((x) => x.type === 'town_hall');
+  player.village = { i: spot.i, j: spot.j };
+  player.homeId = hall.id;
+
+  // Köylüler: önce köyün kadroları
+  const villageIds = new Set(created.map((x) => x.id));
+  const slots = vacantSlots(world).filter((s) => villageIds.has(s.buildingId));
+  const homes = created.filter((x) => x.category === 'residential');
+  const npcs = [];
+  for (let k = 0; k < config.genesis.villagersPerPlayer; k++) {
+    const home = homes.find((h) => h.residentIds.length < h.capacity) ?? homes[k % homes.length];
+    if (home.residentIds.length >= home.capacity) home.capacity++;
+    const npc = createRandomNpc(world, rng, config, { home, slot: slots.shift() ?? null, balance: rng.int(80, 400) });
+    npc.plan = {};
+    world.buildings.get(npc.locationId)?.occupants.add(npc.id);
+    npcs.push(npc);
+  }
+  return { hall, buildings: created, npcs };
 }

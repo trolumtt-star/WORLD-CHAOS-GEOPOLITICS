@@ -262,6 +262,11 @@ const SFX = {
     a.noiseBurst({ dur: 3.2, vol: 0.3 * v, type: 'bandpass', freq: 200, freqEnd: 5000, q: 2, attack: 2.8 });
     a.tone({ type: 'sawtooth', freq: 90, freqEnd: 420, dur: 3.2, vol: 0.08 * v, attack: 2.8 });
   },
+  clang: (a, v) => {
+    a.tone({ type: 'square', freq: 1900, freqEnd: 1500, dur: 0.12, vol: 0.06 * v });
+    a.tone({ type: 'triangle', freq: 2600, dur: 0.25, vol: 0.06 * v });
+    a.noiseBurst({ dur: 0.05, vol: 0.15 * v, type: 'highpass', freq: 3500 });
+  },
   whoosh: (a, v) => a.noiseBurst({ dur: 0.6, vol: 0.25 * v, type: 'bandpass', freq: 1600, freqEnd: 250, q: 1.5, attack: 0.15 }),
   built: (a, v) => SFX.success(a, v),
 };

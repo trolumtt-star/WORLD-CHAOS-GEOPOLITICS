@@ -19,6 +19,7 @@ export const EVENTS = Object.freeze({
   ENTITY_SPAWN: 'entity:spawn',       // { kind: 'npc'|'unit'|'vehicle', data }
   ENTITY_REMOVE: 'entity:remove',     // { kind, id, reason }
   BUILDING_UPDATE: 'building:update', // [building public, ...]
+  TERRITORY: 'territory:update',      // [[i, j, owner, terrain], ...]
   FX: 'fx',                           // [{ t: 'shot', ... }] görsel efektler
   MISSILE: 'missile',                 // { t: 'launch'|'intercept'|'destroyed'|'impact', ... }
   ALERT: 'alert',                     // { level, text }

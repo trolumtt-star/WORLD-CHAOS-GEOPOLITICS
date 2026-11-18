@@ -1,5 +1,6 @@
 import { Vehicle } from '../entities/Unit.js';
 import { roadPath, stepAlongPath } from '../world/Pathfinding.js';
+import { hasFeature, playerEra } from '../data/tech.js';
 
 const round2 = (n) => Math.round(n * 100) / 100;
 
@@ -19,7 +20,7 @@ export class LogisticsSystem {
       for (const [product, e] of Object.entries(b.stock)) {
         if (!e.autoRestock || !e.restockTo) continue;
         if (e.qty + e.incoming < e.restockTo * config.economy.restockFraction) {
-          this.order(ctx, b, product, Math.ceil(e.restockTo - e.qty - e.incoming));
+          this.order(ctx, b, product, Math.ceil(e.restockTo - e.qty - e.incoming), { auto: true });
         }
       }
     }
@@ -39,7 +40,7 @@ export class LogisticsSystem {
   }
 
   // Hem otomatik hem oyuncu siparişi buradan geçer
-  order(ctx, b, product, wantQty) {
+  order(ctx, b, product, wantQty, { auto = false } = {}) {
     const { world, bus, config } = ctx;
     const entry = b.stock[product];
     if (!entry) return { ok: false, error: 'Bu ürün burada satılmıyor.' };
@@ -49,7 +50,8 @@ export class LogisticsSystem {
     const sEntry = supplier.stock[product];
     let qty = Math.min(wantQty, Math.floor(sEntry.qty));
     const owner = world.getOwner(b);
-    const wallet = b.ownerKind === 'player' && owner ? owner.balance : 0;
+    // Otomatik sipariş sadece kasadan; elle siparişte kasa yetmezse cüzdan da kullanılır
+    const wallet = !auto && b.ownerKind === 'player' && owner ? owner.balance : 0;
     qty = Math.min(qty, Math.floor((b.balance + wallet) / sEntry.price));
     if (qty <= 0) return { ok: false, error: 'Kasada (ve cüzdanında) yeterli para yok.' };
 
@@ -76,8 +78,9 @@ export class LogisticsSystem {
       fromId: supplier.id,
       toId: b.id,
       path: roadPath(world, supplier.door, b.door),
-      speed: config.economy.truckSpeed,
+      speed: config.economy.truckSpeed * (b.ownerKind === 'player' && owner && hasFeature(owner, 'fast_logistics') ? 1.5 : 1),
     });
+    truck.era = b.ownerKind === 'player' && owner ? playerEra(owner) : 4;
     world.vehicles.set(truck.id, truck);
     bus.emit('net:spawn', { kind: 'vehicle', data: truck.toMeta() });
     return { ok: true, qty, cost, supplier: supplier.name };

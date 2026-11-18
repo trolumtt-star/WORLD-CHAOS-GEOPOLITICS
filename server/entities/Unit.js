@@ -37,6 +37,6 @@ export class Vehicle {
     this.rotY = 0;
   }
 
-  toMeta() { return { id: this.id, kind: this.kind, product: this.product, x: this.x, z: this.z }; }
+  toMeta() { return { id: this.id, kind: this.kind, product: this.product, x: this.x, z: this.z, era: this.era ?? 4 }; }
   toSnapshot() { return [this.id, r1(this.x), r1(this.z), r1(this.rotY)]; }
 }

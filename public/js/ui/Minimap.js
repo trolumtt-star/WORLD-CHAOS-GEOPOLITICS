@@ -13,6 +13,28 @@ export class Minimap {
     this.bg = document.createElement('canvas');
     this.size = 0;
     this.buildings = new Map();
+    this.tiles = null;
+    this.colors = new Map();
+  }
+
+  setTiles(tiles, colors) {
+    this.tiles = tiles;
+    if (colors) this.colors = colors;
+    this.dirtyBg = true;
+  }
+
+  // Ekran koordinatından parsel (büyük harita dokunuşu)
+  tileFromEvent(e) {
+    const r = this.c.getBoundingClientRect();
+    const fx = (e.clientX - r.left) / r.width;
+    const fz = (e.clientY - r.top) / r.height;
+    const extent = this.info.half + 12;
+    const x = fx * extent * 2 - extent;
+    const z = fz * extent * 2 - extent;
+    const i = Math.floor((x + this.info.half) / this.info.blockSize);
+    const j = Math.floor((z + this.info.half) / this.info.blockSize);
+    if (i < 0 || j < 0 || i >= this.info.gridSize || j >= this.info.gridSize) return null;
+    return { i, j };
   }
 
   setBuildings(map) {
@@ -42,22 +64,48 @@ export class Minimap {
     g.fillStyle = '#25331f';
     g.fillRect(0, 0, s, s);
     const { half, blockSize, gridSize } = this.info;
-    g.strokeStyle = '#4a4d55';
-    g.lineWidth = Math.max(1, s / 90);
-    for (let i = 0; i <= gridSize; i++) {
-      const p = -half + i * blockSize;
-      const [a] = this.toMap(p, 0);
-      const [, b] = this.toMap(0, p);
-      g.beginPath(); g.moveTo(a, 0); g.lineTo(a, s); g.stroke();
-      g.beginPath(); g.moveTo(0, b); g.lineTo(s, b); g.stroke();
-    }
     const k = s / ((this.info.half + 12) * 2);
+    if (this.tiles) {
+      const TC = { p: '#6f9a58', f: '#3f6f32', m: '#8d877b', w: '#2f86c4' };
+      for (const t of this.tiles) {
+        const [x, y] = this.toMap(-half + t.i * blockSize, -half + t.j * blockSize);
+        const sz = blockSize * k + 0.5;
+        g.fillStyle = TC[t.terrain] ?? TC.p;
+        g.fillRect(x, y, sz, sz);
+        if (t.owner) {
+          g.fillStyle = t.owner === 'state' ? 'rgba(220,220,220,0.35)' : hexA(this.colors.get(t.owner) ?? '#ffffff', 0.45);
+          g.fillRect(x, y, sz, sz);
+        }
+      }
+      // sınır çizgileri
+      g.lineWidth = Math.max(1, s / 160);
+      for (const t of this.tiles) {
+        if (!t.owner || t.owner === 'state') continue;
+        const [x, y] = this.toMap(-half + t.i * blockSize, -half + t.j * blockSize);
+        const sz = blockSize * k;
+        g.strokeStyle = this.colors.get(t.owner) ?? '#fff';
+        const n = (di, dj) => this.tiles[(t.j + dj) * gridSize + (t.i + di)];
+        const edge = (di, dj) => { const o = (t.i + di < 0 || t.j + dj < 0 || t.i + di >= gridSize || t.j + dj >= gridSize) ? null : n(di, dj); return o?.owner !== t.owner; };
+        g.beginPath();
+        if (edge(0, -1)) { g.moveTo(x, y); g.lineTo(x + sz, y); }
+        if (edge(0, 1)) { g.moveTo(x, y + sz); g.lineTo(x + sz, y + sz); }
+        if (edge(-1, 0)) { g.moveTo(x, y); g.lineTo(x, y + sz); }
+        if (edge(1, 0)) { g.moveTo(x + sz, y); g.lineTo(x + sz, y + sz); }
+        g.stroke();
+      }
+    }
     for (const b of this.buildings.values()) {
       const cat = this.catalog.buildings[b.type]?.category ?? 'residential';
       const [x, y] = this.toMap(b.x, b.z);
+      if (b.type === 'land') continue;
       g.fillStyle = b.destroyed ? '#2a2a2a' : CAT_COLORS[cat];
       g.fillRect(x - (b.width * k) / 2, y - (b.depth * k) / 2, b.width * k, b.depth * k);
-      if (b.ownerId) {
+      if (b.type === 'town_hall') {
+        g.fillStyle = this.colors.get(b.ownerId) ?? '#fff';
+        g.beginPath(); g.arc(x, y, s / 45, 0, Math.PI * 2); g.fill();
+        g.strokeStyle = '#000'; g.lineWidth = 1.5; g.stroke();
+      }
+      if (b.ownerId && b.type !== 'town_hall') {
         g.strokeStyle = b.ownerId === selfId ? '#ffd34d' : '#ff4d4d';
         g.lineWidth = Math.max(1.5, s / 70);
         g.strokeRect(x - (b.width * k) / 2, y - (b.depth * k) / 2, b.width * k, b.depth * k);
@@ -113,4 +161,9 @@ export class Minimap {
       g.restore();
     }
   }
+}
+
+function hexA(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }

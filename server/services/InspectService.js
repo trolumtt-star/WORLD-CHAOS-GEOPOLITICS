@@ -2,6 +2,8 @@ import { JOBS, ACTIVITY_LABELS, inHours } from '../data/jobs.js';
 import { PRODUCTS } from '../data/products.js';
 import { labelOf } from '../data/buildingTypes.js';
 import { UNIT_TYPES } from '../data/military.js';
+import { ERAS, TECHS, playerEra } from '../data/tech.js';
+import { TERRAIN_LABELS } from '../systems/TerritorySystem.js';
 
 const tl = (n) => `₺${Math.round(n).toLocaleString('tr-TR')}`;
 const pad = (n) => String(n).padStart(2, '0');
@@ -20,6 +22,7 @@ export function describe(ctx, kind, id, player) {
   if (kind === 'building') return describeBuilding(ctx, e, player);
   if (kind === 'npc') return describeNpc(ctx, e);
   if (kind === 'player') return describePlayer(ctx, e);
+  if (kind === 'tile') return describeTile(ctx, e, player);
   if (kind === 'unit') {
     const owner = world.players.get(e.ownerId);
     return { kind, id, icon: UNIT_TYPES[e.type].icon, title: UNIT_TYPES[e.type].label, subtitle: owner?.name ?? '?', rows: [['Can', `${Math.round((e.hp / e.maxHp) * 100)}%`], ['Menzil', `${e.def.range} m`]], actions: [] };
@@ -62,6 +65,17 @@ function describeBuilding(ctx, b, p) {
     rows.push(['Seçim', `Gün ${world.politics.nextElectionDay}`]);
     rows.push(['Vergiler', `Gelir %${Math.round(world.policy.incomeTax * 100)} · KDV %${Math.round(world.policy.salesTax * 100)} · Emlak ‰${(world.policy.propertyTax * 1000).toFixed(1)}`]);
   }
+  if (b.type === 'town_hall') {
+    const owner = world.getOwner(b);
+    if (owner) {
+      const era = ERAS[playerEra(owner)];
+      rows.push(['Çağ', `${era.icon} ${era.label} (${era.years})`]);
+      rows.push(['Toprak', `${world.ownedTileCount(owner.id)} parsel`]);
+      rows.push(['Teknoloji', `${owner.techs.length}/${Object.keys(TECHS).length}`]);
+      if (owner.research) rows.push(['Araştırılıyor', `${TECHS[owner.research.techId].icon} ${TECHS[owner.research.techId].label} · ${owner.research.hoursLeft} saat`]);
+    }
+  }
+  if ((b.adUntil ?? 0) > world.clockHours()) rows.push(['Reklam', `📣 ${b.adUntil - world.clockHours()} saat daha etkili`]);
   if (b.crimeHeat > 1) rows.push(['Suç riski', '⚠️'.repeat(Math.min(3, Math.round(b.crimeHeat / 2)))]);
 
   const actions = [];
@@ -82,6 +96,11 @@ function describeBuilding(ctx, b, p) {
   let manage = null;
   if (isOwner) {
     if (b.type === 'land' && !b.construction) actions.push({ label: '🏗️ İnşa Et', ui: 'build', params: { buildingId: b.id }, style: 'primary' });
+    if (b.type === 'town_hall') {
+      actions.push({ label: '🔬 Teknoloji Ağacı', ui: 'tech', params: {}, style: 'primary' });
+      actions.push({ label: '🗺️ Toprak Genişlet (Harita)', ui: 'map', params: {} });
+    }
+    if (b.category === 'commercial' && b.operational) actions.push({ label: '📣 Reklam Ver', ui: 'advertise', params: { buildingId: b.id } });
     if (b.destroyed) A('🧹 Enkazı Kaldır · ₺500', 'property:clear', {}, { style: 'primary' });
     if (b.type === 'barracks' && b.operational) actions.push({ label: '🪖 Ordu Komutası', ui: 'military', params: {}, style: 'primary' });
     if (b.type === 'missile_silo' && b.operational) actions.push({ label: '🚀 Füze Komutası', ui: 'missiles', params: {}, style: 'danger' });
@@ -93,7 +112,7 @@ function describeBuilding(ctx, b, p) {
       A('🏦 Kasaya Koy', 'property:deposit', {}, { style: 'ghost', input: { title: 'Kasaya para koy', fields: [{ key: 'amount', label: 'Tutar', kind: 'number', min: 1, max: Math.floor(p.balance), value: 500 }] } });
       manage = buildManage(ctx, b);
     }
-    if (b.forSale) A('❌ İlanı Kaldır', 'property:unlist', {}, { style: 'ghost' });
+    if (b.type === 'town_hall') { /* konak satılamaz */ } else if (b.forSale) A('❌ İlanı Kaldır', 'property:unlist', {}, { style: 'ghost' });
     else A('📢 Satışa Çıkar', 'property:list', {}, { style: 'ghost', input: { title: 'Satış fiyatı', fields: [{ key: 'price', label: 'Fiyat (₺)', kind: 'number', min: 1, value: Math.round(b.value * 1.2) }] } });
   } else if (b.operational) {
     const staff = def.staff;
@@ -156,6 +175,32 @@ function buildManage(ctx, b) {
       };
     }),
   };
+}
+
+function describeTile({ world, engine }, t, p) {
+  const ter = engine.getSystem('territory');
+  const ownerName = t.owner === 'state' ? '🏛️ Merkez Kasaba' : t.owner ? (world.players.get(t.owner)?.name ?? '?') : '— Sahipsiz —';
+  const explored = t.exploredBy.has(p.id);
+  const rows = [
+    ['Arazi', TERRAIN_LABELS[t.terrain]],
+    ['Sahibi', ownerName],
+    ['Konum', `Parsel ${t.i}-${t.j}`],
+    ['Keşif', explored ? '✅ Keşfedildi' : '❔ Keşfedilmedi'],
+  ];
+  const actions = [];
+  const params = { i: t.i, j: t.j };
+  if (!t.owner && t.terrain !== 'w') {
+    const adj = ter.isAdjacent(world, t, p.id);
+    rows.push(['Sınırına komşu', adj ? 'Evet' : 'Hayır']);
+    if (!explored) actions.push({ label: `🧭 Kaşif Gönder · ₺${world.config.territory.scoutCost}`, type: 'explore:scout', params, style: 'primary' });
+    else if (adj) {
+      const cost = ter.claimCost({ world, config: world.config }, p);
+      actions.push({ label: `🚩 Sınırı Ör ve Sahiplen · ₺${cost.toLocaleString('tr-TR')}`, type: 'territory:claim', params, style: 'primary', confirm: `Bu parseli ₺${cost.toLocaleString('tr-TR')} karşılığında topraklarına katmak istiyor musun?` });
+    }
+  }
+  const b = world.buildings.get(t.buildingId);
+  if (b) actions.push({ label: `🔍 ${b.name}`, inspect: { kind: 'building', id: b.id }, params: {} });
+  return { kind: 'tile', id: `${t.i},${t.j}`, icon: TERRAIN_LABELS[t.terrain].split(' ')[0], title: `${TERRAIN_LABELS[t.terrain].split(' ')[1]} · ${t.i}-${t.j}`, subtitle: ownerName, rows, actions };
 }
 
 function describeNpc({ world }, n) {

@@ -2,6 +2,7 @@ import { BUILDING_TYPES, FACTORY_SUBTYPES, buildOptions } from '../data/building
 import { PRODUCTS } from '../data/products.js';
 import { buildingMaxHp } from '../data/military.js';
 import { makeName } from '../world/WorldGenerator.js';
+import { TECHS, ERAS, ADS, DEFAULT_UNLOCKS, isUnlocked, requiredTech, adChance, techCost, techHours } from '../data/tech.js';
 
 /**
  * Oyuncu eylemleri. Her handler: (ctx, player, params) => { ok, error?, message? }
@@ -55,6 +56,7 @@ export const ACTIONS = {
     if (b.type !== 'land' || b.construction) return fail('Sadece boş arsaya inşaat yapılabilir.');
     const opt = buildOptions().find((o) => o.type === type && (o.subtype ?? null) === (subtype ?? null));
     if (!opt) return fail('Geçersiz yapı tipi.');
+    if (!isUnlocked(p, 'buildings', opt.key)) return fail(`Önce ${TECHS[requiredTech('buildings', opt.key)]?.label} teknolojisini geliştir.`);
     if (!pay(ctx, p, opt.cost)) return fail(`Yetersiz bakiye (${tl(opt.cost)} gerekli).`);
 
     const def = BUILDING_TYPES[type];
@@ -138,6 +140,53 @@ export const ACTIONS = {
     b.balance += v;
     ctx.world.touchPlayer(p);
     return { ok: true, message: `${tl(v)} kasaya kondu.` };
+  },
+
+  // ---------------- TEKNOLOJİ / TOPRAK ----------------
+  'tech:research'(ctx, p, { techId }) {
+    return ctx.engine.getSystem('tech').start(ctx, p, techId);
+  },
+
+  'explore:scout'(ctx, p, { i, j }) {
+    return ctx.engine.getSystem('territory').scout(ctx, p, Number(i), Number(j));
+  },
+
+  'territory:claim'(ctx, p, { i, j }) {
+    return ctx.engine.getSystem('territory').claim(ctx, p, Number(i), Number(j));
+  },
+
+  // ---------------- REKLAM ----------------
+  'business:advertise'(ctx, p, { buildingId, channel }) {
+    const { world, rng, bus, engine } = ctx;
+    const [b, err] = ownedBuilding(ctx, p, buildingId);
+    if (err) return err;
+    if (b.category !== 'commercial' || !b.operational) return fail('Sadece faal dükkanlar reklam verebilir.');
+    const ad = ADS[channel];
+    if (!ad) return fail('Geçersiz reklam kanalı.');
+    if (!isUnlocked(p, 'ads', channel)) return fail(`Bu kanal için ${TECHS[requiredTech('ads', channel)]?.label} gerekli.`);
+    if (!pay(ctx, p, ad.cost)) return fail(`Reklam bütçesi yetersiz (${tl(ad.cost)}).`);
+    if (!rng.chance(adChance(p))) {
+      bus.news('ads', `📣 ${b.name} reklam verdi ama kimse ilgilenmedi.`);
+      return { ok: true, message: `😕 Reklam tutmadı... (başarı şansı %${Math.round(adChance(p) * 100)}). Para gitti.`, sfx: 'error' };
+    }
+    const now = world.clockHours();
+    b.adUntil = now + ad.hours;
+    // Müşteri akını: uygun NPC'ler dükkana yönelir
+    const activity = { market: 'buy_food', cafe: 'eat_out', restaurant: 'eat_out', bar: 'leisure', tech_store: 'luxury', gun_shop: 'weapon' }[b.type] ?? 'buy_food';
+    const product = Object.keys(b.stock).find((k) => b.stock[k].sell);
+    const price = b.stock[product]?.price ?? 0;
+    const hour = world.hour();
+    const awake = hour >= 7 && hour < 23;
+    const brain = engine.getSystem('npcBrain');
+    const crowd = rng.shuffle([...world.npcs.values()].filter((n) => n.jailedUntil <= now && n.balance >= price && (n.activity !== 'work') && awake)).slice(0, ad.power);
+    for (const n of crowd) {
+      n.targets[activity] = b.id;
+      if (activity === 'luxury') n.plan.luxury = true;
+      if (activity === 'leisure') n.plan.goesOut = true;
+      brain.sendTo(n, { activity, buildingId: b.id }, ctx);
+    }
+    bus.news('ads', `📣 ${ad.icon} ${b.name} reklamı tuttu! ${crowd.length ? `${crowd.length} müşteri yola çıktı.` : 'Sabah müşteri akını bekleniyor.'}`);
+    return { ok: true, message: `🎉 Reklam tuttu! ${crowd.length} müşteri geliyor, ${ad.hours} saat boyunca dükkanın öne çıkacak.`, sfx: 'cash' };
   },
 
   // ---------------- DÜKKAN YÖNETİMİ ----------------
@@ -317,5 +366,7 @@ export function catalog() {
   for (const [k, d] of Object.entries(BUILDING_TYPES)) buildings[k] = { label: d.label, icon: d.icon, category: d.category };
   const factories = {};
   for (const [k, d] of Object.entries(FACTORY_SUBTYPES)) factories[k] = { label: d.label, output: d.output };
-  return { buildOptions: buildOptions(), buildings, factories, products: PRODUCTS };
+  const techs = {};
+  for (const [k, t] of Object.entries(TECHS)) techs[k] = { ...t };
+  return { buildOptions: buildOptions(), buildings, factories, products: PRODUCTS, techs, eras: ERAS, ads: ADS, defaultUnlocks: DEFAULT_UNLOCKS };
 }

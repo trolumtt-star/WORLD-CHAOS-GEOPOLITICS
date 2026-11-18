@@ -31,6 +31,14 @@ export class World {
     this.politics = { mayor: null, candidates: [], nextElectionDay: 1 + config.politics.electionEveryDays, lastResult: null };
 
     this.ids = { palace: null, police: null, prison: null, hospital: null, bank: null };
+
+    // Açık dünya parselleri: arazi + toprak sahibi
+    // terrain: 'p' ova · 'f' orman · 'm' dağ · 'w' su
+    this.tiles = [];
+    for (let j = 0; j < gridSize; j++) {
+      for (let i = 0; i < gridSize; i++) this.tiles.push({ i, j, terrain: 'p', owner: null, buildingId: null, exploredBy: new Set() });
+    }
+    this.dirtyTiles = new Set();
     this.dirtyBuildings = new Set();
     this.dirtyPlayers = new Set();
     this._counters = {};
@@ -44,9 +52,38 @@ export class World {
   clockHours() { return this.clock ? this.clock.totalHours : 0; }
   hour() { return this.clock ? this.clock.hour : 0; }
 
+  // ---------- Parseller ----------
+  tile(i, j) {
+    if (i < 0 || j < 0 || i >= this.gridSize || j >= this.gridSize) return null;
+    return this.tiles[j * this.gridSize + i];
+  }
+  tileAt(x, z) {
+    return this.tile(Math.floor((x + this.half) / this.blockSize), Math.floor((z + this.half) / this.blockSize));
+  }
+  lotCenter(i, j) {
+    return { x: -this.half + i * this.blockSize + this.blockSize / 2, z: -this.half + j * this.blockSize + this.blockSize / 2 };
+  }
+  neighbors(t) {
+    return [this.tile(t.i + 1, t.j), this.tile(t.i - 1, t.j), this.tile(t.i, t.j + 1), this.tile(t.i, t.j - 1)].filter(Boolean);
+  }
+  setTileOwner(t, owner) {
+    t.owner = owner;
+    this.dirtyTiles.add(t.j * this.gridSize + t.i);
+  }
+  ownedTileCount(ownerId) {
+    let n = 0;
+    for (const t of this.tiles) if (t.owner === ownerId) n++;
+    return n;
+  }
+  tilesPublic() {
+    return { terrain: this.tiles.map((t) => t.terrain).join(''), owners: this.tiles.map((t) => t.owner) };
+  }
+
   // ---------- Kayıt ----------
   addBuilding(b) {
     this.buildings.set(b.id, b);
+    const t = this.tileAt(b.x, b.z);
+    if (t) t.buildingId = b.id;
     if (b.type in this.ids && !this.ids[b.type]) this.ids[b.type] = b.id;
   }
   addNpc(npc) { this.npcs.set(npc.id, npc); }
@@ -107,6 +144,7 @@ export class World {
     if (kind === 'building') return this.buildings.get(id);
     if (kind === 'player') return this.players.get(id);
     if (kind === 'unit') return this.units.get(id);
+    if (kind === 'tile') { const [i, j] = String(id).split(',').map(Number); return this.tile(i, j); }
     return undefined;
   }
 

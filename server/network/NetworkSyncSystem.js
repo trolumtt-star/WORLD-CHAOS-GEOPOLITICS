@@ -28,6 +28,10 @@ export class NetworkSyncSystem {
     bus.on('net:fx', (e) => this.fx.push(e));
     bus.on('net:missile', (e) => this.room.emit(EVENTS.MISSILE, e));
     bus.on('net:alert', (e) => this.room.emit(EVENTS.ALERT, e));
+    bus.on('net:private', ({ playerId, item }) => {
+      const p = ctx.world.players.get(playerId);
+      if (p?.socketId) this.io.to(p.socketId).emit(EVENTS.NEWS, { ...item, private: true, time: ctx.clock.label() });
+    });
     bus.on('net:teleport', ({ playerId, x, z }) => {
       const p = ctx.world.players.get(playerId);
       if (p?.socketId) this.io.to(p.socketId).emit(EVENTS.PLAYER_CORRECTION, { x, z, teleport: true });
@@ -38,6 +42,7 @@ export class NetworkSyncSystem {
     this.tick++;
     const online = [...world.players.values()].filter((p) => p.online);
     if (!online.length) {
+      world.dirtyTiles.clear();
       world.dirtyBuildings.clear();
       world.dirtyPlayers.clear();
       this.fx.length = 0;
@@ -64,6 +69,16 @@ export class NetworkSyncSystem {
       this.room.emit(EVENTS.BUILDING_UPDATE, list);
     }
 
+    if (world.dirtyTiles.size) {
+      const list = [];
+      for (const k of world.dirtyTiles) {
+        const t = world.tiles[k];
+        list.push([t.i, t.j, t.owner, t.terrain]);
+      }
+      world.dirtyTiles.clear();
+      this.room.emit(EVENTS.TERRITORY, list);
+    }
+
     if (world.dirtyPlayers.size) {
       for (const id of world.dirtyPlayers) {
         const p = world.players.get(id);
@@ -87,7 +102,7 @@ export function buildClockPayload({ world, clock }) {
   const leaderboard = [...world.players.values()].map((p) => {
     let assets = 0;
     for (const id of p.ownedBuildingIds) assets += world.buildings.get(id)?.value ?? 0;
-    return { id: p.id, name: p.name, color: p.color, online: p.online, title: p.title, netWorth: Math.round(p.balance + assets) };
+    return { id: p.id, name: p.name, color: p.color, online: p.online, title: p.title, era: p.era, tiles: world.ownedTileCount(p.id), netWorth: Math.round(p.balance + assets) };
   }).sort((a, b) => b.netWorth - a.netWorth);
 
   const pol = world.politics;

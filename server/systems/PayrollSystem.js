@@ -61,12 +61,7 @@ export class PayrollSystem {
       employer.balance -= wage;
       return true;
     }
-    const owner = world.getOwner(employer);
-    if (employer.ownerKind === 'player' && owner && owner.balance >= wage) {
-      owner.balance -= wage;
-      world.touchPlayer(owner);
-      return true;
-    }
+    // Oyuncu işletmesi kendi kasasıyla döner (cüzdanı otomatik eritmez); kasaya para koymak oyuncunun kararı
     return false;
   }
 

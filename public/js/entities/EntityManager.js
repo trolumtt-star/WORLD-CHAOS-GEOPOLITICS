@@ -53,12 +53,127 @@ function animateWalk(g, speed, dt) {
   L.armR.rotation.x = a * 0.8;
 }
 
+// ----------------------------------------------------------------------- at
+function makeHorse(color = 0x6b4226) {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.8 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x2b1d12 });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.1, 2.6), mat);
+  body.position.y = 1.7;
+  const neck = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.3, 0.6), mat);
+  neck.position.set(0, 2.5, 1.2);
+  neck.rotation.x = 0.5;
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 1.0), mat);
+  head.position.set(0, 3.0, 1.75);
+  const mane = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.1, 0.5), dark);
+  mane.position.set(0, 2.7, 1.0);
+  mane.rotation.x = 0.5;
+  g.add(body, neck, head, mane);
+  const legs = [];
+  for (const [x, z] of [[-0.4, 1], [0.4, 1], [-0.4, -1], [0.4, -1]]) {
+    const pivot = new THREE.Group();
+    pivot.position.set(x, 1.2, z);
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.25, 1.2, 0.25), mat);
+    leg.position.y = -0.6;
+    pivot.add(leg);
+    g.add(pivot);
+    legs.push(pivot);
+  }
+  g.traverse((m) => { if (m.isMesh) m.castShadow = true; });
+  g.userData.legs = legs;
+  g.userData.phase = Math.random() * 10;
+  return g;
+}
+
+function animateHorse(h, speed, dt) {
+  const L = h?.userData.legs;
+  if (!L) return;
+  h.userData.phase += dt * (8 + speed * 0.5);
+  const a = speed > 0.5 ? Math.sin(h.userData.phase) * 0.6 : 0;
+  L[0].rotation.x = a; L[3].rotation.x = a; L[1].rotation.x = -a; L[2].rotation.x = -a;
+}
+
 // ----------------------------------------------------------------------- askeri modeller
+const SOLDIER_LOOK = {
+  swordsman: { shirt: 0x8a8f99, pants: 0x4a3a2a, helmet: 0x9aa0a6, weapon: 'sword' },
+  archer:    { shirt: 0x3d6b2f, pants: 0x4a3a2a, helmet: 0x4a6b2f, weapon: 'bow' },
+  musketeer: { shirt: 0x2a4a8a, pants: 0xe8e2d4, helmet: 0x1a1a1a, weapon: 'musket' },
+  infantry:  { shirt: 0x556b2f, pants: 0x3d4a24, helmet: 0x556b2f, weapon: 'rifle' },
+};
+
+function makeSoldier(type, team) {
+  const look = SOLDIER_LOOK[type] ?? SOLDIER_LOOK.infantry;
+  const s = makeCharacter(look.shirt, { scale: 0.7, pants: look.pants, skin: 0xe0ac69 });
+  const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.48, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: look.helmet, metalness: type === 'swordsman' ? 0.6 : 0 }));
+  helmet.position.y = 2.7;
+  const band = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.2, 0.3), team);
+  band.position.set(-0.66, 1.9, 0);
+  s.add(helmet, band);
+  const steel = new THREE.MeshStandardMaterial({ color: 0xd0d4d8, metalness: 0.8, roughness: 0.3 });
+  const wood = new THREE.MeshStandardMaterial({ color: 0x6b4a2e });
+  if (look.weapon === 'sword') {
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.4, 0.18), steel);
+    blade.position.set(0.7, 2.2, 0.45);
+    const shield = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.12, 12).rotateZ(Math.PI / 2), team);
+    shield.position.set(-0.85, 1.8, 0.2);
+    s.add(blade, shield);
+  } else if (look.weapon === 'bow') {
+    const bow = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.05, 4, 12, Math.PI), wood);
+    bow.position.set(-0.7, 2.0, 0.4);
+    bow.rotation.y = Math.PI / 2;
+    const quiver = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.9, 6), wood);
+    quiver.position.set(0.2, 2.1, -0.45);
+    s.add(bow, quiver);
+  } else {
+    const len = look.weapon === 'musket' ? 1.9 : 1.3;
+    const gun = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, len), new THREE.MeshStandardMaterial({ color: look.weapon === 'musket' ? 0x5a3b22 : 0x1a1a1a }));
+    gun.position.set(0.4, 1.8, 0.5);
+    s.add(gun);
+  }
+  return s;
+}
+
 function makeUnit(type, color) {
   const g = new THREE.Group();
   const olive = new THREE.MeshStandardMaterial({ color: 0x556b2f, roughness: 0.8 });
   const team = new THREE.MeshStandardMaterial({ color, roughness: 0.6 });
-  if (type === 'tank') {
+  if (type === 'cavalry' || type === 'scout') {
+    const horse = makeHorse(type === 'scout' ? 0xa0703a : 0x3a2a1a);
+    const rider = makeSoldier(type === 'scout' ? 'archer' : 'swordsman', team);
+    rider.position.set(0, 1.2, -0.1);
+    rider.userData.limbs.legL.rotation.z = 0.9;
+    rider.userData.limbs.legR.rotation.z = -0.9;
+    g.add(horse, rider);
+    if (type === 'scout') {
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 3), new THREE.MeshStandardMaterial({ color: 0x5a3b22 }));
+      pole.position.set(0.6, 3.6, -0.4);
+      const flag = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.7), new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide }));
+      flag.position.set(1.2, 4.7, -0.4);
+      g.add(pole, flag);
+    }
+    g.userData.horse = horse;
+  } else if (type === 'cannon') {
+    const wood = new THREE.MeshStandardMaterial({ color: 0x6b4a2e });
+    const iron = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, metalness: 0.6, roughness: 0.4 });
+    const carriage = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.6, 3), wood);
+    carriage.position.y = 1;
+    const turret = new THREE.Group();
+    turret.position.y = 1.5;
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.45, 3.2, 10).rotateX(Math.PI / 2), iron);
+    barrel.position.z = 0.8;
+    barrel.rotation.x = -0.15;
+    turret.add(barrel);
+    for (const x of [-0.9, 0.9]) {
+      const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 0.2, 14).rotateZ(Math.PI / 2), wood);
+      wheel.position.set(x, 0.9, -0.2);
+      g.add(wheel);
+    }
+    const crew = makeSoldier('musketeer', team);
+    crew.position.set(-1.6, 0, -1.4);
+    g.add(carriage, turret, crew);
+    g.userData.turret = turret;
+    g.userData.soldiers = [crew];
+  } else if (type === 'tank') {
     const dark = new THREE.MeshStandardMaterial({ color: 0x22251f });
     const hull = new THREE.Mesh(new THREE.BoxGeometry(3.6, 1.3, 6), olive);
     hull.position.y = 1.2;
@@ -79,29 +194,41 @@ function makeUnit(type, color) {
     g.userData.turret = turret;
     g.traverse((m) => { if (m.isMesh) m.castShadow = true; });
   } else {
-    // Piyade mangası: 4 asker
+    // Manga: 4 asker (kılıçlı / okçu / tüfekli / modern)
     const offsets = [[0, 1.2], [-1.2, 0], [1.2, 0], [0, -1.2]];
     g.userData.soldiers = [];
     for (const [x, z] of offsets) {
-      const s = makeCharacter(0x556b2f, { scale: 0.7, pants: 0x3d4a24, skin: 0xe0ac69 });
+      const s = makeSoldier(type, team);
       s.position.set(x, 0, z);
-      const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.48, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), olive);
-      helmet.position.y = 2.7;
-      const band = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.2, 0.3), team);
-      band.position.set(-0.66, 1.9, 0);
-      const rifle = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 1.3), new THREE.MeshStandardMaterial({ color: 0x1a1a1a }));
-      rifle.position.set(0.4, 1.8, 0.5);
-      s.add(helmet, band, rifle);
       g.add(s);
       g.userData.soldiers.push(s);
     }
   }
   const hp = new THREE.Sprite(new THREE.SpriteMaterial({ color: 0x3dff6a, depthTest: false }));
   hp.scale.set(3, 0.3, 1);
-  hp.position.y = type === 'tank' ? 4.5 : 3.4;
+  hp.position.y = type === 'tank' ? 4.5 : type === 'cavalry' || type === 'scout' ? 5 : 3.4;
   hp.renderOrder = 20;
   g.add(hp);
   g.userData.hpBar = hp;
+  return g;
+}
+
+function makeCart(product) {
+  const g = new THREE.Group();
+  const wood = new THREE.MeshStandardMaterial({ color: 0x8a5a2e });
+  const bed = new THREE.Mesh(new THREE.BoxGeometry(2, 0.9, 3), wood);
+  bed.position.set(0, 1.4, -1.2);
+  const load = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.8, 2.6), new THREE.MeshStandardMaterial({ color: PRODUCT_COLORS[product] ?? 0xc8b68a }));
+  load.position.set(0, 2.2, -1.2);
+  for (const x of [-1.1, 1.1]) {
+    const w = new THREE.Mesh(new THREE.CylinderGeometry(0.85, 0.85, 0.15, 12).rotateZ(Math.PI / 2), wood);
+    w.position.set(x, 0.85, -1.2);
+    g.add(w);
+  }
+  const horse = makeHorse();
+  horse.position.z = 1.6;
+  g.add(bed, load, horse);
+  g.userData.horse = horse;
   return g;
 }
 
@@ -279,7 +406,7 @@ export class EntityManager {
   // ---------- Araçlar ----------
   addVehicle(v) {
     if (this.vehicles.has(v.id)) return;
-    const g = makeTruck(v.product);
+    const g = (v.era ?? 4) < 3 ? makeCart(v.product) : makeTruck(v.product);
     g.position.set(v.x, 0, v.z);
     this.scene.add(g);
     this.vehicles.set(v.id, { ...v, g, target: { x: v.x, z: v.z, rot: 0 } });
@@ -365,6 +492,7 @@ export class EntityManager {
       if (u.speed > 0.5) u.g.rotation.y = lerpAngle(u.g.rotation.y, u.target.rot, ku);
       if (u.g.userData.turret) u.g.userData.turret.rotation.y = lerpAngle(u.g.userData.turret.rotation.y, u.target.aim - u.g.rotation.y, ku);
       if (u.g.userData.soldiers) for (const s of u.g.userData.soldiers) animateWalk(s, u.speed, dt);
+      if (u.g.userData.horse) animateHorse(u.g.userData.horse, u.speed, dt);
       const bar = u.g.userData.hpBar;
       bar.scale.x = 3 * Math.max(0.05, u.target.hp);
       bar.material.color.setHSL(0.33 * u.target.hp, 1, 0.5);
@@ -373,9 +501,11 @@ export class EntityManager {
     const kv = 1 - Math.exp(-dt * 5);
     for (const v of this.vehicles.values()) {
       const p = v.g.position;
+      const ox = p.x, oz = p.z;
       p.x += (v.target.x - p.x) * kv;
       p.z += (v.target.z - p.z) * kv;
       v.g.rotation.y = lerpAngle(v.g.rotation.y, v.target.rot, kv);
+      if (v.g.userData.horse) animateHorse(v.g.userData.horse, Math.hypot(p.x - ox, p.z - oz) / Math.max(dt, 0.001), dt);
     }
   }
 

@@ -321,6 +321,27 @@ const BUILDERS = {
     extras.signY = h + 12;
   },
 
+  town_hall({ pb, win, glow, w, d, h, lotSize, extras }) {
+    lotBase(pb, lotSize, 0xb9a57e);
+    // Taş zemin kat + ahşap üst kat + dik çatı + kule
+    pb.box(w, h * 0.5, d * 0.7, 0, h * 0.25, -d * 0.1, 0x9c958a);
+    pb.box(w * 0.96, h * 0.4, d * 0.66, 0, h * 0.7, -d * 0.1, 0xd9c7a1);
+    for (let x = -w / 2 + 2; x <= w / 2 - 2; x += 3) pb.box(0.4, h * 0.4, 0.3, x, h * 0.7, -d * 0.1 + d * 0.33 + 0.1, 0x5a3b22);
+    pb.add(new THREE.CylinderGeometry(0.01, 1, 1, 4), 0x7a2e22, 0, h + 3, -d * 0.1, { ry: Math.PI / 4, sx: w * 0.78, sy: 6, sz: d * 0.5 });
+    pb.box(5, h + 8, 5, w * 0.36, (h + 8) / 2, -d * 0.3, 0x8f887d);
+    for (let k = -1; k <= 1; k += 2) for (let m = -1; m <= 1; m += 2) pb.box(1.2, 1.4, 1.2, w * 0.36 + k * 2, h + 8.7, -d * 0.3 + m * 2, 0x8f887d);
+    pb.cone(3.6, 5, 4, w * 0.36, h + 12, -d * 0.3, 0x5a2e22, { ry: Math.PI / 4 });
+    door(pb, d * 0.7 - d * 0.2, 0x4a2c16, 3.4, 4.2);
+    addWindows(win, w, h * 0.9, d * 0.7, { faces: 'f', floorH: 4.5, spacing: 4, litChance: 0.8 });
+    // Meydan: kuyu ve meşaleler
+    pb.cyl(1.6, 1.8, 1.2, 12, -w * 0.3, 0.6, d * 0.42, 0x8f887d);
+    pb.box(0.2, 2.6, 0.2, -w * 0.3 - 1.4, 1.9, d * 0.42, 0x5a3b22);
+    pb.box(0.2, 2.6, 0.2, -w * 0.3 + 1.4, 1.9, d * 0.42, 0x5a3b22);
+    pb.box(3.2, 0.3, 0.3, -w * 0.3, 3.2, d * 0.42, 0x5a3b22);
+    for (const x of [-2.8, 2.8]) { pb.box(0.2, 2.4, 0.2, x, 1.2, d * 0.35 + 1.5, 0x3a2a1a); glow.sphere(0.35, x, 2.6, d * 0.35 + 1.5, 0xffa040); }
+    extras.signY = h + 16;
+  },
+
   police({ pb, win, w, d, h, lotSize, extras, g }) {
     lotBase(pb, lotSize, C.concrete);
     pb.box(w, h, d * 0.75, 0, h / 2, -d * 0.12, 0xf0f2f5);

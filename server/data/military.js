@@ -1,8 +1,15 @@
 // Askeri katalog. tech: gereken teknoloji seviyesi (Tech Tree için hazır alan).
+// melee: yakın dövüş (iz yok, kıvılcım) · combat:false -> savaşmaz (kaşif)
 export const UNIT_TYPES = {
-  infantry: { label: 'Piyade Mangası', icon: '🪖', cost: 1500, hp: 100, speed: 9,  range: 28, damage: 7,  fireRate: 1.2, requires: 'barracks', tech: 2 },
-  tank:     { label: 'Ana Muharebe Tankı', icon: '🛡️', cost: 6000, hp: 420, speed: 11, range: 45, damage: 32, fireRate: 0.5, requires: 'barracks', tech: 2 },
-  // jet: { label: 'Savaş Jeti', requires: 'airbase', tech: 3, ... }  // ileride
+  scout:     { label: 'Kaşif',              icon: '🧭', cost: 100,  hp: 30,  speed: 18, range: 0,  damage: 0,  fireRate: 0,   combat: false },
+  swordsman: { label: 'Kılıçlı Asker',      icon: '⚔️', cost: 300,  hp: 90,  speed: 8,  range: 5,  damage: 9,  fireRate: 1,   requires: 'barracks', melee: true },
+  archer:    { label: 'Okçu Birliği',       icon: '🏹', cost: 450,  hp: 60,  speed: 8,  range: 30, damage: 6,  fireRate: 0.9, requires: 'barracks', projectile: 'arrow' },
+  cavalry:   { label: 'Süvari',             icon: '🐎', cost: 800,  hp: 140, speed: 16, range: 6,  damage: 14, fireRate: 1,   requires: 'barracks', melee: true },
+  musketeer: { label: 'Tüfekli Asker',      icon: '🔫', cost: 900,  hp: 80,  speed: 8,  range: 34, damage: 10, fireRate: 0.6, requires: 'barracks' },
+  cannon:    { label: 'Top Bataryası',      icon: '💣', cost: 2200, hp: 160, speed: 5,  range: 55, damage: 40, fireRate: 0.25, requires: 'barracks', projectile: 'ball' },
+  infantry:  { label: 'Modern Piyade',      icon: '🪖', cost: 1500, hp: 100, speed: 9,  range: 32, damage: 8,  fireRate: 1.4, requires: 'barracks' },
+  tank:      { label: 'Ana Muharebe Tankı', icon: '🛡️', cost: 6000, hp: 420, speed: 11, range: 45, damage: 32, fireRate: 0.5, requires: 'barracks' },
+  // Faz 3: jet, helicopter, drone, siha
 };
 
 export const MISSILE_TYPES = {

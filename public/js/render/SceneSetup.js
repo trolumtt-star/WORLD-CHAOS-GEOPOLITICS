@@ -59,7 +59,7 @@ export class SceneKit {
     const q = qualityPreset();
     this.sun.castShadow = q.shadows;
     this.sun.shadow.mapSize.set(q.shadowSize, q.shadowSize);
-    const s = worldSize * 0.65;
+    const s = Math.min(worldSize * 0.65, 230);
     Object.assign(this.sun.shadow.camera, { left: -s, right: s, top: s, bottom: -s, near: 10, far: worldSize * 3 });
     this.sun.shadow.camera.updateProjectionMatrix();
     this.sun.shadow.bias = -0.0006;

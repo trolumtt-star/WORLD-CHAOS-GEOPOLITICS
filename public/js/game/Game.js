@@ -37,8 +37,8 @@ export class Game {
     for (const p of init.players) this.roster.set(p.id, { ...this.roster.get(p.id), ...p, online: true });
     const colors = new Map([...this.roster.values()].map((r) => [r.id, r.color]));
 
-    this.city = new CityRenderer(kit.scene, init.world, [], { effects: this.effects });
-    this.city.setPlayerColors(colors);
+    this.city = new CityRenderer(kit.scene, init.world, [], { effects: this.effects, tiles: init.tiles, playerColors: colors });
+    for (const r of init.leaderboard) this.city.playerEras.set(r.id, r.era ?? 1);
     for (const b of init.buildings) this.city.upsert(b);
 
     const ents = (this.entities = new EntityManager(kit.scene, this.selfId));
@@ -105,6 +105,7 @@ export class Game {
       },
     });
     this.ui.minimap.setBuildings(this.cityData());
+    this.ui.minimap.setTiles(this.city.tiles, this.city.playerColors);
     this.ui.setSelf(init.self);
     this.ui.balanceShown = init.self.balance;
     this.ui.setCity(init);
@@ -204,11 +205,19 @@ export class Game {
         }
       }
       this.ui.minimap.setBuildings(this.cityData());
+    this.ui.minimap.setTiles(this.city.tiles, this.city.playerColors);
       this.refreshInspectSoon();
+    });
+    this.on(E.TERRITORY, (list) => {
+      const mine = list.some(([, , owner]) => owner === this.selfId);
+      this.city.setTiles(list);
+      this.ui.minimap.setTiles(this.city.tiles, this.city.playerColors);
+      if (mine) this.effects.built(this.self.g.position.x, this.self.g.position.z);
     });
     this.on(E.FX, (list) => {
       for (const f of list) {
         if (f.t === 'shot') { this.effects.tracer(f.a, f.b, f.k); this.lastWarAt = performance.now(); }
+        else if (f.t === 'melee') { this.effects.melee(f.a, f.b); this.lastWarAt = performance.now(); }
         else if (f.t === 'explosion') this.effects.explosion(f.x, 1.5, f.z, f.r / 6);
         else if (f.t === 'alarm') this.effects.alarm(f.x, f.z);
         else if (f.t === 'built') this.effects.built(f.x, f.z);
@@ -231,7 +240,13 @@ export class Game {
     this.on(E.CLOCK, (c) => {
       this.applyClock(c);
       this.ui.setCity(c);
-      for (const r of c.leaderboard) this.roster.set(r.id, { ...this.roster.get(r.id), ...r });
+      let erasChanged = false;
+      for (const r of c.leaderboard) {
+        this.roster.set(r.id, { ...this.roster.get(r.id), ...r });
+        if (this.city.playerEras.get(r.id) !== r.era) { this.city.playerEras.set(r.id, r.era); erasChanged = true; }
+        if (!this.city.playerColors.has(r.id)) { this.city.playerColors.set(r.id, r.color); erasChanged = true; }
+      }
+      if (erasChanged) this.city.scheduleRebuild();
     });
     this.on(E.NEWS, (n) => this.ui.news(n));
     this.on('disconnect', () => this.ui.setReconnecting(true));
@@ -283,7 +298,8 @@ export class Game {
   }
 
   openProperties() {
-    const list = (this.ui.self.owned ?? []).map((id) => this.city.get(id)).filter(Boolean);
+    const list = (this.ui.self.owned ?? []).map((id) => this.city.get(id)).filter(Boolean)
+      .sort((a, b) => (b.type === 'town_hall') - (a.type === 'town_hall') || (a.type === 'land') - (b.type === 'land'));
     this.ui.openProperties(list);
   }
 
@@ -299,6 +315,10 @@ export class Game {
     if (a.ui === 'build') return this.ui.openBuild(a.params.buildingId);
     if (a.ui === 'military') return this.ui.openMilitary(this.myUnits().length);
     if (a.ui === 'missiles') return this.ui.openMilitary(this.myUnits().length);
+    if (a.ui === 'tech') return this.ui.openTech();
+    if (a.ui === 'map') return this.ui.openMap();
+    if (a.ui === 'advertise') return this.ui.openAdvertise(a.params.buildingId);
+    if (a.inspect) return this.inspect(a.inspect.kind, a.inspect.id);
 
     const params = { ...(a.params ?? {}) };
     if (a.confirm && !(await this.ui.confirm(a.confirm))) return;
@@ -381,6 +401,16 @@ export class Game {
     if (best) {
       this.audio.play('soft');
       this.inspect(best.kind, best.id);
+      return;
+    }
+    // Boş zemine dokunuldu: o parselin bilgisi (keşif / sahiplen)
+    const p = this.groundPoint(e);
+    const w = this.init.world;
+    if (p && Math.abs(p.x) < w.half && Math.abs(p.z) < w.half) {
+      const i = Math.floor((p.x + w.half) / w.blockSize);
+      const j = Math.floor((p.z + w.half) / w.blockSize);
+      this.audio.play('soft');
+      this.inspect('tile', `${i},${j}`);
     } else this.ui.closeSheet();
   }
 
