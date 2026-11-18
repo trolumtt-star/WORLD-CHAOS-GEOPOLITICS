@@ -33,6 +33,8 @@ export class Player {
     this.isMayor = false;
 
     // Köy, toprak, teknoloji
+    this.isAI = false;        // NPC ülke mi
+    this.countryName = null;  // ülke kurulunca
     this.village = null;      // { i, j } köy merkezi parseli
     this.homeId = null;       // Köy Konağı
     this.techs = [];          // öğrenilen teknolojiler
@@ -46,7 +48,7 @@ export class Player {
   get era() { return playerEra(this); }
 
   toPublic() {
-    return { id: this.id, name: this.name, color: this.color, x: this.x, z: this.z, rotY: this.rotY, title: this.title, era: this.era };
+    return { id: this.id, name: this.name, color: this.color, x: this.x, z: this.z, rotY: this.rotY, title: this.title, era: this.era, countryName: this.countryName };
   }
 
   toSnapshot() {
@@ -70,6 +72,10 @@ export class Player {
       village: this.village,
       homeId: this.homeId,
       ownedTiles: world.ownedTileCount(this.id),
+      countryName: this.countryName,
+      population: world.populationOf(this.id),
+      wars: world.warsOf(this.id),
+      justifications: world.justificationsOf(this.id),
     };
   }
 }

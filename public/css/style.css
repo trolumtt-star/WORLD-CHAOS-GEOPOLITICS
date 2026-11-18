@@ -341,3 +341,10 @@ html.native { --sal: max(env(safe-area-inset-left, 0px), 26px); --sar: max(env(s
 
 /* Bildirim katmanları asla dokunuşu yakalamasın */
 .hud > .alert-layer, .app-toasts, .alert-layer, .toast, .banner { pointer-events: none !important; }
+
+/* ---------- Faz 2 ---------- */
+.st-war { font-size: 12px; font-weight: 900; color: #ff6b5a; animation: pulse 1.2s infinite; }
+.found-btn { position: absolute; left: 50%; bottom: calc(120px + var(--sab)); transform: translateX(-50%); padding: 14px 28px; border-radius: 18px; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  background: linear-gradient(180deg, #ffd34d, #ff8c1a); color: #1d1405; font-weight: 900; font-size: 18px; letter-spacing: 0.08em; box-shadow: 0 10px 30px rgba(255, 150, 30, 0.5); animation: foundPulse 1.6s infinite; z-index: 8; }
+.found-btn small { font-size: 11px; font-weight: 600; letter-spacing: 0; }
+@keyframes foundPulse { 50% { transform: translateX(-50%) scale(1.06); } }

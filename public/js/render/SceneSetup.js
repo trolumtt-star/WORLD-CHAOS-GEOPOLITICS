@@ -51,7 +51,7 @@ export class SceneKit {
   constructor(renderer, { worldSize = 400 } = {}) {
     this.renderer = renderer;
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.5, 4000);
+    this.camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.5, Math.max(4000, worldSize * 5.5));
     this.worldSize = worldSize;
 
     this.hemi = new THREE.HemisphereLight(0xcfe6ff, 0x3d4a2a, 0.6);

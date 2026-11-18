@@ -36,7 +36,7 @@ jobs:
       - name: Web dosyalarını hazırla (www/)
         run: npm run build:mobile
         env:
-          SERVER_URL: ${{ github.event.inputs.server_url || vars.SERVER_URL }}
+          SERVER_URL: ${{ github.event.inputs.server_url || vars.SERVER_URL || 'https://world-chaos-geopolitics.onrender.com' }}
 
       - name: Android projesini oluştur
         run: npx cap add android

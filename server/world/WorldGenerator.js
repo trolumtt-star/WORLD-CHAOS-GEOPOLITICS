@@ -1,5 +1,6 @@
 import { Building } from '../entities/Building.js';
 import { NPC } from '../entities/NPC.js';
+import { Player } from '../entities/Player.js';
 import { BUILDING_TYPES, FACTORY_SUBTYPES } from '../data/buildingTypes.js';
 import { FIRST_NAMES, LAST_NAMES, BUSINESS_NAMES, STREET_NAMES, FACTORY_SUFFIX, NPC_MAYOR_PARTIES } from '../data/names.js';
 import { setupOperations } from './BuildingSetup.js';
@@ -22,8 +23,58 @@ export function generateWorld(world, rng, config) {
   spawnNpcs(world, rng, config);
   assignOwnership(world, rng, config);
   electFirstMayor(world, rng);
+  spawnAiNations(world, rng, config);
   world.dirtyTiles.clear();
+  world.dirtyBuildings.clear();
   return world.stats();
+}
+
+const AI_NATIONS = [
+  { country: 'Kuzey Krallığı', leader: 'Kral Ragnar', color: '#1f4e9c' },
+  { country: 'Doğu İmparatorluğu', leader: 'İmparator Zhao', color: '#7b1fa2' },
+  { country: 'Batı Cumhuriyeti', leader: 'Başkan Whitmore', color: '#b7950b' },
+  { country: 'Güney Sultanlığı', leader: 'Sultan Kerem', color: '#145a32' },
+  { country: 'Ada Federasyonu', leader: 'Amiral Nova', color: '#5d4037' },
+];
+
+function spawnAiNations(world, rng, config) {
+  for (let k = 0; k < Math.min(config.ai.nations, AI_NATIONS.length); k++) {
+    const n = AI_NATIONS[k];
+    const ai = new Player({ id: `ai${k + 1}`, token: null, name: n.leader, color: n.color, balance: 9000, x: 0, z: 0, maxSpeed: 0 });
+    ai.isAI = true;
+    ai.countryName = n.country;
+    ai.title = '🤖 NPC Ülke';
+    world.players.set(ai.id, ai);
+    const spot = findFoundingSpot(world, rng, config);
+    if (!spot || !createVillage(world, rng, config, ai, { spot, countryName: n.country })) world.players.delete(ai.id);
+  }
+}
+
+// Ülke kurulabilir mi: 3x3 boş ova/orman, etrafında 3 parsel içinde başka toprak yok, kasabaya en az 3 parsel uzak
+export function canFoundAt(world, config, ci, cj) {
+  const { a, b } = townRange(world, config);
+  for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+    const t = world.tile(ci + di, cj + dj);
+    if (!t || t.owner || t.terrain === 'w' || t.terrain === 'm') return false;
+  }
+  for (let dj = -3; dj <= 3; dj++) for (let di = -3; di <= 3; di++) {
+    const t = world.tile(ci + di, cj + dj);
+    if (t?.owner) return false;
+  }
+  const dTown = Math.max(Math.max(a - ci, ci - b, 0), Math.max(a - cj, cj - b, 0));
+  return dTown >= 3;
+}
+
+export function findFoundingSpot(world, rng, config, near = null) {
+  const g = world.gridSize;
+  const cands = [];
+  for (let cj = 1; cj < g - 1; cj++) for (let ci = 1; ci < g - 1; ci++) if (canFoundAt(world, config, ci, cj)) cands.push({ i: ci, j: cj });
+  if (!cands.length) return null;
+  if (near) {
+    cands.sort((p, q) => Math.hypot(p.i - near.i, p.j - near.j) - Math.hypot(q.i - near.i, q.j - near.j));
+    return cands[0];
+  }
+  return rng.pick(cands);
 }
 
 function townRange(world, config) {
@@ -266,7 +317,7 @@ function electFirstMayor(world, rng) {
 // OYUNCU KÖYÜ: 3x3 parsel; merkezde Köy Konağı, etrafında evler, pazar, çiftlik, meyhane, boş arsalar
 const VILLAGE = ['house', 'house', 'house', 'market', 'factory:food', 'bar', 'land', 'land'];
 
-export function createVillage(world, rng, config, player) {
+export function createVillage(world, rng, config, player, { spot: given = null, countryName = null } = {}) {
   const g = world.gridSize;
   const { a, b } = townRange(world, config);
   const minD = config.territory.villageMinDistance;
@@ -280,8 +331,8 @@ export function createVillage(world, rng, config, player) {
     if (dTown < 3) return false;
     return villages.every((v) => Math.max(Math.abs(v.i - ci), Math.abs(v.j - cj)) >= dist);
   };
-  let spot = null;
-  for (const dist of [minD, minD - 1, 3]) {
+  let spot = given;
+  for (const dist of given ? [] : [minD, minD - 1, 3]) {
     const cands = [];
     for (let cj = 2; cj < g - 2; cj++) for (let ci = 2; ci < g - 2; ci++) if (ok(ci, cj, dist)) cands.push({ i: ci, j: cj });
     if (cands.length) { spot = rng.pick(cands); break; }
@@ -304,11 +355,12 @@ export function createVillage(world, rng, config, player) {
     lot.type = type;
     lot.subtype = sub ?? null;
     const bld = createBuilding(world, rng, config, lot, ctx);
-    if (type === 'town_hall') bld.name = `${player.name} Köy Konağı`;
-    else if (type === 'market') bld.name = `${player.name} Pazarı`;
-    else if (type === 'bar') bld.name = `${player.name} Meyhanesi`;
-    else if (type === 'factory') bld.name = `${player.name} Çiftliği`;
-    else if (type === 'land') bld.name = `Arsa · ${player.name} Köyü`;
+    const cn = countryName ?? player.name;
+    if (type === 'town_hall') bld.name = `${cn} Sarayı`;
+    else if (type === 'market') bld.name = `${cn} Pazarı`;
+    else if (type === 'bar') bld.name = `${cn} Meyhanesi`;
+    else if (type === 'factory') bld.name = `${cn} Çiftliği`;
+    else if (type === 'land') bld.name = `Arsa · ${cn}`;
     bld.balance = { market: 600, bar: 400, factory: 1000 }[type] ?? 0;
     bld.forSale = false;
     world.addBuilding(bld);
@@ -317,6 +369,7 @@ export function createVillage(world, rng, config, player) {
   }
   const hall = created.find((x) => x.type === 'town_hall');
   player.village = { i: spot.i, j: spot.j };
+  player.countryName = countryName ?? player.countryName ?? `${player.name} Ülkesi`;
   player.homeId = hall.id;
 
   // Köylüler: önce köyün kadroları

@@ -12,10 +12,18 @@ export const UNIT_TYPES = {
   // Faz 3: jet, helicopter, drone, siha
 };
 
+// Hava görevi: üsten kalkar, hedefe gider, vurur, geri döner. adHit = hava savunmasının düşürme şansı
+export const AIR_TYPES = {
+  jet:   { label: 'F-16 Savaş Jeti',      icon: '✈️', cost: 4000,   hp: 1, speed: 85, alt: 60,  attack: 'missiles', radius: 16, damage: 900,  strikes: 2, adHit: 0.5,  air: true },
+  heli:  { label: 'Taarruz Helikopteri',  icon: '🚁', cost: 3500,   hp: 1, speed: 38, alt: 22,  attack: 'gun', range: 34, dps: 70, hover: 9, adHit: 0.6, air: true },
+  drone: { label: 'SİHA',                 icon: '🎯', cost: 2500,   hp: 1, speed: 48, alt: 48,  attack: 'missiles', radius: 10, damage: 750, strikes: 1, adHit: 0.55, air: true },
+  b2:    { label: 'B-2 Spirit (Nükleer)', icon: '🦇', cost: 250000, hp: 1, speed: 52, alt: 115, attack: 'nuke', adHit: 0.15, air: true },
+};
+
 export const MISSILE_TYPES = {
   tactical:  { label: 'Taktik Füze',         icon: '🎯', cost: 3000,   radius: 20,  damage: 700,    flightMs: 6000,  apex: 90,  interceptChance: 0.85 },
   ballistic: { label: 'Balistik Füze',       icon: '🚀', cost: 12000,  radius: 38,  damage: 2200,   flightMs: 10000, apex: 240, interceptChance: 0.7 },
-  nuclear:   { label: 'Nükleer Başlık',      icon: '☢️', cost: 250000, radius: 120, damage: 999999, flightMs: 16000, apex: 420, interceptChance: 0.55, radiationHours: 48, globalAlert: true },
+  nuclear:   { label: 'Nükleer Bomba',       icon: '☢️', cost: 0,      radius: 120, damage: 999999, flightMs: 16000, apex: 420, interceptChance: 0.55, radiationHours: 48, globalAlert: true, airOnly: true },
 };
 
 export const AIR_DEFENSE = {

@@ -23,8 +23,12 @@ const defaults = {
   introSeen: false,
 };
 
+const loaded = load(KEY, defaults);
+// Eski sürümde boş kaydedilmiş adres varsa APK'ya gömülü sunucuyu kullan
+if (!loaded.serverUrl && window.WC_DEFAULT_SERVER) loaded.serverUrl = window.WC_DEFAULT_SERVER;
+
 export const Settings = {
-  data: load(KEY, defaults),
+  data: loaded,
   get(k) { return this.data[k]; },
   set(k, v) { this.data[k] = v; save(KEY, this.data); },
 };

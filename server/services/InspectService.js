@@ -70,7 +70,11 @@ function describeBuilding(ctx, b, p) {
     if (owner) {
       const era = ERAS[playerEra(owner)];
       rows.push(['Çağ', `${era.icon} ${era.label} (${era.years})`]);
+      rows.push(['Ülke', `${owner.isAI ? '🤖 ' : ''}${owner.countryName ?? owner.name}`]);
+      rows.push(['Nüfus', `${world.populationOf(owner.id)} kişi`]);
       rows.push(['Toprak', `${world.ownedTileCount(owner.id)} parsel`]);
+      const wars = world.warsOf(owner.id).map((id) => world.players.get(id)?.countryName ?? id);
+      if (wars.length) rows.push(['Savaşta', `⚔️ ${wars.join(', ')}`]);
       rows.push(['Teknoloji', `${owner.techs.length}/${Object.keys(TECHS).length}`]);
       if (owner.research) rows.push(['Araştırılıyor', `${TECHS[owner.research.techId].icon} ${TECHS[owner.research.techId].label} · ${owner.research.hoursLeft} saat`]);
     }
@@ -104,6 +108,7 @@ function describeBuilding(ctx, b, p) {
     if (b.destroyed) A('🧹 Enkazı Kaldır · ₺500', 'property:clear', {}, { style: 'primary' });
     if (b.type === 'barracks' && b.operational) actions.push({ label: '🪖 Ordu Komutası', ui: 'military', params: {}, style: 'primary' });
     if (b.type === 'missile_silo' && b.operational) actions.push({ label: '🚀 Füze Komutası', ui: 'missiles', params: {}, style: 'danger' });
+    if (b.type === 'airbase' && b.operational) actions.push({ label: '✈️ Hava Kuvvetleri', ui: 'military', params: {}, style: 'danger' });
     if (def.category === 'residential' && b.operational) {
       A('🏷️ Kira Belirle', 'property:setRent', {}, { input: { title: 'Kişi başı günlük kira', fields: [{ key: 'rent', label: 'Kira (₺)', kind: 'number', min: 0, max: 500, value: b.rentPerResident }] } });
     }
@@ -127,6 +132,8 @@ function describeBuilding(ctx, b, p) {
       A('🔫 Soygun Yap', 'crime:rob', {}, { style: 'danger', confirm: 'Aranma seviyen artacak ve polis peşine düşecek. Emin misin?' });
     }
   }
+
+  if (b.type === 'town_hall' && b.ownerKind === 'player' && b.ownerId !== p.id) actions.push(...diplomacyActions(world, p, b.ownerId, ctx));
 
   if (b.type === 'palace') {
     const pol = world.politics;
@@ -177,9 +184,10 @@ function buildManage(ctx, b) {
   };
 }
 
-function describeTile({ world, engine }, t, p) {
+function describeTile(ctx, t, p) {
+  const { world, engine } = ctx;
   const ter = engine.getSystem('territory');
-  const ownerName = t.owner === 'state' ? '🏛️ Merkez Kasaba' : t.owner ? (world.players.get(t.owner)?.name ?? '?') : '— Sahipsiz —';
+  const ownerName = t.owner === 'state' ? '🏛️ Merkez Kasaba' : t.owner ? (world.players.get(t.owner)?.countryName ?? world.players.get(t.owner)?.name ?? '?') : '— Sahipsiz —';
   const explored = t.exploredBy.has(p.id);
   const rows = [
     ['Arazi', TERRAIN_LABELS[t.terrain]],
@@ -198,9 +206,37 @@ function describeTile({ world, engine }, t, p) {
       actions.push({ label: `🚩 Sınırı Ör ve Sahiplen · ₺${cost.toLocaleString('tr-TR')}`, type: 'territory:claim', params, style: 'primary', confirm: `Bu parseli ₺${cost.toLocaleString('tr-TR')} karşılığında topraklarına katmak istiyor musun?` });
     }
   }
+  if (t.owner && t.owner !== 'state' && t.owner !== p.id) actions.push(...diplomacyActions(world, p, t.owner, ctx));
+  if (t.owner && t.owner !== 'state') {
+    const o = world.players.get(t.owner);
+    if (o) {
+      rows.push(['Ülke', `${o.isAI ? '🤖 ' : ''}${o.countryName ?? o.name}`]);
+      rows.push(['Nüfus', `${world.populationOf(o.id)} kişi`]);
+      if (o.id !== p.id) rows.push(['İlişki', world.atWar(p.id, o.id) ? '⚔️ SAVAŞ' : '🤝 Barış']);
+    }
+  }
   const b = world.buildings.get(t.buildingId);
   if (b) actions.push({ label: `🔍 ${b.name}`, inspect: { kind: 'building', id: b.id }, params: {} });
   return { kind: 'tile', id: `${t.i},${t.j}`, icon: TERRAIN_LABELS[t.terrain].split(' ')[0], title: `${TERRAIN_LABELS[t.terrain].split(' ')[1]} · ${t.i}-${t.j}`, subtitle: ownerName, rows, actions };
+}
+
+export function diplomacyActions(world, p, targetId, ctx) {
+  const t = world.players.get(targetId);
+  if (!t || !p.village) return [];
+  const name = t.countryName ?? t.name;
+  const out = [];
+  const P = { targetId };
+  if (world.atWar(p.id, targetId)) {
+    out.push({ label: `🕊️ ${name}'a Barış Teklif Et`, type: 'war:peace', params: P });
+  } else {
+    const ready = world.justifications.get(`${p.id}>${targetId}`);
+    if (!ready) out.push({ label: `📜 Savaş Gerekçesi Hazırla (3 dk) · ${name}`, type: 'war:justify', params: P, style: 'danger', confirm: `${name}'a karşı savaş gerekçesi hazırlansın mı? Karşı taraf istihbarattan haberdar olacak.` });
+    else if (Date.now() < ready) out.push({ label: `⏳ Gerekçe hazırlanıyor · ${Math.ceil((ready - Date.now()) / 1000)} sn`, type: 'war:declare', params: P, style: 'ghost' });
+    else out.push({ label: `⚔️ ${name}'a SAVAŞ İLAN ET`, type: 'war:declare', params: P, style: 'danger', confirm: `${name}'a savaş ilan edilsin mi? Askerlerin, füzelerin ve uçakların artık onlara saldırabilir.` });
+  }
+  const dip = ctx?.engine?.getSystem('diplomacy');
+  if (dip?.peaceOffers.has(`${targetId}>${p.id}`)) out.push({ label: `🤝 ${name}'ın Barış Teklifini Kabul Et`, type: 'war:acceptPeace', params: { fromId: targetId }, style: 'primary' });
+  return out;
 }
 
 function describeNpc({ world }, n) {

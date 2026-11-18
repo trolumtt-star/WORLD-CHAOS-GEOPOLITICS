@@ -42,6 +42,7 @@ export class TerritorySystem {
     const target = world.lotCenter(i, j);
     const u = new Unit({ id: world.nextId('u'), type: 'scout', ownerId: player.id, color: player.color, x: hall.door.x, z: hall.door.z });
     u.path = [{ x: target.x, z: target.z }];
+    if (hasFeature(player, 'recon')) { u.x = target.x; u.z = target.z; u.path = []; } // İHA anında keşfeder
     u.task = { i, j };
     u.speedMul = hasFeature(player, 'fast_scout') ? 2 : 1;
     world.units.set(u.id, u);

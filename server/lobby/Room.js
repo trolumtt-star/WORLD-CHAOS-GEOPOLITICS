@@ -5,7 +5,7 @@ import { createRng } from '../core/rng.js';
 import { EventBus } from '../core/EventBus.js';
 import { GameEngine } from '../core/GameEngine.js';
 import { World } from '../world/World.js';
-import { generateWorld, createVillage } from '../world/WorldGenerator.js';
+import { generateWorld, findFoundingSpot } from '../world/WorldGenerator.js';
 import { TECHS, techCost, techHours } from '../data/tech.js';
 import { Player } from '../entities/Player.js';
 import { UNIT_TYPES, MISSILE_TYPES } from '../data/military.js';
@@ -29,6 +29,9 @@ import { MissileSystem } from '../systems/MissileSystem.js';
 import { PopulationSystem } from '../systems/PopulationSystem.js';
 import { TechSystem } from '../systems/TechSystem.js';
 import { TerritorySystem } from '../systems/TerritorySystem.js';
+import { DiplomacySystem } from '../systems/DiplomacySystem.js';
+import { AirSystem } from '../systems/AirSystem.js';
+import { AiSystem } from '../systems/AiSystem.js';
 
 const COLORS = ['#ff4d4d', '#3ddc84', '#ffd23f', '#a06cff', '#2ec4ff', '#ff8c42', '#ff5fa2', '#00e0b8', '#c0ff3e', '#ffffff'];
 
@@ -56,6 +59,7 @@ export class Room {
 
     // SIRA ÖNEMLİ
     this.engine = new GameEngine({ world: this.world, rng: this.rng, bus: this.bus, config })
+      .use(new DiplomacySystem())
       .use(new NeedsSystem())
       .use(new NpcBrainSystem())
       .use(new CommerceSystem())
@@ -68,9 +72,11 @@ export class Room {
       .use(new TaxSystem())
       .use(new MilitarySystem())
       .use(new MissileSystem())
+      .use(new AirSystem())
       .use(new PopulationSystem())
       .use(new TechSystem())
       .use(new TerritorySystem())
+      .use(new AiSystem())
       .use(new NetworkSyncSystem(io, code));
     this.ctx = this.engine.ctx;
     this.engine.start();
@@ -79,7 +85,7 @@ export class Room {
 
   get onlineCount() {
     let n = 0;
-    for (const p of this.world.players.values()) if (p.online) n++;
+    for (const p of this.world.players.values()) if (p.online && !p.isAI) n++;
     return n;
   }
 
@@ -117,8 +123,10 @@ export class Room {
       this.io.sockets.sockets.get(player.socketId)?.disconnect(true);
     }
     if (!player) {
-      if (world.players.size >= config.maxPlayersPerRoom) return null;
-      const spawn = world.randomRoadPoint(rng);
+      if ([...world.players.values()].filter((p) => !p.isAI).length >= config.maxPlayersPerRoom) return null;
+      // Ülke kurmaya uygun boş bir yerde doğ (sınırlardan uzakta, sıfırdan başla)
+      const spot = findFoundingSpot(world, rng, config);
+      const spawn = spot ? world.lotCenter(spot.i, spot.j) : world.randomRoadPoint(rng);
       const [lo, hi] = config.player.startBalance;
       const used = new Set([...world.players.values()].map((p) => p.color));
       player = new Player({
@@ -133,15 +141,7 @@ export class Room {
       });
       world.players.set(player.id, player);
       if (this.sandbox) player.techs = Object.keys(TECHS);
-      const v = createVillage(world, rng, config, player);
-      if (v) {
-        player.x = v.hall.door.x;
-        player.z = v.hall.door.z;
-        for (const n of v.npcs) bus.emit('net:spawn', { kind: 'npc', data: n.toMeta() });
-        bus.news('player', `🏰 ${player.name} yeni bir köy kurdu! (${v.npcs.length} köylü)`);
-      } else {
-        bus.news('player', `✈️ ${player.name} şehre ₺${player.balance.toLocaleString('tr-TR')} ile adım attı.`);
-      }
+      bus.news('player', `🧭 ${player.name} vahşi topraklara adım attı. Henüz bir ülkesi yok...`);
     } else {
       bus.news('player', `🔌 ${player.name} geri döndü.`);
     }

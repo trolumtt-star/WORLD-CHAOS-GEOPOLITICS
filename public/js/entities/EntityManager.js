@@ -133,6 +133,66 @@ function makeSoldier(type, team) {
   return s;
 }
 
+// ----------------------------------------------------------------------- uçaklar
+function makeAircraft(type, color) {
+  const g = new THREE.Group();
+  const team = new THREE.MeshStandardMaterial({ color, roughness: 0.5 });
+  const M = (c, metal = 0.4) => new THREE.MeshStandardMaterial({ color: c, metalness: metal, roughness: 0.45 });
+  const add = (geo, mat, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); m.castShadow = true; g.add(m); return m; };
+  if (type === 'heli') {
+    const body = M(0x4b5a32, 0.2);
+    add(new THREE.SphereGeometry(1.6, 12, 10), body).scale.set(1, 0.9, 1.7);
+    add(new THREE.CylinderGeometry(0.25, 0.4, 5, 8).rotateX(Math.PI / 2), body, 0, 0.4, -4);
+    add(new THREE.BoxGeometry(0.2, 1.6, 1), body, 0, 1, -6.3);
+    add(new THREE.BoxGeometry(1.5, 0.6, 1.2), M(0x1a2a3a, 0.8), 0, 0.5, 1.6);
+    add(new THREE.BoxGeometry(3.6, 0.15, 0.4), team, 0, -0.2, 0);
+    const rotor = new THREE.Group();
+    rotor.position.y = 1.9;
+    for (const r of [0, Math.PI / 2]) { const b = new THREE.Mesh(new THREE.BoxGeometry(11, 0.08, 0.5), M(0x222222)); b.rotation.y = r; rotor.add(b); }
+    g.add(rotor);
+    const tail = new THREE.Group();
+    tail.position.set(0.25, 1, -6.3);
+    tail.add(new THREE.Mesh(new THREE.BoxGeometry(0.06, 2.4, 0.25), M(0x222222)));
+    g.add(tail);
+    g.userData.rotor = rotor;
+    g.userData.tailRotor = tail;
+  } else if (type === 'b2') {
+    const skin = M(0x2c2f36, 0.3);
+    for (const sgn of [-1, 1]) {
+      add(new THREE.BoxGeometry(16, 0.6, 5), skin, sgn * 6.5, 0, -1.5, 0, sgn * 0.62, 0);
+      add(new THREE.BoxGeometry(4, 0.5, 3), skin, sgn * 11.5, 0, -6, 0, -sgn * 0.62, 0);
+    }
+    add(new THREE.SphereGeometry(2.4, 12, 8), skin, 0, 0.3, 1).scale.set(1.2, 0.35, 2);
+    add(new THREE.BoxGeometry(1.2, 0.2, 0.8), M(0x111827, 0.9), 0, 0.85, 2.2);
+  } else if (type === 'drone') {
+    const skin = M(0xd8dce0, 0.3);
+    add(new THREE.CylinderGeometry(0.45, 0.35, 6, 10).rotateX(Math.PI / 2), skin);
+    add(new THREE.SphereGeometry(0.55, 10, 8), skin, 0, 0.1, 2.9);
+    add(new THREE.BoxGeometry(12, 0.12, 0.9), skin, 0, 0.2, 0.3);
+    add(new THREE.BoxGeometry(2.4, 0.1, 0.5), skin, 0.8, 0.5, -2.8, 0, 0, 0.6);
+    add(new THREE.BoxGeometry(2.4, 0.1, 0.5), skin, -0.8, 0.5, -2.8, 0, 0, -0.6);
+    add(new THREE.BoxGeometry(1.2, 0.1, 0.3), team, 4, 0.27, 0.3);
+    add(new THREE.BoxGeometry(1.2, 0.1, 0.3), team, -4, 0.27, 0.3);
+  } else {
+    const skin = M(0x8a949e, 0.5);
+    add(new THREE.CylinderGeometry(0.7, 0.9, 9, 10).rotateX(Math.PI / 2), skin);
+    add(new THREE.ConeGeometry(0.7, 2.4, 10).rotateX(Math.PI / 2), skin, 0, 0, 5.7);
+    add(new THREE.SphereGeometry(0.6, 10, 8), M(0x1a2a3a, 0.9), 0, 0.6, 2.6).scale.set(1, 0.8, 1.8);
+    for (const sgn of [-1, 1]) {
+      add(new THREE.BoxGeometry(4.5, 0.15, 2.6), skin, sgn * 2.6, 0, -0.6, 0, sgn * 0.35, 0);
+      add(new THREE.BoxGeometry(1.8, 0.12, 1.2), skin, sgn * 1.2, 0, -4, 0, sgn * 0.3, 0);
+      add(new THREE.BoxGeometry(1.2, 0.17, 0.4), team, sgn * 4.2, 0.02, -0.9, 0, sgn * 0.35, 0);
+    }
+    add(new THREE.BoxGeometry(0.15, 2, 1.6), skin, 0, 1.1, -4);
+    const flame = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: 0xffa040, blending: THREE.AdditiveBlending, depthWrite: false }));
+    flame.scale.set(2.5, 2.5, 1);
+    flame.position.z = -5;
+    g.add(flame);
+  }
+  g.userData.air = true;
+  return g;
+}
+
 function makeUnit(type, color) {
   const g = new THREE.Group();
   const olive = new THREE.MeshStandardMaterial({ color: 0x556b2f, roughness: 0.8 });
@@ -379,12 +439,12 @@ export class EntityManager {
   // ---------- Birlikler ----------
   addUnit(u) {
     if (this.units.has(u.id)) return;
-    const g = makeUnit(u.type, new THREE.Color(u.color));
-    g.position.set(u.x, 0, u.z);
+    const g = u.air ? makeAircraft(u.type, new THREE.Color(u.color)) : makeUnit(u.type, new THREE.Color(u.color));
+    g.position.set(u.x, u.alt ?? 0, u.z);
     g.rotation.y = u.rotY ?? 0;
     this.markPick(g, 'unit', u.id);
     this.scene.add(g);
-    this.units.set(u.id, { ...u, g, target: { x: u.x, z: u.z, rot: u.rotY ?? 0, aim: u.rotY ?? 0, hp: 1 }, speed: 0 });
+    this.units.set(u.id, { ...u, g, target: { x: u.x, z: u.z, rot: u.rotY ?? 0, aim: u.rotY ?? 0, hp: 1, alt: u.alt ?? 0 }, speed: 0 });
   }
 
   removeUnit(id) {
@@ -397,9 +457,9 @@ export class EntityManager {
   }
 
   applyUnits(list) {
-    for (const [id, x, z, rot, hp, aim] of list) {
+    for (const [id, x, z, rot, hp, aim, alt] of list) {
       const u = this.units.get(id);
-      if (u) Object.assign(u.target, { x, z, rot, hp, aim });
+      if (u) Object.assign(u.target, { x, z, rot, hp, aim, alt: alt ?? 0 });
     }
   }
 
@@ -489,6 +549,14 @@ export class EntityManager {
       p.x += (u.target.x - p.x) * ku;
       p.z += (u.target.z - p.z) * ku;
       u.speed = Math.hypot(p.x - ox, p.z - oz) / Math.max(dt, 0.001);
+      if (u.g.userData.air) {
+        p.y += (u.target.alt - p.y) * ku;
+        const prev = u.g.rotation.y;
+        u.g.rotation.y = lerpAngle(u.g.rotation.y, u.target.rot, ku);
+        u.g.rotation.z = THREE.MathUtils.clamp((u.g.rotation.y - prev) * -25, -0.6, 0.6);
+        if (u.g.userData.rotor) { u.g.userData.rotor.rotation.y += dt * 25; u.g.userData.tailRotor.rotation.x += dt * 30; }
+        continue;
+      }
       if (u.speed > 0.5) u.g.rotation.y = lerpAngle(u.g.rotation.y, u.target.rot, ku);
       if (u.g.userData.turret) u.g.userData.turret.rotation.y = lerpAngle(u.g.userData.turret.rotation.y, u.target.aim - u.g.rotation.y, ku);
       if (u.g.userData.soldiers) for (const s of u.g.userData.soldiers) animateWalk(s, u.speed, dt);
@@ -510,7 +578,7 @@ export class EntityManager {
   }
 
   unitPositions() {
-    return [...this.units.values()].map((u) => ({ id: u.id, ownerId: u.ownerId, x: u.g.position.x, z: u.g.position.z, color: u.color }));
+    return [...this.units.values()].map((u) => ({ id: u.id, ownerId: u.ownerId, x: u.g.position.x, z: u.g.position.z, color: u.color, air: !!u.g.userData.air }));
   }
 }
 

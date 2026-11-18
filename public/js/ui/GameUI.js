@@ -45,7 +45,9 @@ export class GameUI {
     this.elWanted = el('div', { class: 'st-wanted' });
     this.elTitle = el('div', { class: 'st-title' });
     this.elEra = el('div', { class: 'st-era' });
-    const status = el('div', { class: 'glass status' }, this.elClock, this.elBalance, this.elEra, el('div', { class: 'st-row' }, this.elTitle, this.elWanted));
+    this.elWar = el('div', { class: 'st-war hidden' });
+    const status = el('div', { class: 'glass status' }, this.elClock, this.elBalance, this.elEra, this.elWar, el('div', { class: 'st-row' }, this.elTitle, this.elWanted));
+    this.foundBtn = el('button', { class: 'found-btn hidden', onClick: () => { this.sfx('click'); this.h.onFound(); } }, '🏳️ ÜLKE KUR', el('small', {}, 'Bulunduğun yere ülkeni kur'));
 
     const roomChip = btn(`🔗 ${this.room.code}`, 'chip room', () => this.share());
     this.canvasMini = el('canvas', { class: 'minimap' });
@@ -102,6 +104,7 @@ export class GameUI {
 
     this.hud = el('div', { class: 'hud' },
       this.mapBackdrop,
+      this.foundBtn,
       el('div', { class: 'hud-top' }, status, roomChip, topRight),
       this.ticker, this.hint, actions, this.sprintBtn,
       this.sheet, this.targetBar, this.jail, this.nukeOverlay, this.alertLayer, this.modalLayer, this.reconnect);
@@ -139,7 +142,11 @@ export class GameUI {
     }
     this.elWanted.textContent = s.wanted ? '⭐'.repeat(s.wanted) : '';
     this.elWanted.classList.toggle('flash', s.wanted > 0);
-    this.elTitle.textContent = s.title ?? 'Vatandaş';
+    this.elTitle.textContent = s.countryName ? `🏳️ ${s.countryName} · 👥 ${s.population ?? 0}` : (s.title ?? 'Vatandaş');
+    this.foundBtn.classList.toggle('hidden', !!s.village);
+    const wars = (s.wars ?? []).map((id) => this.h.nameOf?.(id) ?? id);
+    this.elWar.textContent = wars.length ? `⚔️ SAVAŞ: ${wars.join(', ')}` : '';
+    this.elWar.classList.toggle('hidden', !wars.length);
     const era = this.catalog.eras?.[s.era ?? 1];
     if (era) this.elEra.textContent = `${era.icon} ${era.label}${s.research ? ` · 🔬 ${s.research.hoursLeft}sa` : ''}`;
     this.phoneBtn.classList.toggle('hidden', !hasFeature(this.catalog, s.techs, 'phone'));
@@ -364,14 +371,19 @@ export class GameUI {
     const unitCards = Object.entries(units).filter(([, u]) => u.combat !== false).map(([k, u]) => !unlocked(this.catalog, this.self.techs, 'units', k) ? lockCard('units', k, u) : el('button', { class: 'build-card mil', onClick: () => this.h.onAction({ type: 'military:train', params: { unitType: k } }) },
       el('div', { class: 'bc-icon' }, u.icon), el('div', { class: 'bc-name' }, u.label), el('div', { class: 'bc-cost' }, tl(u.cost)),
       el('div', { class: 'bc-time' }, `❤️ ${u.hp} · 🎯 ${u.range}m`)));
-    const missileCards = Object.entries(missiles).map(([k, m]) => !unlocked(this.catalog, this.self.techs, 'missiles', k) ? lockCard('missiles', k, m) : el('button', { class: `build-card mil ${k === 'nuclear' ? 'nuke' : ''}`, onClick: () => this.h.onTargetMissile(k, m) },
+    const airCards = Object.entries(this.catalog.air ?? {}).map(([k, a]) => !unlocked(this.catalog, this.self.techs, 'air', k) ? lockCard('air', k, a) : el('button', { class: `build-card mil ${k === 'b2' ? 'nuke' : ''}`, onClick: () => this.h.onTargetAir(k, a) },
+      el('div', { class: 'bc-icon' }, a.icon), el('div', { class: 'bc-name' }, a.label), el('div', { class: 'bc-cost' }, tl(a.cost)),
+      el('div', { class: 'bc-time' }, k === 'b2' ? '☢️ nükleer bomba' : a.attack === 'gun' ? '🔫 tarama' : `💥 ${a.radius}m`)));
+    const missileCards = Object.entries(missiles).filter(([, m]) => !m.airOnly).map(([k, m]) => !unlocked(this.catalog, this.self.techs, 'missiles', k) ? lockCard('missiles', k, m) : el('button', { class: `build-card mil ${k === 'nuclear' ? 'nuke' : ''}`, onClick: () => this.h.onTargetMissile(k, m) },
       el('div', { class: 'bc-icon' }, m.icon), el('div', { class: 'bc-name' }, m.label), el('div', { class: 'bc-cost' }, tl(m.cost)),
       el('div', { class: 'bc-time' }, `💥 ${m.radius}m yarıçap`)));
     this.openSheet('military', { icon: '⚔️', title: 'Genelkurmay', subtitle: `${myUnits} birliğin var` },
-      el('p', { class: 'muted' }, 'Birlik üretmek için köyünde bir Kışla kur (boş arsa → İnşa Et → Askeri). Yeni birlikler ve füzeler teknoloji geliştirdikçe açılır.'),
+      el('p', { class: 'muted' }, 'Birlik üretmek için bir Kışla kur (boş arsa → İnşa Et → Askeri). Askerler savaştığın ülkenin askerlerine, sokaktaki sivillerine ve binalarına saldırır.'),
       el('h4', {}, '🪖 Kara Kuvvetleri'), el('div', { class: 'card-grid' }, ...unitCards),
       el('button', { class: 'btn primary wide', onClick: () => this.h.onTargetMove() }, `🎯 Tüm Birliklerimi Konuşlandır (${myUnits})`),
-      el('h4', {}, '🚀 Füze Kuvvetleri'), el('div', { class: 'card-grid' }, ...missileCards));
+      el('h4', {}, '✈️ Hava Kuvvetleri'), el('p', { class: 'muted' }, 'Hava Üssü gerekir. Uçak hedefe gider, vurur ve üsse döner; düşman hava savunması düşürebilir.'), el('div', { class: 'card-grid' }, ...airCards),
+      el('h4', {}, '🚀 Füze Kuvvetleri'), el('div', { class: 'card-grid' }, ...missileCards),
+      el('p', { class: 'muted' }, '⚠️ Sadece savaşta olduğun ülkeleri vurabilirsin. Savaş için haritada düşman toprağına dokun → Savaş Gerekçesi Hazırla (3 dk) → Savaş İlan Et.'));
   }
 
   openTech() {
@@ -465,10 +477,10 @@ export class GameUI {
       body = el('div', { class: 'rank' }, ...c.leaderboard.map((r, i) => el('div', { class: `rank-row ${r.id === this.selfId ? 'me' : ''}` },
         el('span', { class: 'pos' }, ['🥇', '🥈', '🥉'][i] ?? `${i + 1}.`),
         el('span', { class: 'dot', style: { background: r.color } }),
-        el('span', { class: 'nm' }, r.name, el('small', {}, ` ${this.catalog.eras?.[r.era ?? 1]?.icon ?? ''} ${r.tiles ?? 0} parsel${r.online ? '' : ' · 💤'}`)),
-        el('b', {}, tl(r.netWorth)))));
+        el('span', { class: 'nm' }, `${r.isAI ? '🤖 ' : ''}${r.countryName ?? r.name}`, el('small', {}, ` ${this.catalog.eras?.[r.era ?? 1]?.icon ?? ''} ${r.tiles ?? 0} parsel${r.wars?.length ? ' · ⚔️' : ''}${!r.isAI && !r.online ? ' · 💤' : ''}`)),
+        el('b', {}, `👥 ${r.population ?? 0}`))));
     }
-    this.openSheet(tab, { icon: tab === 'city' ? '🏛️' : '🏆', title: tab === 'city' ? 'Şehir Durumu' : 'Servet Sıralaması', subtitle: `Oda ${this.room.code} · ${this.room.name}` }, tabs, body);
+    this.openSheet(tab, { icon: tab === 'city' ? '🏛️' : '🏆', title: tab === 'city' ? 'Şehir Durumu' : 'Ülkeler (nüfusa göre)', subtitle: `Oda ${this.room.code} · ${this.room.name}` }, tabs, body);
   }
 
   openNews(refresh = false) {

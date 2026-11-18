@@ -1,7 +1,7 @@
 import { BUILDING_TYPES, FACTORY_SUBTYPES, buildOptions } from '../data/buildingTypes.js';
 import { PRODUCTS } from '../data/products.js';
-import { buildingMaxHp } from '../data/military.js';
-import { makeName } from '../world/WorldGenerator.js';
+import { buildingMaxHp, AIR_TYPES } from '../data/military.js';
+import { makeName, canFoundAt, findFoundingSpot, createVillage } from '../world/WorldGenerator.js';
 import { TECHS, ERAS, ADS, DEFAULT_UNLOCKS, isUnlocked, requiredTech, adChance, techCost, techHours } from '../data/tech.js';
 
 /**
@@ -140,6 +140,41 @@ export const ACTIONS = {
     b.balance += v;
     ctx.world.touchPlayer(p);
     return { ok: true, message: `${tl(v)} kasaya kondu.` };
+  },
+
+  // ---------------- ÜLKE KURMA ----------------
+  'country:found'(ctx, p, { name }) {
+    const { world, rng, config, bus } = ctx;
+    if (p.village) return fail('Zaten bir ülken var.');
+    // Oyuncu genelde yol üstündedir: bastığı parsel ve komşularından uygun olanı seç
+    const here = world.tileAt(p.x, p.z);
+    const t = [here, ...(here ? world.neighbors(here) : [])].find((c) => c && canFoundAt(world, config, c.i, c.j)) ?? here;
+    const clean = String(name ?? '').replace(/<[^>]*>/g, '').replace(/[<>"'&]/g, '').trim().slice(0, 24) || `${p.name} Ülkesi`;
+    if (!t || !canFoundAt(world, config, t.i, t.j)) {
+      const spot = findFoundingSpot(world, rng, config, t ? { i: t.i, j: t.j } : null);
+      if (!spot) return fail('Haritada ülke kuracak boş yer kalmadı.');
+      const c = world.lotCenter(spot.i, spot.j);
+      const dx = c.x - p.x, dz = c.z - p.z;
+      const dir = `${dz < -20 ? 'kuzey' : dz > 20 ? 'güney' : ''}${dx > 20 ? 'doğu' : dx < -20 ? 'batı' : ''}` || 'yakın';
+      return { ok: false, error: `Burası uygun değil (sınırlara/nehre/dağa çok yakın). En yakın uygun yer: ${dir} yönünde ~${Math.round(Math.hypot(dx, dz) / world.blockSize)} parsel.`, hint: { x: c.x, z: c.z } };
+    }
+    const v = createVillage(world, rng, config, p, { spot: { i: t.i, j: t.j }, countryName: clean });
+    if (!v) return fail('Ülke kurulamadı.');
+    for (const n of v.npcs) bus.emit('net:spawn', { kind: 'npc', data: n.toMeta() });
+    bus.news('player', `🏳️ ${p.name} yeni bir ülke kurdu: ${clean}!`);
+    bus.emit('net:alert', { level: 'info', text: `🏳️ Yeni ülke: ${clean} (${p.name})` });
+    world.touchPlayer(p);
+    return { ok: true, message: `🏳️ ${clean} kuruldu! Sarayın, köylülerin ve toprakların hazır.`, sfx: 'build', founded: true };
+  },
+
+  // ---------------- DİPLOMASİ / SAVAŞ ----------------
+  'war:justify'(ctx, p, { targetId }) { return ctx.engine.getSystem('diplomacy').justify(p, targetId); },
+  'war:declare'(ctx, p, { targetId }) { return ctx.engine.getSystem('diplomacy').declare(p, targetId); },
+  'war:peace'(ctx, p, { targetId }) { return ctx.engine.getSystem('diplomacy').offerPeace(p, targetId); },
+  'war:acceptPeace'(ctx, p, { fromId }) { return ctx.engine.getSystem('diplomacy').acceptPeace(p, fromId); },
+
+  'air:launch'(ctx, p, { airType, x, z }) {
+    return ctx.engine.getSystem('air').launch(ctx, p, airType, num(x), num(z));
   },
 
   // ---------------- TEKNOLOJİ / TOPRAK ----------------
@@ -368,5 +403,5 @@ export function catalog() {
   for (const [k, d] of Object.entries(FACTORY_SUBTYPES)) factories[k] = { label: d.label, output: d.output };
   const techs = {};
   for (const [k, t] of Object.entries(TECHS)) techs[k] = { ...t };
-  return { buildOptions: buildOptions(), buildings, factories, products: PRODUCTS, techs, eras: ERAS, ads: ADS, defaultUnlocks: DEFAULT_UNLOCKS };
+  return { buildOptions: buildOptions(), buildings, factories, products: PRODUCTS, techs, eras: ERAS, ads: ADS, defaultUnlocks: DEFAULT_UNLOCKS, air: AIR_TYPES };
 }

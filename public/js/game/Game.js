@@ -100,6 +100,9 @@ export class Game {
         onSprintToggle: () => (this.controls.sprintToggle = !this.controls.sprintToggle),
         onTargetMissile: (type, def) => this.startTargeting({ kind: 'missile', type, def }),
         onTargetMove: () => this.startTargeting({ kind: 'move' }),
+        onTargetAir: (type, def) => this.startTargeting({ kind: 'air', type, def }),
+        onFound: () => this.runAction({ type: 'country:found', params: {}, input: { title: '🏳️ Ülkenin adı ne olsun?', fields: [{ key: 'name', label: 'Ülke adı', kind: 'text', value: `${this.roster.get(this.selfId)?.name ?? ''} Cumhuriyeti` }] } }),
+        nameOf: (id) => this.roster.get(id)?.countryName ?? this.roster.get(id)?.name ?? id,
         myUnitCount: () => this.myUnits().length,
         onSheetClosed: () => { this.inspecting = null; },
       },
@@ -123,7 +126,7 @@ export class Game {
     this.audio.setMusic('game');
     this.audio.startAmbience();
     this.ui.toast(`🌍 ${init.room.name} · Oda kodu ${init.room.code}`, 'info');
-    if (!init.self.owned.length) setTimeout(() => this.ui.toast('İpucu: Kırmızı SATILIK tabelalı bir arsayı incele ve tapusunu al! 🔑', 'info'), 3500);
+    if (!init.self.village) setTimeout(() => this.ui.toast('🏳️ Henüz bir ülken yok! Bulunduğun yer uygun, ortadaki ÜLKE KUR butonuna bas. Başka yer istersen önce yürü.', 'info'), 2500);
 
     this.raycaster = new THREE.Raycaster();
     this.clock = new THREE.Clock();
@@ -140,7 +143,7 @@ export class Game {
     return m;
   }
 
-  myUnits() { return [...this.entities.units.values()].filter((u) => u.ownerId === this.selfId); }
+  myUnits() { return [...this.entities.units.values()].filter((u) => u.ownerId === this.selfId && !u.g.userData.air && u.type !== 'scout'); }
 
   // ------------------------------------------------------------------ ağ
   on(event, fn) {
@@ -186,7 +189,10 @@ export class Game {
     });
     this.on(E.ENTITY_REMOVE, ({ kind, id, reason }) => {
       if (kind === 'npc') this.entities.removeNpc(id);
-      else if (kind === 'unit') this.entities.removeUnit(id);
+      else if (kind === 'unit') {
+        const u = this.entities.removeUnit(id);
+        if (u && reason === 'shot_down') this.effects.explosion(u.g.position.x, u.g.position.y, u.g.position.z, 1.2);
+      }
       else if (kind === 'vehicle') {
         const v = this.entities.removeVehicle(id);
         if (v && reason === 'destroyed') this.effects.explosion(v.g.position.x, 1, v.g.position.z, 0.6);
@@ -216,7 +222,8 @@ export class Game {
     });
     this.on(E.FX, (list) => {
       for (const f of list) {
-        if (f.t === 'shot') { this.effects.tracer(f.a, f.b, f.k); this.lastWarAt = performance.now(); }
+        if (f.t === 'shot') { this.effects.tracer(f.a, f.b, f.k, f.ay); this.lastWarAt = performance.now(); }
+        else if (f.t === 'airstrike') { this.effects.airstrike(f); this.lastWarAt = performance.now(); }
         else if (f.t === 'melee') { this.effects.melee(f.a, f.b); this.lastWarAt = performance.now(); }
         else if (f.t === 'explosion') this.effects.explosion(f.x, 1.5, f.z, f.r / 6);
         else if (f.t === 'alarm') this.effects.alarm(f.x, f.z);
@@ -230,6 +237,7 @@ export class Game {
       else if (m.t === 'destroyed') this.effects.missileDestroyed(m.id, m.x, m.y, m.z);
       else if (m.t === 'miss') this.effects.explosion(m.x, m.y, m.z, 0.3, { sound: false });
       else if (m.t === 'impact') this.effects.impact(m);
+      else if (m.t === 'bomb') this.effects.dropBomb(m);
       else if (m.t === 'hazards') { this.hazards = m.hazards; this.effects.setHazards(m.hazards); }
     });
     this.on(E.ALERT, (a) => {
@@ -335,6 +343,18 @@ export class Game {
     } else {
       this.audio.play('error');
       this.ui.toast(res?.error ?? 'Olmadı.', 'err');
+      if (res?.hint) {
+        this.marker.position.set(res.hint.x, 0.6, res.hint.z);
+        this.marker.scale.setScalar(5);
+        this.marker.visible = true;
+        clearTimeout(this._hintT);
+        this._hintT = setTimeout(() => { if (!this.targeting) this.marker.visible = false; }, 20000);
+      }
+    }
+    if (res?.founded) {
+      this.marker.visible = false;
+      this.rig.snap(this.self.g.position);
+      this.effects.built(this.self.g.position.x, this.self.g.position.z);
     }
     if (this.inspecting) this.refreshInspectSoon();
     return res;
@@ -346,7 +366,7 @@ export class Game {
     this.ui.closeSheet();
     this.targeting = { ...t, point: null };
     this.rig.setStrategic(true);
-    const label = t.kind === 'missile'
+    const label = t.kind === 'missile' || t.kind === 'air'
       ? `${t.def.icon} ${t.def.label} (${tl(t.def.cost)}) — haritada hedefe dokun`
       : `🎯 ${this.myUnits().length} birlik — haritada konuşlanma noktasına dokun`;
     this.ui.setTargeting(label, { onCancel: () => this.cancelTargeting() });
@@ -366,6 +386,7 @@ export class Game {
     const { x, z } = t.point;
     let res;
     if (t.kind === 'missile') res = await this.runAction({ type: 'military:launch', params: { missileType: t.type, x, z } });
+    else if (t.kind === 'air') res = await this.runAction({ type: 'air:launch', params: { airType: t.type, x, z } });
     else res = await this.runAction({ type: 'military:move', params: { x, z } });
     if (res?.ok) this.cancelTargeting();
   }
@@ -383,11 +404,11 @@ export class Game {
       if (!p) return;
       this.targeting.point = { x: p.x, z: p.z };
       this.marker.position.set(p.x, 0.6, p.z);
-      const r = this.targeting.kind === 'missile' ? this.targeting.def.radius : 4;
+      const r = this.targeting.kind === 'missile' ? this.targeting.def.radius : this.targeting.kind === 'air' ? (this.targeting.def.radius ?? (this.targeting.type === 'b2' ? 120 : 30)) : 4;
       this.marker.scale.setScalar(r / 4);
       this.marker.visible = true;
       this.audio.play('click');
-      const label = this.targeting.kind === 'missile' ? `${this.targeting.def.icon} Hedef kilitlendi! Fırlatılsın mı?` : '🎯 Konuşlanma noktası seçildi.';
+      const label = this.targeting.kind === 'missile' ? `${this.targeting.def.icon} Hedef kilitlendi! Fırlatılsın mı?` : this.targeting.kind === 'air' ? `${this.targeting.def.icon} Hedef kilitlendi! Uçak kalksın mı?` : '🎯 Konuşlanma noktası seçildi.';
       this.ui.setTargeting(label, { canConfirm: true, onConfirm: () => this.confirmTargeting(), onCancel: () => this.cancelTargeting() });
       return;
     }

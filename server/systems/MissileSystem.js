@@ -25,6 +25,10 @@ export class MissileSystem {
     const { world, bus } = ctx;
     const def = MISSILE_TYPES[type];
     if (!def) return { ok: false, error: 'Bilinmeyen füze.' };
+    if (def.airOnly) return { ok: false, error: 'Nükleer bomba sadece B-2 Spirit ile taşınabilir.' };
+    if (![x, z].every(Number.isFinite)) return { ok: false, error: 'Geçersiz hedef.' };
+    const check = ctx.engine.getSystem('diplomacy').canStrike(player, x, z);
+    if (!check.ok) return check;
     if (!isUnlocked(player, 'missiles', type)) return { ok: false, error: `Önce ${TECHS[requiredTech('missiles', type)]?.label} teknolojisini geliştir.` };
     if (![x, z].every(Number.isFinite)) return { ok: false, error: 'Geçersiz hedef.' };
     const silos = world.buildingsWhere((b) => b.type === 'missile_silo' && b.ownerKind === 'player' && b.ownerId === player.id && b.operational);
@@ -67,7 +71,7 @@ export class MissileSystem {
     for (const m of world.missiles.values()) {
       if (now < m.engagedUntil) continue;
       for (const d of defenses) {
-        if (d.ownerId === m.ownerId || (d.reloadUntil ?? 0) > now) continue;
+        if (d.ownerId === m.ownerId || (d.reloadUntil ?? 0) > now || !world.atWar(d.ownerId, m.ownerId)) continue;
         const hitAt = now + AIR_DEFENSE.interceptorFlightMs;
         if (hitAt > m.start + m.flightMs - 300) continue;
         const p = missilePos(m, hitAt);
@@ -103,12 +107,17 @@ export class MissileSystem {
     }
   }
 
-  impact({ world, bus }, m) {
+  impact(ctx, m) {
     const def = MISSILE_TYPES[m.type];
-    world.missiles.delete(m.id);
-    const { x, z } = m.to;
+    ctx.world.missiles.delete(m.id);
+    ctx.bus.emit('net:missile', { t: 'impact', id: m.id, type: m.type, x: m.to.x, z: m.to.z, radius: def.radius });
+    this.blast(ctx, m.to.x, m.to.z, def, m.ownerId, { nuclear: m.type === 'nuclear' });
+  }
+
+  // Patlama hasarı (füze, uçak saldırısı, nükleer bomba ortak)
+  blast({ world, bus }, x, z, def, ownerId, { nuclear = false } = {}) {
     const r = def.radius;
-    bus.emit('net:missile', { t: 'impact', id: m.id, type: m.type, x, z, radius: r });
+    const m = { type: nuclear ? 'nuclear' : 'x', ownerId };
 
     const before = world.npcs.size;
     let destroyed = 0;
@@ -159,7 +168,7 @@ export class MissileSystem {
       bus.emit('net:missile', { t: 'hazards', hazards: world.hazards });
     }
     const dead = before - world.npcs.size;
-    bus.news('war', `💥 ${def.label} düştü! ${destroyed} bina yıkıldı${dead ? `, ${dead} kişi hayatını kaybetti` : ''}.`);
+    bus.news('war', `💥 ${def.label} vurdu! ${destroyed} bina yıkıldı${dead ? `, ${dead} kişi hayatını kaybetti` : ''}.`);
   }
 
   onHour(time, { world, bus }) {

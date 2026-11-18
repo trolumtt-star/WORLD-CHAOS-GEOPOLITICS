@@ -468,6 +468,20 @@ const BUILDERS = {
     extras.signY = 10;
   },
 
+  airbase({ pb, glow, w, d, lotSize, extras }) {
+    lotBase(pb, lotSize, 0x7d7c70);
+    pb.plane(lotSize - 2, 7, 0, 0.08, -d * 0.2, 0x2c2e33);
+    for (let x = -lotSize / 2 + 3; x < lotSize / 2 - 2; x += 4) pb.plane(2, 0.4, x, 0.1, -d * 0.2, 0xf2f2f2);
+    for (const x of [-lotSize / 2 + 1.5, lotSize / 2 - 1.5]) glow.sphere(0.3, x, 0.4, -d * 0.2 + 3, 0x3dff8a), glow.sphere(0.3, x, 0.4, -d * 0.2 - 3, 0x3dff8a);
+    pb.add(new THREE.CylinderGeometry(5, 5, w * 0.45, 14, 1, false, 0, Math.PI), 0x8a8f99, -w * 0.15, 0, d * 0.25, { rz: Math.PI / 2 });
+    pb.box(1, 4.6, 9.6, -w * 0.15 + w * 0.225, 2.3, d * 0.25, 0x2a2a2a);
+    pb.box(2.4, 9, 2.4, w * 0.35, 4.5, d * 0.25, 0xd8d4cc);
+    pb.box(4, 2.2, 4, w * 0.35, 10, d * 0.25, 0x3a5a7a);
+    glow.box(4.1, 0.6, 4.1, w * 0.35, 10, d * 0.25, 0x9fe8ff);
+    pb.box(0.15, 4, 0.15, w * 0.35, 13, d * 0.25, 0x333333);
+    extras.signY = 15;
+  },
+
   air_defense({ pb, glow, w, d, lotSize, extras, g }) {
     lotBase(pb, lotSize, 0x7d7c70);
     pb.box(w * 0.5, 2, d * 0.5, 0, 1, 0, 0x5b6b45);

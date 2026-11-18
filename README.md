@@ -59,6 +59,16 @@ npx cap open android                                         # Android Studio'da
 - **Çağa göre ordu:** Kılıçlı asker, okçu, süvari, tüfekli asker, top bataryası, modern piyade, tank.
 - **Kontrol:** PC'de ekrana tıklayınca fareyle bakış (Esc ile çık); mobilde sürükle ve pinch.
 
+## ⚔️ Faz 2: Ülkeler, Savaş, Hava Kuvvetleri
+
+- **Ülke kur:** Vahşi topraklarda doğarsın. Uygun bir yerde (sınırlardan, nehirden ve dağdan uzak) **🏳️ ÜLKE KUR**'a bas, ülkene isim ver ve sıfır teknolojiyle başla. Uygun olmayan bir yerdeysen oyun en yakın uygun yeri haritada işaretler.
+- **NPC ülkeler (🤖):** Kuzey Krallığı, Doğu İmparatorluğu ve Batı Cumhuriyeti kendi başlarına araştırır, toprak alır, ev ve kışla kurar, ordu besler. Zamanla sana savaş açar; ileri çağlarda füze ve uçak gönderir.
+- **Savaş ilanı:** Düşman toprağına ya da sarayına dokun → 📜 **Savaş Gerekçesi Hazırla** (3 dk, karşı taraf haber alır) → ⚔️ **Savaş İlan Et**. Askerler, füzeler ve uçaklar sadece savaşta olduğun ülkeye saldırır. Barış teklif edebilirsin.
+- **Sivil kayıplar ve nüfus:** Askerler düşmanın sokaktaki sivillerini de vurur. Nüfus bir ülkenin gücüdür; artırmak için ev ve apartman inşa et (göçmenler boş evlere yerleşir). Sıralama nüfusa göredir.
+- **Hava kuvvetleri (Hava Üssü):** ✈️ F-16 (füze bırakır), 🚁 taarruz helikopteri (hedefte dolaşıp tarar), 🎯 SİHA (hassas vuruş), 🦇 **B-2 Spirit** (nükleer bombayı bırakır, bomba 3 saniye düşer, ardından mantar bulutu).
+- **Hava savunması:** Savaştığın ülkenin füzelerini ve uçaklarını otomatik vurur. B-2 hayalet olduğu için düşürme şansı sadece %15.
+- **Harita:** 28×28 parsel, öncekinden 2 kat büyük.
+
 ## 🧩 4. Neler var?
 
 **Dünya:** 64 parsellik şehir. Merkezde saray, çevresinde emniyet, banka ve hastane, dışarıda fabrikalar ve cezaevi. 16 farklı bina tipinin her biri ayrı modelle çiziliyor: kiremit çatılı ev, balkonlu apartman, havuzlu villa, otoparklı market, çizgili tenteli kafe, neonlu bar, alt türüne göre silolu / tanklı / bacalı fabrika, kubbeli saray, kuleli cezaevi ve dönen radarlı hava savunma.

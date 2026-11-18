@@ -200,7 +200,32 @@ export class Effects {
     this.audio?.playAt('clang', a[0], a[1], { minGap: 70, vol: 0.8 });
   }
 
-  tracer(a, b, kind) {
+  // Uçaktan yere füze çizgisi + patlama
+  airstrike(f) {
+    const [fx, fy, fz] = f.from ?? [f.x, 60, f.z];
+    const i = this.tracerNext;
+    this.tracerNext = (i + 1) % this.tracerCap;
+    this.tracerPos.set([fx, fy, fz, f.x, 1, f.z], i * 6);
+    this.tracerBase.set([1, 0.7, 0.3], i * 3);
+    this.tracerLife[i] = 0.3;
+    for (let k = 0; k < 10; k++) {
+      const t = k / 10;
+      this.smoke(fx + (f.x - fx) * t, fy + (1 - fy) * t, fz + (f.z - fz) * t, 0.6);
+    }
+    setTimeout(() => this.explosion(f.x, 2, f.z, f.r / 8), 220);
+  }
+
+  // B-2'den düşen nükleer bomba (patlamayı 'impact' olayı yapar)
+  dropBomb(m) {
+    const mesh = new THREE.Mesh(new THREE.CapsuleGeometry(0.8, 2.6, 4, 10), new THREE.MeshStandardMaterial({ color: 0x3a3f44, metalness: 0.6 }));
+    mesh.position.set(m.x, m.alt, m.z);
+    this.scene.add(mesh);
+    this.bombs ??= [];
+    this.bombs.push({ mesh, start: performance.now(), dur: m.fallMs, x: m.x, z: m.z, alt: m.alt });
+    this.audio?.play('whoosh', { vol: 1.5, minGap: 0 });
+  }
+
+  tracer(a, b, kind, ay) {
     if (kind === 'archer') {
       const i = this.tracerNext;
       this.tracerNext = (i + 1) % this.tracerCap;
@@ -211,6 +236,16 @@ export class Effects {
       return;
     }
     if (kind === 'cannon') kind = 'tank';
+    if (kind === 'heli') {
+      const i = this.tracerNext;
+      this.tracerNext = (i + 1) % this.tracerCap;
+      this.tracerPos.set([a[0], (ay ?? 22) - 1, a[1], b[0] + R(), 1, b[1] + R()], i * 6);
+      this.tracerBase.set([1, 0.85, 0.4], i * 3);
+      this.tracerLife[i] = 0.08;
+      this.fireP.spawn(b[0], 1, b[1], R() * 3, 3, R() * 3, 0.2, 1.2, 0.2, [1, 0.8, 0.4, 1], [1, 0.3, 0, 0]);
+      this.audio?.playAt('rifle', a[0], a[1], { minGap: 60, vol: 0.9 });
+      return;
+    }
     if (kind === 'musketeer') for (let k = 0; k < 3; k++) this.smoke(a[0] + R(), 1.8, a[1] + R(), 0.5);
     const i = this.tracerNext;
     this.tracerNext = (i + 1) % this.tracerCap;
@@ -404,6 +439,13 @@ export class Effects {
         this.smokeP.spawn(m.x + Math.cos(a) * capR, H + R() * capR * 0.3, m.z + Math.sin(a) * capR, Math.cos(a) * 3, 1, Math.sin(a) * 3, 5, capR * 0.5, capR, [0.5, 0.4, 0.35, 0.6 * fade], [0.6, 0.55, 0.5, 0], 0.2, 0.2);
       }
       if (t > 30) { this.scene.remove(m.g); return false; }
+      return true;
+    });
+    // Düşen bombalar
+    if (this.bombs) this.bombs = this.bombs.filter((b) => {
+      const t = Math.min(1, (now - b.start) / b.dur);
+      b.mesh.position.y = b.alt * (1 - t * t);
+      if (t >= 1) { this.scene.remove(b.mesh); return false; }
       return true;
     });
     // Halkalar

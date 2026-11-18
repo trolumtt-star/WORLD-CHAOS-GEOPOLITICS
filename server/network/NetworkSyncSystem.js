@@ -102,8 +102,8 @@ export function buildClockPayload({ world, clock }) {
   const leaderboard = [...world.players.values()].map((p) => {
     let assets = 0;
     for (const id of p.ownedBuildingIds) assets += world.buildings.get(id)?.value ?? 0;
-    return { id: p.id, name: p.name, color: p.color, online: p.online, title: p.title, era: p.era, tiles: world.ownedTileCount(p.id), netWorth: Math.round(p.balance + assets) };
-  }).sort((a, b) => b.netWorth - a.netWorth);
+    return { id: p.id, name: p.name, color: p.color, online: p.online, title: p.title, era: p.era, tiles: world.ownedTileCount(p.id), isAI: p.isAI, countryName: p.countryName, population: world.populationOf(p.id), wars: world.warsOf(p.id), netWorth: Math.round(p.balance + assets) };
+  }).sort((a, b) => b.population - a.population || b.netWorth - a.netWorth);
 
   const pol = world.politics;
   return {

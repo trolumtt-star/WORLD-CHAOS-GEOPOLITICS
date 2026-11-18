@@ -29,7 +29,7 @@ export const BUILDING_TYPES = {
   police:     { label: 'Emniyet Müdürlüğü', icon: '🚓', category: 'civic', footprint: [22, 26], height: [10, 12], value: [60000, 60000],  staff: { job: 'police', count: 5 } },
   bank:       { label: 'Merkez Bankası',    icon: '🏦', category: 'civic', footprint: [24, 26], height: [14, 16], value: [90000, 90000],  staff: { job: 'banker', count: 3 } },
   hospital:   { label: 'Devlet Hastanesi',  icon: '🏥', category: 'civic', footprint: [26, 30], height: [16, 20], value: [80000, 80000],  staff: { job: 'doctor', count: 4 } },
-  town_hall:  { label: 'Köy Konağı',        icon: '🏰', category: 'civic', footprint: [24, 28], height: [12, 12], value: [5000, 5000] },
+  town_hall:  { label: 'Ülke Sarayı',        icon: '🏰', category: 'civic', footprint: [24, 28], height: [12, 12], value: [5000, 5000] },
   prison:     { label: 'Cezaevi',           icon: '⛓️', category: 'civic', footprint: [30, 32], height: [8, 8],   value: [50000, 50000],  staff: { job: 'guard', count: 3 } },
 
   // ---------- DOĞA / ARSA ----------
@@ -39,6 +39,7 @@ export const BUILDING_TYPES = {
   // ---------- ASKERİ (sadece oyuncu inşa eder) ----------
   barracks:     { label: 'Kışla',                icon: '🪖', category: 'military', footprint: [26, 30], height: [6, 6],  value: [8000, 8000],   buildCost: 8000,  buildHours: 10 },
   missile_silo: { label: 'Füze Rampası',         icon: '🚀', category: 'military', footprint: [24, 24], height: [4, 4],  value: [20000, 20000], buildCost: 20000, buildHours: 16 },
+  airbase:      { label: 'Hava Üssü',            icon: '🛫', category: 'military', footprint: [30, 32], height: [8, 8],  value: [25000, 25000], buildCost: 25000, buildHours: 16 },
   air_defense:  { label: 'Hava Savunma Sistemi', icon: '📡', category: 'military', footprint: [20, 20], height: [6, 6],  value: [15000, 15000], buildCost: 15000, buildHours: 12, range: 150 },
 };
 

@@ -6,7 +6,7 @@ export const CONFIG = {
   roomIdleCloseMs: 15 * 60 * 1000, // boş oda 15 dk sonra kapanır (telefonu kilitleyen geri dönebilsin)
 
   world: {
-    gridSize: 20,   // 20x20 parsel açık dünya (880 x 880 birim)
+    gridSize: 28,   // 28x28 parsel açık dünya (1232 x 1232 birim)
     townSize: 4,    // merkezdeki tarafsız kasaba (4x4 parsel)
     blockSize: 44,
     roadWidth: 9,
@@ -70,7 +70,18 @@ export const CONFIG = {
   territory: {
     baseClaimCost: 1200,   // her yeni parsel: baseClaimCost * (1 + 0.1 * sahip olunan) * (1 + 0.35 * (çağ-1))
     scoutCost: 100,
-    villageMinDistance: 5, // köyler arası en az parsel mesafesi
+    villageMinDistance: 6, // köyler arası en az parsel mesafesi
+  },
+
+  ai: {
+    nations: 3,             // NPC ülke sayısı
+    hourlyStipend: 90,      // çağ başına saatlik devlet geliri
+    warChancePerDay: 0.18,  // savaş açma ihtimali (gün başına)
+    firstWarDay: 3,
+  },
+
+  war: {
+    justifyMs: Number(process.env.WAR_JUSTIFY_MS) || 3 * 60 * 1000, // savaş gerekçesi süresi (3 dk)
   },
 
   tech: {

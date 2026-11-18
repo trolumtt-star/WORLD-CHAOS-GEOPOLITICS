@@ -39,6 +39,8 @@ export class World {
       for (let i = 0; i < gridSize; i++) this.tiles.push({ i, j, terrain: 'p', owner: null, buildingId: null, exploredBy: new Set() });
     }
     this.dirtyTiles = new Set();
+    this.wars = new Map();            // 'a|b' -> { since }
+    this.justifications = new Map();  // 'saldıran>hedef' -> readyAt (ms)
     this.dirtyBuildings = new Set();
     this.dirtyPlayers = new Set();
     this._counters = {};
@@ -78,6 +80,30 @@ export class World {
   tilesPublic() {
     return { terrain: this.tiles.map((t) => t.terrain).join(''), owners: this.tiles.map((t) => t.owner) };
   }
+
+  // ---------- Diplomasi ----------
+  warKey(a, b) { return [a, b].sort().join('|'); }
+  atWar(a, b) { return !!a && !!b && a !== b && this.wars.has(this.warKey(a, b)); }
+  warsOf(id) {
+    const out = [];
+    for (const k of this.wars.keys()) { const [a, b] = k.split('|'); if (a === id) out.push(b); else if (b === id) out.push(a); }
+    return out;
+  }
+  justificationsOf(id) {
+    const out = {};
+    for (const [k, t] of this.justifications) { const [a, b] = k.split('>'); if (a === id) out[b] = t; }
+    return out;
+  }
+  // Bir sahibin topraklarında evi olan nüfus
+  populationOf(ownerId) {
+    let n = 0;
+    for (const npc of this.npcs.values()) {
+      const h = this.buildings.get(npc.homeId);
+      if (h && this.tileAt(h.x, h.z)?.owner === ownerId) n++;
+    }
+    return n;
+  }
+  ownerAt(x, z) { return this.tileAt(x, z)?.owner ?? null; }
 
   // ---------- Kayıt ----------
   addBuilding(b) {

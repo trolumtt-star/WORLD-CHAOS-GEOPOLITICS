@@ -46,24 +46,25 @@ export const TECHS = {
   tank:         { era: 5, label: 'Tank',             icon: '🛡️', requires: ['otomobil', 'tufek'], unlocks: { units: ['tank'] }, desc: 'Zırhlı muharebe aracı.' },
   radyo:        { era: 5, label: 'Radyo',            icon: '📻', requires: ['telefon'], unlocks: { ads: ['radyo'] }, desc: 'Radyo reklamı.' },
   radar:        { era: 5, label: 'Radar',            icon: '📡', requires: ['radyo'], unlocks: { buildings: ['air_defense'] }, desc: 'Hava savunma sistemi.' },
-  ucak:         { era: 5, label: 'Uçak',             icon: '✈️', requires: ['otomobil'], unlocks: {}, desc: 'Savaş uçakları (Faz 3\'te).' },
+  ucak:         { era: 5, label: 'Savaş Uçağı',      icon: '✈️', requires: ['otomobil'], unlocks: { buildings: ['airbase'], air: ['jet'] }, desc: 'Hava üssü ve savaş jeti: hedefe füze bırakır.' },
 
   // ---------------- 6. SOĞUK SAVAŞ
   fuze:         { era: 6, label: 'Roket Bilimi',     icon: '🚀', requires: ['radar'], unlocks: { buildings: ['missile_silo'], missiles: ['tactical', 'ballistic'] }, desc: 'Füze rampası, taktik ve balistik füze.' },
   televizyon:   { era: 6, label: 'Televizyon',       icon: '📺', requires: ['radyo'], unlocks: { ads: ['tv'] }, desc: 'TV reklamı.' },
-  nukleer:      { era: 6, label: 'Nükleer Fizik',    icon: '☢️', requires: ['fuze'], unlocks: { missiles: ['nuclear'] }, desc: 'Nükleer başlık.' },
-  helikopter:   { era: 6, label: 'Helikopter',       icon: '🚁', requires: ['ucak'], unlocks: {}, desc: 'Taarruz helikopterleri (Faz 3\'te).' },
+  nukleer:      { era: 6, label: 'Nükleer Fizik',    icon: '☢️', requires: ['fuze'], unlocks: { features: ['nuclear'] }, desc: 'Nükleer bomba (B-2 Spirit ile taşınır).' },
+  helikopter:   { era: 6, label: 'Helikopter',       icon: '🚁', requires: ['ucak'], unlocks: { air: ['heli'] }, desc: 'Taarruz helikopteri: askerleri tarar.' },
 
   // ---------------- 7. BİLGİ ÇAĞI
   bilgisayar:   { era: 7, label: 'Bilgisayar',       icon: '💻', requires: ['televizyon'], unlocks: { buildings: ['tech_store', 'factory:electronics'] }, desc: 'Elektronik fabrikası ve teknoloji mağazası.' },
   internet:     { era: 7, label: 'İnternet',         icon: '🌐', requires: ['bilgisayar'], unlocks: { ads: ['internet'] }, desc: 'İnternet reklamı.' },
   cep_telefonu: { era: 7, label: 'Cep Telefonu',     icon: '📱', requires: ['internet', 'telefon'], unlocks: { features: ['ad_bonus'] }, desc: 'Herkes cebinde reklam görür: reklam başarısı +%10.' },
-  iha:          { era: 7, label: 'İHA',              icon: '🛸', requires: ['bilgisayar', 'ucak'], unlocks: {}, desc: 'İnsansız hava aracı (Faz 3\'te).' },
+  iha:          { era: 7, label: 'İHA',              icon: '🛸', requires: ['bilgisayar', 'ucak'], unlocks: { features: ['recon'] }, desc: 'Keşif İHA\'sı: kaşifler anında rapor verir.' },
+  gizlilik:     { era: 7, label: 'Hayalet Uçak',     icon: '🦇', requires: ['bilgisayar', 'ucak', 'nukleer'], unlocks: { air: ['b2'] }, desc: 'B-2 Spirit: radara zor yakalanır, nükleer bomba taşır.' },
 
   // ---------------- 8. GÜNÜMÜZ (2026)
   sosyal_medya: { era: 8, label: 'Sosyal Medya',     icon: '💬', requires: ['cep_telefonu'], unlocks: { ads: ['sosyal'] }, desc: 'Viral reklam kampanyaları.' },
   yapay_zeka:   { era: 8, label: 'Yapay Zekâ',       icon: '🤖', requires: ['internet'], unlocks: { features: ['ai_research'] }, desc: 'Araştırma başarısı +%15.' },
-  siha:         { era: 8, label: 'SİHA',             icon: '🎯', requires: ['iha'], unlocks: {}, desc: 'Silahlı İHA (Faz 3\'te).' },
+  siha:         { era: 8, label: 'SİHA',             icon: '🎯', requires: ['iha'], unlocks: { air: ['drone'] }, desc: 'Silahlı İHA: ucuz, hassas vuruş.' },
 };
 
 // Varsayılan (teknoloji gerektirmeyen) içerik
@@ -72,6 +73,7 @@ export const DEFAULT_UNLOCKS = {
   units: ['swordsman', 'scout'],
   missiles: [],
   ads: ['tellal'],
+  air: [],
 };
 
 // Reklam kanalları: power = kaç müşteri çeker + kaç saat etkili
@@ -102,7 +104,7 @@ export function hasFeature(player, feature) {
   return player.techs.some((t) => TECHS[t]?.unlocks.features?.includes(feature));
 }
 
-// kind: 'buildings' | 'units' | 'missiles' | 'ads'
+// kind: 'buildings' | 'units' | 'missiles' | 'ads' | 'air'
 export function isUnlocked(player, kind, id) {
   if (DEFAULT_UNLOCKS[kind]?.includes(id)) return true;
   return player.techs.some((t) => TECHS[t]?.unlocks[kind]?.includes(id));
