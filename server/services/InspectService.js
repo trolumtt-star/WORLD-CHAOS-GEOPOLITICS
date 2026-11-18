@@ -1,0 +1,194 @@
+import { JOBS, ACTIVITY_LABELS, inHours } from '../data/jobs.js';
+import { PRODUCTS } from '../data/products.js';
+import { labelOf } from '../data/buildingTypes.js';
+import { UNIT_TYPES } from '../data/military.js';
+
+const tl = (n) => `₺${Math.round(n).toLocaleString('tr-TR')}`;
+const pad = (n) => String(n).padStart(2, '0');
+const hours = (r) => (r ? `${pad(r[0])}:00–${pad(r[1])}:00` : '7/24');
+const bar = (v) => '█'.repeat(Math.round(v / 10)) + '░'.repeat(10 - Math.round(v / 10));
+
+/**
+ * Bilgi paneli: ne görünür + bu oyuncu burada ne yapabilir (actions).
+ * İstemci action listesini olduğu gibi butona çevirir; yeni eylem eklemek için
+ * buraya bir satır + actions/ altına bir handler eklemek yeterli.
+ */
+export function describe(ctx, kind, id, player) {
+  const { world } = ctx;
+  const e = world.findEntity(kind, id);
+  if (!e) return null;
+  if (kind === 'building') return describeBuilding(ctx, e, player);
+  if (kind === 'npc') return describeNpc(ctx, e);
+  if (kind === 'player') return describePlayer(ctx, e);
+  if (kind === 'unit') {
+    const owner = world.players.get(e.ownerId);
+    return { kind, id, icon: UNIT_TYPES[e.type].icon, title: UNIT_TYPES[e.type].label, subtitle: owner?.name ?? '?', rows: [['Can', `${Math.round((e.hp / e.maxHp) * 100)}%`], ['Menzil', `${e.def.range} m`]], actions: [] };
+  }
+  return null;
+}
+
+function describeBuilding(ctx, b, p) {
+  const { world, config } = ctx;
+  const def = b.def;
+  const isOwner = b.ownerKind === 'player' && b.ownerId === p.id;
+  const jailed = p.jailedUntil > world.clockHours();
+  const rows = [
+    ['Tür', labelOf(b)],
+    ['Sahibi', world.ownerName(b)],
+    ['Adres', b.address],
+    ['Değer', tl(b.value)],
+  ];
+  if (b.forSale) rows.push(['Satılık', tl(b.salePrice)]);
+  if (b.construction) rows.push(['İnşaat', `%${Math.round(b.construction.progress * 100)}`]);
+  if (b.destroyed) rows.push(['Durum', '🔥 YIKILMIŞ']);
+  else if (b.hp < b.maxHp) rows.push(['Hasar', `%${Math.round((1 - b.hp / b.maxHp) * 100)}`]);
+
+  if (b.operational && def.open) rows.push(['Saatler', `${hours(def.open)} · ${world.isOpen(b) ? '🟢 Açık' : '🔴 Kapalı'}`]);
+  if (b.operational) {
+    for (const [product, s] of Object.entries(b.stock)) {
+      if (!s.sell) continue;
+      rows.push([`${PRODUCTS[product].icon} ${PRODUCTS[product].label}`, `${tl(s.price)} · stok ${Math.floor(s.qty)}`]);
+    }
+  }
+  if (def.staff) rows.push(['Personel', `${b.employeeIds.length}/${def.staff.count} ${JOBS[def.staff.job].label}`]);
+  if (def.category === 'residential' && b.operational) {
+    rows.push(['Sakinler', `${b.residentIds.length}/${b.capacity}`]);
+    rows.push(['Kira', `${tl(b.rentPerResident)} / kişi / gün`]);
+  }
+  if (b.type === 'factory' && b.operational) rows.push(['Üretim', b.active ? '⚙️ Çalışıyor' : '⏸️ Durdu']);
+  if (b.type === 'palace') {
+    rows.push(['Hazine', tl(world.treasury)]);
+    rows.push(['Başkan', `${world.politics.mayor?.name} (${world.politics.mayor?.party ?? ''})`]);
+    rows.push(['Seçim', `Gün ${world.politics.nextElectionDay}`]);
+    rows.push(['Vergiler', `Gelir %${Math.round(world.policy.incomeTax * 100)} · KDV %${Math.round(world.policy.salesTax * 100)} · Emlak ‰${(world.policy.propertyTax * 1000).toFixed(1)}`]);
+  }
+  if (b.crimeHeat > 1) rows.push(['Suç riski', '⚠️'.repeat(Math.min(3, Math.round(b.crimeHeat / 2)))]);
+
+  const actions = [];
+  const A = (label, type, params = {}, extra = {}) => actions.push({ label, type, params: { buildingId: b.id, ...params }, ...extra });
+
+  if (jailed) {
+    if (b.type === 'prison') {
+      const left = p.jailedUntil - world.clockHours();
+      A(`🔓 Kefalet Öde · ${tl(left * config.crime.bailPerHour)}`, 'crime:bail', {}, { style: 'primary' });
+    }
+    return { kind: 'building', id: b.id, icon: def.icon, title: b.name, subtitle: labelOf(b), rows, actions };
+  }
+
+  if (b.forSale && !isOwner) {
+    A(`🔑 Tapuyu Satın Al · ${tl(b.salePrice)}`, 'property:buy', {}, { style: 'primary', confirm: `${b.name} için ${tl(b.salePrice)} ödenecek. Onaylıyor musun?` });
+  }
+
+  let manage = null;
+  if (isOwner) {
+    if (b.type === 'land' && !b.construction) actions.push({ label: '🏗️ İnşa Et', ui: 'build', params: { buildingId: b.id }, style: 'primary' });
+    if (b.destroyed) A('🧹 Enkazı Kaldır · ₺500', 'property:clear', {}, { style: 'primary' });
+    if (b.type === 'barracks' && b.operational) actions.push({ label: '🪖 Ordu Komutası', ui: 'military', params: {}, style: 'primary' });
+    if (b.type === 'missile_silo' && b.operational) actions.push({ label: '🚀 Füze Komutası', ui: 'missiles', params: {}, style: 'danger' });
+    if (def.category === 'residential' && b.operational) {
+      A('🏷️ Kira Belirle', 'property:setRent', {}, { input: { title: 'Kişi başı günlük kira', fields: [{ key: 'rent', label: 'Kira (₺)', kind: 'number', min: 0, max: 500, value: b.rentPerResident }] } });
+    }
+    if (b.isBusiness && b.operational) {
+      A('💰 Kasadan Çek', 'property:withdraw', {}, { input: { title: `Kasa: ${tl(b.balance)}`, fields: [{ key: 'amount', label: 'Tutar', kind: 'number', min: 1, max: Math.floor(b.balance), value: Math.floor(b.balance) }] } });
+      A('🏦 Kasaya Koy', 'property:deposit', {}, { style: 'ghost', input: { title: 'Kasaya para koy', fields: [{ key: 'amount', label: 'Tutar', kind: 'number', min: 1, max: Math.floor(p.balance), value: 500 }] } });
+      manage = buildManage(ctx, b);
+    }
+    if (b.forSale) A('❌ İlanı Kaldır', 'property:unlist', {}, { style: 'ghost' });
+    else A('📢 Satışa Çıkar', 'property:list', {}, { style: 'ghost', input: { title: 'Satış fiyatı', fields: [{ key: 'price', label: 'Fiyat (₺)', kind: 'number', min: 1, value: Math.round(b.value * 1.2) }] } });
+  } else if (b.operational) {
+    const staff = def.staff;
+    if (staff) {
+      if (p.jobBuildingId === b.id) A('🚪 İşten Ayrıl', 'job:quit', {}, { style: 'ghost' });
+      else {
+        const job = JOBS[staff.job];
+        A(`💼 Burada Çalış · ${tl(job.wage)}/saat (${hours(job.shift)})`, 'job:apply');
+      }
+    }
+    if (def.category === 'commercial') {
+      A('🔫 Soygun Yap', 'crime:rob', {}, { style: 'danger', confirm: 'Aranma seviyen artacak ve polis peşine düşecek. Emin misin?' });
+    }
+  }
+
+  if (b.type === 'palace') {
+    const pol = world.politics;
+    const isCandidate = pol.candidates.some((c) => c.playerId === p.id);
+    if (!p.isMayor && !isCandidate) {
+      A(`🗳️ Başkanlığa Aday Ol · ${tl(config.politics.candidateFee)}`, 'politics:run', {}, { style: 'primary' });
+    }
+    if (p.isMayor || isCandidate) {
+      A('📣 Seçim Kampanyası', 'politics:campaign', {}, { input: { title: 'Kampanyaya bütçe ayır', fields: [{ key: 'amount', label: 'Tutar (₺)', kind: 'number', min: 100, max: Math.floor(p.balance), value: 1000 }] } });
+    }
+    if (p.isMayor) {
+      A('📜 Vergi & Sosyal Politika', 'politics:setPolicy', {}, { style: 'primary', input: { title: 'Belediye meclisi kararı', fields: [
+        { key: 'incomeTax', label: 'Gelir Vergisi %', kind: 'number', min: 0, max: 50, value: Math.round(world.policy.incomeTax * 100) },
+        { key: 'salesTax', label: 'KDV %', kind: 'number', min: 0, max: 40, value: Math.round(world.policy.salesTax * 100) },
+        { key: 'propertyTax', label: 'Emlak Vergisi ‰', kind: 'number', min: 0, max: 20, step: 0.5, value: world.policy.propertyTax * 1000 },
+        { key: 'welfare', label: 'İşsizlik Maaşı ₺/gün', kind: 'number', min: 0, max: 100, value: world.policy.welfare },
+      ] } });
+      A('🤫 Örtülü Ödenek (Hazineden Çek)', 'politics:embezzle', {}, { style: 'danger', input: { title: `Hazine: ${tl(world.treasury)} — yakalanırsan skandal çıkar!`, fields: [{ key: 'amount', label: 'Tutar', kind: 'number', min: 1, max: Math.floor(world.treasury * 0.5), value: 1000 }] } });
+    }
+  }
+
+  return { kind: 'building', id: b.id, icon: def.icon, title: b.name, subtitle: labelOf(b), rows, actions, manage };
+}
+
+function buildManage(ctx, b) {
+  const logistics = ctx.engine.getSystem('logistics');
+  return {
+    buildingId: b.id,
+    till: Math.round(b.balance),
+    revenueToday: Math.round(b.revenueToday),
+    revenueYesterday: Math.round(b.revenueYesterday ?? 0),
+    stock: Object.entries(b.stock).map(([product, s]) => {
+      const supplier = logistics.findSupplier(ctx, b, product);
+      return {
+        product,
+        label: PRODUCTS[product].label,
+        icon: PRODUCTS[product].icon,
+        qty: Math.floor(s.qty),
+        price: s.price,
+        sell: s.sell,
+        incoming: s.incoming,
+        autoRestock: s.autoRestock,
+        restockTo: s.restockTo,
+        soldYesterday: s.soldYesterday ?? 0,
+        wholesale: supplier ? supplier.stock[product].price : null,
+      };
+    }),
+  };
+}
+
+function describeNpc({ world }, n) {
+  const work = world.buildings.get(n.workId);
+  const home = world.buildings.get(n.homeId);
+  const now = world.clockHours();
+  const rows = [
+    ['Yaş', String(n.age)],
+    ['Meslek', JOBS[n.job].label + (n.isBoss ? ' · 👔 PATRON' : '')],
+    ['İş yeri', work?.name ?? '—'],
+    ['Durum', (n.state === 'moving' ? '🚶 Yolda → ' : '') + (ACTIVITY_LABELS[n.activity] ?? n.activity)],
+    ['Açlık', bar(n.hunger)],
+    ['Mutluluk', bar(n.happiness)],
+    ['Cüzdan', tl(n.balance)],
+    ['Ev', home?.name ?? '🏚️ Evsiz'],
+  ];
+  if (n.ownedBuildingIds.length) rows.push(['Mülkler', n.ownedBuildingIds.map((id) => world.buildings.get(id)?.name).filter(Boolean).join(', ')]);
+  if (n.criminalRecord) rows.push(['Sabıka', `${n.criminalRecord} kayıt`]);
+  if (n.jailedUntil > now) rows.push(['Hapis', `${n.jailedUntil - now} saat kaldı`]);
+  if (n.armed) rows.push(['⚠️', 'Silahlı']);
+  return { kind: 'npc', id: n.id, icon: n.gender === 'f' ? '👩' : '👨', title: n.name, subtitle: JOBS[n.job].label, rows, actions: [] };
+}
+
+function describePlayer({ world }, p) {
+  let assets = 0;
+  for (const id of p.ownedBuildingIds) assets += world.buildings.get(id)?.value ?? 0;
+  return {
+    kind: 'player', id: p.id, icon: '⭐', title: p.name, subtitle: p.title,
+    rows: [
+      ['Net servet', tl(p.balance + assets)],
+      ['Mülk', `${p.ownedBuildingIds.length} adet`],
+      ['Aranma', p.wanted ? '⭐'.repeat(p.wanted) : 'Temiz'],
+    ],
+    actions: [],
+  };
+}

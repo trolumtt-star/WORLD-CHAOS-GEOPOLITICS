@@ -1,0 +1,58 @@
+# Kodu GitHub'a yükle -> Actions sekmesi -> "Android APK" -> APK'yı indir.
+# Bilgisayarına Android Studio kurman gerekmez.
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      server_url:
+        description: 'APK içine gömülecek varsayılan sunucu adresi (ör. http://192.168.1.20:3000). Boş bırakılabilir.'
+        required: false
+        default: ''
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Bağımlılıkları kur
+        run: npm install
+
+      - name: Web dosyalarını hazırla (www/)
+        run: npm run build:mobile
+        env:
+          SERVER_URL: ${{ github.event.inputs.server_url || vars.SERVER_URL }}
+
+      - name: Android projesini oluştur
+        run: npx cap add android
+
+      - name: Yatay ekran + HTTP sunucu izni
+        run: |
+          M=android/app/src/main/AndroidManifest.xml
+          sed -i 's/<activity/<activity android:screenOrientation="sensorLandscape"/' "$M"
+          grep -q usesCleartextTraffic "$M" || sed -i 's/<application/<application android:usesCleartextTraffic="true"/' "$M"
+
+      - name: Senkronize et
+        run: npx cap sync android
+
+      - name: APK derle
+        run: cd android && chmod +x gradlew && ./gradlew assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: world-chaos-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk

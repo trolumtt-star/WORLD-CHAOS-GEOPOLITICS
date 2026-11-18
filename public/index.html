@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#07070c" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>WORLD CHAOS · Geopolitics 3D</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%22.9em%22 font-size=%2290%22%3E%F0%9F%8C%8D%3C/text%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="css/style.css" />
+  <!-- Kütüphaneler yerel: sunucu node_modules'tan verir, APK'ya kopyalanır (internetsiz çalışır) -->
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three/three.module.js" } }
+  </script>
+</head>
+<body>
+  <canvas id="gl"></canvas>
+  <div id="ui"></div>
+  <div id="flash"></div>
+  <script src="config.js"></script>
+  <script src="vendor/socket.io.min.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

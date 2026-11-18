@@ -1,0 +1,13 @@
+{
+  "appId": "com.kaosstudios.worldchaos",
+  "appName": "World Chaos",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true
+  },
+  "android": {
+    "allowMixedContent": true,
+    "backgroundColor": "#07070c"
+  }
+}
