@@ -48,7 +48,14 @@ jobs:
         run: npx cap sync android
 
       - name: APK derle
-        run: cd android && chmod +x gradlew && ./gradlew assembleDebug --no-daemon
+        # Maven deposu bazen 429 (çok fazla istek) verir: 3 kez dene
+        run: |
+          cd android && chmod +x gradlew
+          for i in 1 2 3; do
+            ./gradlew assembleDebug --no-daemon && exit 0
+            echo "Deneme $i başarısız, 60 sn bekleniyor..."; sleep 60
+          done
+          exit 1
 
       - uses: actions/upload-artifact@v4
         with:
