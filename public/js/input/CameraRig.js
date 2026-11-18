@@ -5,7 +5,7 @@ import * as THREE from 'three';
  * Mobil: tek parmak sürükle = döndür, iki parmak = pinch zoom + döndür. Kısa dokunuş = onTap.
  */
 export class CameraRig {
-  constructor(camera, dom, { onTap } = {}) {
+  constructor(camera, dom, { onTap, canLock } = {}) {
     this.camera = camera;
     this.dom = dom;
     this.onTap = onTap;
@@ -19,6 +19,9 @@ export class CameraRig {
     this.goalPitch = this.pitch;
     this.pointers = new Map();
     this.pinch = null;
+    // PC'de GTA tarzı: tıkla -> imleç kilitlenir, fare hareketi kamerayı döndürür
+    this.desktop = matchMedia('(pointer: fine)').matches;
+    this.canLock = canLock ?? (() => true);
     this.bind();
   }
 
@@ -26,11 +29,27 @@ export class CameraRig {
     const d = this.dom;
     this.h = {
       down: (e) => {
+        if (this.desktop && e.pointerType === 'mouse') {
+          if (document.pointerLockElement === d) {
+            // Kilitliyken tıklama = ekranın ortasındakini incele
+            if (e.button === 0) this.onTap?.({ clientX: window.innerWidth / 2, clientY: window.innerHeight / 2 });
+            return;
+          }
+          if (e.button === 0 && this.canLock()) {
+            d.requestPointerLock?.();
+            return;
+          }
+        }
         d.setPointerCapture?.(e.pointerId);
         this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, t: performance.now(), moved: 0 });
         if (this.pointers.size === 2) this.pinch = this.pinchState();
       },
       move: (e) => {
+        if (document.pointerLockElement === d) {
+          this.yaw -= e.movementX * 0.0032;
+          this.goalPitch = THREE.MathUtils.clamp(this.goalPitch + e.movementY * 0.0026, 0.12, 1.45);
+          return;
+        }
         const p = this.pointers.get(e.pointerId);
         if (!p) return;
         const dx = e.clientX - p.x;
@@ -65,6 +84,10 @@ export class CameraRig {
     d.addEventListener('pointerup', this.h.up);
     d.addEventListener('pointercancel', this.h.up);
     d.addEventListener('wheel', this.h.wheel, { passive: false });
+  }
+
+  unlock() {
+    if (document.pointerLockElement === this.dom) document.exitPointerLock();
   }
 
   pinchState() {
@@ -106,6 +129,7 @@ export class CameraRig {
   }
 
   dispose() {
+    this.unlock();
     const d = this.dom;
     d.removeEventListener('pointerdown', this.h.down);
     d.removeEventListener('pointermove', this.h.move);

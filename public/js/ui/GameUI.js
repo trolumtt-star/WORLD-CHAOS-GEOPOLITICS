@@ -84,6 +84,16 @@ export class GameUI {
     this.root.append(this.hud);
 
     this.minimap = new Minimap(this.canvasMini, world, this.catalog);
+
+    this.crosshair = el('div', { class: 'crosshair hidden' });
+    this.lockHint = el('div', { class: 'lock-hint' }, '🖱️ Ekrana tıkla: fareyle etrafa bak · Esc: imleci serbest bırak');
+    if (this.touch) this.lockHint.classList.add('hidden');
+    this.hud.append(this.crosshair, this.lockHint);
+  }
+
+  setPointerLock(on) {
+    this.crosshair.classList.toggle('hidden', !on);
+    this.lockHint.textContent = on ? '🎯 Tıkla: nişangahtakini incele · Esc: imleç' : '🖱️ Ekrana tıkla: fareyle etrafa bak · Esc: imleci serbest bırak';
   }
 
   destroy() { this.hud.remove(); }
@@ -225,6 +235,7 @@ export class GameUI {
 
   // ------------------------------------------------------------------ sayfa
   openSheet(kind, { icon, title, subtitle }, ...content) {
+    if (document.pointerLockElement) document.exitPointerLock();
     if (this.sheetKind !== kind) this.sfx('open');
     this.sheetKind = kind;
     this.sheetIcon.textContent = icon ?? '';

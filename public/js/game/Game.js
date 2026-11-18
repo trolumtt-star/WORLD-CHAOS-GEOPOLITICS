@@ -54,7 +54,13 @@ export class Game {
     this.self = ents.getPlayer(this.selfId);
     const touch = isTouch();
 
-    this.rig = new CameraRig(kit.camera, app.renderer.domElement, { onTap: (e) => this.onTap(e) });
+    this.rig = new CameraRig(kit.camera, app.renderer.domElement, {
+      onTap: (e) => this.onTap(e),
+      // Hedefleme modunda ya da panel açıkken imleç serbest kalsın
+      canLock: () => !this.targeting && !this.ui.sheetKind,
+    });
+    this.onLockChange = () => this.ui.setPointerLock(document.pointerLockElement === app.renderer.domElement);
+    document.addEventListener('pointerlockchange', this.onLockChange);
     this.rig.snap(this.self.g.position);
     this.controls = new Controls(app.ui, {
       touch,
@@ -241,6 +247,7 @@ export class Game {
     const data = await this.net.inspect(kind, id);
     if (!data) return;
     this.inspecting = { kind, id };
+    this.rig.unlock();
     this.ui.showInspect(data);
     this.showRangeFor(kind === 'building' ? this.city.get(id) : null);
   }
@@ -315,6 +322,7 @@ export class Game {
 
   // ------------------------------------------------------------------ hedefleme
   startTargeting(t) {
+    this.rig.unlock();
     this.ui.closeSheet();
     this.targeting = { ...t, point: null };
     this.rig.setStrategic(true);
@@ -433,6 +441,7 @@ export class Game {
 
   destroy() {
     this.running = false;
+    document.removeEventListener('pointerlockchange', this.onLockChange);
     cancelAnimationFrame(this.raf);
     for (const [e, fn] of this.handlers) this.net.off(e, fn);
     this.ui.destroy();

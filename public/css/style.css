@@ -24,6 +24,8 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #07070c; c
 canvas#gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
 #ui { position: fixed; inset: 0; pointer-events: none; z-index: 2; }
 #ui > * { pointer-events: auto; }
+/* HUD ve bildirim katmanları ekranı kaplar ama dokunuşu YUTMAMALI: kamera ve dokunma kanvasa gitsin */
+#ui > .hud, #ui > .app-toasts { pointer-events: none; }
 #flash { position: fixed; inset: 0; pointer-events: none; opacity: 0; z-index: 50; background: #fff; }
 .hidden { display: none !important; }
 button { font: inherit; color: inherit; cursor: pointer; border: none; background: none; }
@@ -308,3 +310,10 @@ html.native { --sal: max(env(safe-area-inset-left, 0px), 26px); --sar: max(env(s
   .menu-btn { padding: 8px 14px; border-radius: 13px; } .menu-btn b { font-size: 15px; } .menu-btn small { font-size: 11px; }
   .menu-foot { display: none; }
 }
+
+/* PC: fare kilitliyken nişangah */
+.crosshair { position: fixed; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; pointer-events: none !important; z-index: 6; }
+.crosshair::before, .crosshair::after { content: ''; position: absolute; background: rgba(255,255,255,0.9); box-shadow: 0 0 3px #000; }
+.crosshair::before { left: 10px; top: 0; width: 2px; height: 22px; }
+.crosshair::after { top: 10px; left: 0; width: 22px; height: 2px; }
+.lock-hint { position: absolute; left: 50%; bottom: calc(14px + var(--sab)); transform: translateX(-50%); font-size: 12px; color: var(--muted); background: rgba(10,12,20,0.6); padding: 6px 12px; border-radius: 20px; pointer-events: none !important; }
