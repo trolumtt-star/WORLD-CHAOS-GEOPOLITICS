@@ -219,7 +219,7 @@ export class Game {
     });
     this.on(E.ALERT, (a) => {
       this.ui.alert(a);
-      if (a.level === 'nuclear') this.audio.play('siren', { minGap: 0 });
+      if (a.level === 'nuclear') this.audio.play('siren', { minGap: 0, important: true });
       else this.audio.play('notify');
     });
     this.on(E.CLOCK, (c) => {

@@ -44,6 +44,9 @@ jobs:
           sed -i 's/<activity/<activity android:screenOrientation="sensorLandscape"/' "$M"
           grep -q usesCleartextTraffic "$M" || sed -i 's/<application/<application android:usesCleartextTraffic="true"/' "$M"
 
+      - name: Tam ekran oyun aktivitesi
+        run: cp native/android/MainActivity.java android/app/src/main/java/com/kaosstudios/worldchaos/MainActivity.java
+
       - name: Senkronize et
         run: npx cap sync android
 

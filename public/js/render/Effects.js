@@ -290,7 +290,7 @@ export class Effects {
 
   nuke(x, z, radius) {
     this.screenFlash('#ffffff', 2600);
-    this.audio?.play('nuke', { minGap: 0 });
+    this.audio?.play('nuke', { minGap: 0, important: true });
     this.explosion(x, 6, z, 6, { sound: false });
     this.ring(x, 0.6, z, radius * 3.2, 3.5, 0xffe0b0);
     this.ring(x, 0.6, z, radius * 1.6, 2, 0xff9a40);

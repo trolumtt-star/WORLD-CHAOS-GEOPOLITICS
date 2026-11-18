@@ -12,6 +12,7 @@ import { Game } from './game/Game.js';
 /** Uygulama durum makinesi: boot → intro → menü ⇄ oyun */
 class App {
   constructor() {
+    if (isNative()) document.documentElement.classList.add('native');
     this.ui = document.getElementById('ui');
     this.renderer = createRenderer(document.getElementById('gl'));
     this.audio = new AudioEngine();

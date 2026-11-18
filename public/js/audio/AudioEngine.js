@@ -23,10 +23,19 @@ export class AudioEngine {
     }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
-    const ctx = (this.ctx = new AC());
+    // Mobilde 'playback' gecikmesi: daha büyük tampon = cızırtı/kesilme yok
+    const mobile = matchMedia('(pointer: coarse)').matches || !!window.Capacitor;
+    let ctx;
+    try { ctx = new AC({ latencyHint: mobile ? 'playback' : 'interactive' }); } catch { ctx = new AC(); }
+    this.ctx = ctx;
+    this.mobile = mobile;
     this.comp = ctx.createDynamicsCompressor();
-    this.comp.threshold.value = -14;
-    this.comp.ratio.value = 4;
+    // Limiter gibi davransın: üst üste binen patlamalar clip olup cızırdamasın
+    this.comp.threshold.value = -18;
+    this.comp.knee.value = 6;
+    this.comp.ratio.value = 12;
+    this.comp.attack.value = 0.003;
+    this.comp.release.value = 0.25;
     this.master = ctx.createGain();
     this.musicBus = ctx.createGain();
     this.sfxBus = ctx.createGain();
@@ -54,7 +63,7 @@ export class AudioEngine {
   applyVolumes() {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
-    this.master.gain.setTargetAtTime(Settings.get('master'), t, 0.05);
+    this.master.gain.setTargetAtTime(Settings.get('master') * 0.8, t, 0.05);
     this.musicBus.gain.setTargetAtTime(Settings.get('music') * 0.55, t, 0.05);
     this.sfxBus.gain.setTargetAtTime(Settings.get('sfx'), t, 0.05);
   }
@@ -110,6 +119,12 @@ export class AudioEngine {
 
   play(name, opts = {}) {
     if (!this.ctx || this.ctx.state !== 'running') return;
+    // Ses bütçesi: saniyede en fazla ~25 efekt (mobilde 15)
+    const t = performance.now();
+    this._budget = Math.min(this.mobile ? 15 : 25, (this._budget ?? 25) + ((t - (this._budgetT ?? t)) / 1000) * (this.mobile ? 15 : 25));
+    this._budgetT = t;
+    if (this._budget < 1 && !opts.important) return;
+    this._budget -= 1;
     // Aynı sesi aynı anda 30 kez çalmasın
     const nowMs = performance.now();
     const minGap = opts.minGap ?? 30;
@@ -303,11 +318,8 @@ class MusicEngine {
 
     if (s === 0) {
       // Pad: her akor notası için hafif detune'lu iki testere dalga
-      for (const n of chord) {
-        for (const det of [-7, 7]) {
-          this.pad(midi(n + 12), when, eighth * 8, p.pad, det, p.cutoff);
-        }
-      }
+      const voices = this.a.mobile ? chord.slice(0, 3) : chord;
+      voices.forEach((n, i) => this.pad(midi(n + 12), when, eighth * 8, p.pad * 1.3, i % 2 ? 6 : -6, p.cutoff));
     }
     if (p.bass && (s === 0 || s === 4 || (p.stab && s % 2 === 0))) {
       a.tone({ type: p.stab ? 'sawtooth' : 'sine', freq: midi(chord[0] - 12), dur: p.stab ? eighth * 0.9 : eighth * 3.5, vol: p.bass, when, dest: bus, attack: 0.01 });
@@ -340,9 +352,9 @@ class MusicEngine {
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, t);
     g.gain.linearRampToValueAtTime(vol, t + dur * 0.3);
-    g.gain.linearRampToValueAtTime(0.0001, t + dur * 1.05);
+    g.gain.linearRampToValueAtTime(0.0001, t + dur * 0.98);
     o.connect(f).connect(g).connect(this.a.musicBus);
     o.start(t);
-    o.stop(t + dur * 1.1);
+    o.stop(t + dur);
   }
 }

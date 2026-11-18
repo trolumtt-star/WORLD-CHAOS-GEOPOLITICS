@@ -298,3 +298,13 @@ input[type='range'] { padding: 0; height: 28px; background: none; border: none; 
   .ml-main { font-size: 34px; }
   .menu-btn { padding: 10px 14px; }
 }
+
+/* APK: çentik/kenar payı (WebView safe-area değerini her zaman vermiyor) */
+html.native { --sal: max(env(safe-area-inset-left, 0px), 26px); --sar: max(env(safe-area-inset-right, 0px), 18px); }
+@media (max-height: 400px) {
+  .menu-inner { width: min(400px, 100%); gap: 8px; padding-top: calc(10px + var(--sat)); }
+  .ml-main { font-size: 30px; } .ml-sub { font-size: 9px; margin-top: 4px; }
+  .menu-logo { margin: 2px 0 4px; }
+  .menu-btn { padding: 8px 14px; border-radius: 13px; } .menu-btn b { font-size: 15px; } .menu-btn small { font-size: 11px; }
+  .menu-foot { display: none; }
+}
