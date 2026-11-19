@@ -1071,7 +1071,7 @@ export class Game {
   destroy() {
     this.running = false;
     this.phone?.close();
-    this.phone?.node.remove(); this.phone?.backdrop.remove(); this.phone?.ring.remove();
+    this.phone?.dispose();
     this.voice.dispose();
     this.interior.clear();
     document.removeEventListener('pointerlockchange', this.onLockChange);

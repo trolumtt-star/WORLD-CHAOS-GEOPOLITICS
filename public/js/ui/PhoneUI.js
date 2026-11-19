@@ -38,17 +38,44 @@ export class PhoneUI {
     this.backdrop = el('div', { class: 'ph-backdrop hidden', onClick: () => this.close() });
     this.ring = el('div', { class: 'ph-ring hidden' });
     root.append(this.backdrop, this.node, this.ring);
+    this.onPop = () => {
+      if (!this.isOpen) return;
+      this._hist = false;
+      if (this.view) {
+        this.back();
+        this._hist = true;
+        try { history.pushState({ phone: 1 }, ''); } catch { /* yok */ }
+      } else this.close();
+    };
+    window.addEventListener('popstate', this.onPop);
+    this.onKey = (e) => { if (this.isOpen && (e.key === 'Escape' || e.key === 'Backspace') && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) { e.preventDefault(); e.stopPropagation(); this.back(); } };
+    window.addEventListener('keydown', this.onKey, true);
     setInterval(() => { const d = new Date(); this.statusTime.textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}`; }, 1000);
+  }
+
+  /** Bir adım geri: sohbet → mesajlar → ana ekran → telefonu kapat */
+  back() {
+    this.h.sfx?.('close');
+    if (this.view === 'messages' && this.thread) { this.thread = null; this.openApp('messages'); return; }
+    if (this.view) { this.home(); return; }
+    this.close();
   }
 
   get isOpen() { return !this.node.classList.contains('hidden'); }
   open(app) {
     this.node.classList.remove('hidden');
     this.backdrop.classList.remove('hidden');
+    // Android geri tuşu / geri hareketi telefonda bir adım geri gelsin
+    if (!this._hist) { this._hist = true; try { history.pushState({ phone: 1 }, ''); } catch { /* yok */ } }
     this.h.sfx?.('open');
     if (app) this.openApp(app); else if (!this.view) this.home(); else this.openApp(this.view);
   }
-  close() { this.node.classList.add('hidden'); this.backdrop.classList.add('hidden'); }
+  close() {
+    if (!this.isOpen) return;
+    this.node.classList.add('hidden');
+    this.backdrop.classList.add('hidden');
+    if (this._hist) { this._hist = false; try { if (history.state?.phone) history.back(); } catch { /* yok */ } }
+  }
   toggle() { this.isOpen ? this.close() : this.open(); }
 
   setSelf(s) { this.self = { ...this.self, ...s }; if (this.isOpen && ['bank', 'garage', 'wardrobe', 'court', 'order'].includes(this.view) && !this._typing) this.openApp(this.view, true); }
@@ -79,7 +106,10 @@ export class PhoneUI {
     this.node.classList.add('app');
     clear(this.screen).append(
       el('div', { class: 'ph-page' },
-        el('div', { class: 'ph-nav' }, el('button', { class: 'ph-back', onClick: () => (this.thread ? (this.thread = null, this.openApp('messages')) : this.home()) }, '‹'), el('b', {}, title), el('span')),
+        el('div', { class: 'ph-nav' },
+          el('button', { class: 'ph-back', onClick: (e) => { e.stopPropagation(); this.back(); } }, '‹ Geri'),
+          el('b', {}, title),
+          el('button', { class: 'ph-x', onClick: (e) => { e.stopPropagation(); this.close(); } }, '✕')),
         el('div', { class: 'ph-body' }, ...content)));
     return this.screen.querySelector('.ph-body');
   }
@@ -434,5 +464,11 @@ export class PhoneUI {
     }
   }
 }
+
+PhoneUI.prototype.dispose = function dispose() {
+  window.removeEventListener('popstate', this.onPop);
+  window.removeEventListener('keydown', this.onKey, true);
+  this.node.remove(); this.backdrop.remove(); this.ring.remove();
+};
 
 const hex = (c) => `#${c.toString(16).padStart(6, '0')}`;
