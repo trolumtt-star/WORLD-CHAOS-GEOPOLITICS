@@ -1,6 +1,6 @@
 import { EVENTS } from '../shared/events.js';
 import { el } from './core/dom.js';
-import { Settings, Session, isNative } from './core/Settings.js';
+import { Settings, Session, isNative, Tokens } from './core/Settings.js';
 import { Network } from './net/Network.js';
 import { AudioEngine } from './audio/AudioEngine.js';
 import { createRenderer } from './render/SceneSetup.js';
@@ -64,7 +64,7 @@ class App {
 
   // Oda oluştur / katıl
   async enter(request) {
-    const done = this.menu.loading('Dünya oluşturuluyor...');
+    const done = this.menu.loading('Dünya hazırlanıyor... (uyuyan dünyalar uyanıyor)');
     if (!(await this.ensureConnected())) {
       done();
       this.toast('Sunucuya bağlanılamadı. Ayarlar > Sunucu adresi\'ni kontrol et.', 'err');
@@ -79,11 +79,13 @@ class App {
       return;
     }
     Session.set({ code: res.code, token: res.token, name: Settings.get('name') });
+    Tokens.set(res.code, res.token);
     this.pendingDone = done;
   }
 
   onInit(init) {
     Session.set({ code: init.room.code, token: init.token, name: Settings.get('name') });
+    Tokens.set(init.room.code, init.token);
     this.menu.hide();
     if (this.backdrop) { this.backdrop.dispose(); this.backdrop = null; }
     if (this.game) this.game.destroy();

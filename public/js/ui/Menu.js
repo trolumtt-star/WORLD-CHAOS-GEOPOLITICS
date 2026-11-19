@@ -1,5 +1,5 @@
 import { el, clear } from '../core/dom.js';
-import { Settings, Session, isNative } from '../core/Settings.js';
+import { Settings, Session, isNative, Tokens } from '../core/Settings.js';
 
 const TIPS = [
   'NPC\'ler fiyat ve mesafeye bakar: rakibinden ucuz satarsan müşteri sana akar.',
@@ -47,7 +47,7 @@ export class Menu {
         s?.code ? this.button(`▶ DEVAM ET`, `Oda ${s.code} · ${s.name}`, () => this.app.resume(), 'primary') : null,
         this.button('⚡ HIZLI OYNA', 'Sınırsız paralı Sandbox dünyası kur', () => this.quickPlay(), s?.code ? '' : 'primary'),
         this.button('🌍 ODA KUR', 'Arkadaşlarına davet kodu gönder', () => this.openCreate()),
-        this.button('🔑 ODAYA KATIL', 'Kod ile ya da listeden', () => this.openJoin()),
+        this.button('🌐 SUNUCUYA KATIL', 'Kayıtlı tüm dünyalar · arkadaşlarının dünyaları', () => this.openJoin()),
         el('div', { class: 'menu-row' },
           this.button('⚙️ Ayarlar', null, () => this.openSettings(), 'half'),
           this.button('❔ Nasıl Oynanır', null, () => this.openHelp(), 'half'))),
@@ -103,28 +103,47 @@ export class Menu {
     const nm = this.nameField();
     const code = el('input', { maxlength: 5, placeholder: 'ABCDE', value: prefill, style: { textTransform: 'uppercase', letterSpacing: '6px', fontSize: '22px', textAlign: 'center' } });
     const pw = el('input', { maxlength: 32, placeholder: 'Varsa', type: 'password' });
-    const list = el('div', { class: 'room-list' }, el('div', { class: 'muted' }, 'Odalar yükleniyor...'));
-    const join = async () => {
+    const list = el('div', { class: 'room-list' }, el('div', { class: 'muted' }, '🌐 Dünyalar yükleniyor...'));
+    const status = el('div', { class: 'muted' });
+    const go = async (c, password) => {
       const name = nm.get();
-      if (!name) return this.error('Takma ad gerekli.');
-      if (code.value.trim().length < 5) return this.error('Oda kodu 5 karakter.');
-      await this.app.enter(() => this.app.net.joinRoom({ code: code.value.trim().toUpperCase(), password: pw.value, name }));
+      if (!name) return this.error('Önce takma adını yaz.');
+      await this.app.enter(() => this.app.net.joinRoom({ code: c, password, name, token: Tokens.get(c) }));
     };
-    this.page(this.back(), el('h2', {}, '🔑 Odaya Katıl'),
-      el('div', { class: 'form glass' },
-        nm.node,
-        el('label', { class: 'field' }, el('span', {}, 'Oda kodu'), code),
+    const join = () => {
+      if (code.value.trim().length < 5) return this.error('Dünya kodu 5 karakter.');
+      go(code.value.trim().toUpperCase(), pw.value);
+    };
+    this.page(this.back(), el('h2', {}, '🌐 Sunucu · Dünyalar'),
+      el('div', { class: 'form glass' }, nm.node),
+      status, list,
+      el('details', { class: 'glass code-join' }, el('summary', {}, '🔑 Kodla katıl'),
+        el('label', { class: 'field' }, el('span', {}, 'Dünya kodu'), code),
         el('label', { class: 'field' }, el('span', {}, 'Şifre'), pw),
-        el('button', { class: 'btn primary wide big', onClick: join }, 'KATIL')),
-      el('h3', {}, 'Açık Odalar'), list);
-    if (!(await this.app.ensureConnected())) { clear(list).append(el('div', { class: 'muted' }, 'Sunucuya bağlanılamadı.')); return; }
+        el('button', { class: 'btn primary wide', onClick: join }, 'KATIL')));
+    if (!(await this.app.ensureConnected())) { clear(list).append(el('div', { class: 'muted' }, 'Sunucuya bağlanılamadı. (Sunucu uyuyorsa 30-60 sn bekleyip tekrar dene.)')); return; }
     const res = await this.app.net.listRooms();
     clear(list);
-    if (!res.ok || !res.rooms.length) list.append(el('div', { class: 'muted' }, 'Şu an açık oda yok. Bir tane kur!'));
+    status.textContent = res?.persistent ? '💾 Tüm dünyalar kayıtlı: kimse oynamasa da kaybolmaz, uyurken geçen zaman telafi edilir.' : '⚠️ Bu sunucuda kayıt kapalı: dünyalar sunucu yeniden başlayınca silinir.';
+    if (!res?.ok || !res.rooms.length) list.append(el('div', { class: 'muted' }, 'Henüz dünya yok. Ana menüden bir tane kur!'));
+    const ago = (iso) => {
+      if (!iso) return '';
+      const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+      return m < 2 ? 'az önce' : m < 60 ? `${m} dk önce` : m < 1440 ? `${Math.round(m / 60)} sa önce` : `${Math.round(m / 1440)} gün önce`;
+    };
     for (const r of res?.rooms ?? []) {
-      list.append(el('button', { class: 'room-row', onClick: () => { code.value = r.code; this.app.audio.play('click'); } },
-        el('b', {}, `${r.locked ? '🔒' : '🌍'} ${r.name}`),
-        el('small', {}, `${r.code} · ${r.players}/${r.max} oyuncu · Gün ${r.day} · 👥 ${r.population}${r.sandbox ? ' · 💥 Sandbox' : ''}`)));
+      const mine = !!Tokens.get(r.code);
+      const pwIn = el('input', { type: 'password', placeholder: '🔒 Şifre', maxlength: 32, class: 'row-pw', onClick: (e) => e.stopPropagation() });
+      const needPw = r.locked && !mine;
+      list.append(el('div', { class: `room-row ${r.live ? 'live' : ''}` },
+        el('div', { class: 'rr-top' },
+          el('b', {}, `${r.locked ? '🔒' : '🌍'} ${r.name}`),
+          el('span', { class: `rr-state ${r.live ? 'on' : ''}` }, r.live ? (r.players ? `🟢 ${r.players} oyuncu` : '🟢 Açık') : '💤 Uyuyor')),
+        el('small', {}, `${r.code}${r.owner ? ` · 👑 ${r.owner}` : ''} · Gün ${r.day} · 👥 ${r.population}${r.countries ? ` · 🏳️ ${r.countries} ülke` : ''}${r.sandbox ? ' · 💥 Sandbox' : ''}${!r.live && r.updatedAt ? ` · ${ago(r.updatedAt)}` : ''}`),
+        r.playerNames?.length ? el('small', {}, `🎮 ${r.playerNames.slice(0, 6).join(', ')}${r.playerNames.length > 6 ? '…' : ''}`) : null,
+        el('div', { class: 'rr-act' },
+          needPw ? pwIn : null,
+          el('button', { class: `btn mini ${mine ? 'primary' : ''}`, onClick: () => { this.app.audio.play('click'); go(r.code, pwIn.value); } }, mine ? '▶ Karakterinle Devam' : '➕ Katıl'))));
     }
   }
 

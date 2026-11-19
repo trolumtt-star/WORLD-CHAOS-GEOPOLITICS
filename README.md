@@ -89,6 +89,16 @@ Savaştığın ülkenin **sarayının 60 m çevresine en az 3 asker** sok (savun
 - **🏴 İlhak:** Tüm parseller, binalar ve nüfus senin olur; ordusu dağılır, lideri senin vatandaşın olur (sonra yeniden ülke kurabilir).
 NPC ülkeler de bunu yapar: insan oyuncuyu kukla yapar, birbirlerini çoğunlukla ilhak eder.
 
+## 💾 Kalıcı Dünyalar (Supabase)
+
+Dünyalar her dakika ve sunucu kapanırken Supabase'e kaydedilir; boş dünya 10 dk sonra bellekten çıkar ("💤 Uyuyor") ve biri girince geri yüklenir. Sunucu uyurken geçen zaman (en fazla 5 oyun günü) hızlıca simüle edilir. **🌐 Sunucuya Katıl** ekranında tüm dünyalar listelenir; aynı telefondan dönen oyuncu aynı karakterle devam eder.
+
+Render → Environment:
+- `SUPABASE_URL` = `https://pwkmxlqgvjjuyhicxnfj.supabase.co`
+- `SUPABASE_SECRET_KEY` = Supabase → Project Settings → API Keys → **secret** anahtar (`sb_secret_...`)
+
+Bu iki değişken yoksa oyun eskisi gibi sadece bellekte çalışır.
+
 ## 🧩 4. Neler var?
 
 **Dünya:** 64 parsellik şehir. Merkezde saray, çevresinde emniyet, banka ve hastane, dışarıda fabrikalar ve cezaevi. 16 farklı bina tipinin her biri ayrı modelle çiziliyor: kiremit çatılı ev, balkonlu apartman, havuzlu villa, otoparklı market, çizgili tenteli kafe, neonlu bar, alt türüne göre silolu / tanklı / bacalı fabrika, kubbeli saray, kuleli cezaevi ve dönen radarlı hava savunma.

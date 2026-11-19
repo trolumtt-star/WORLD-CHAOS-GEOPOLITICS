@@ -422,3 +422,13 @@ html.native { --sal: max(env(safe-area-inset-left, 0px), 26px); --sar: max(env(s
   .hud.sheet-open .inside-bar, .hud.sheet-open .tv-ov { left: calc((100vw - min(430px, 46vw)) / 2); }
   .hud.sheet-open .combat { display: none; }
 }
+
+/* ---------- Sunucu / dünya listesi ---------- */
+.room-row.live { border-color: rgba(61, 220, 132, 0.45); }
+.rr-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.rr-state { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.rr-state.on { color: var(--green); font-weight: 800; }
+.rr-act { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+.rr-act .row-pw { flex: 1; min-width: 0; padding: 6px 10px; border-radius: 10px; }
+.code-join { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
+.code-join summary { cursor: pointer; font-weight: 800; }

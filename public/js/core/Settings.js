@@ -38,3 +38,11 @@ export const Session = {
   set(s) { save(SESSION_KEY, s); },
   clear() { try { localStorage.removeItem(SESSION_KEY); } catch { /* yok say */ } },
 };
+
+// Her dünyadaki karakterin anahtarı: aynı telefondan geri dönünce aynı karakter
+const TOKENS_KEY = 'wc_tokens_v1';
+export const Tokens = {
+  all() { try { return JSON.parse(localStorage.getItem(TOKENS_KEY)) ?? {}; } catch { return {}; } },
+  get(code) { return this.all()[code] ?? null; },
+  set(code, token) { const a = this.all(); a[code] = token; save(TOKENS_KEY, a); },
+};

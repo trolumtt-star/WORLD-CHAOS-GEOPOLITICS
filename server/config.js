@@ -5,6 +5,12 @@ export const CONFIG = {
   maxRooms: 30,
   roomIdleCloseMs: 15 * 60 * 1000, // boş oda 15 dk sonra kapanır (telefonu kilitleyen geri dönebilsin)
 
+  persistence: {
+    saveEveryMs: 60_000,     // her dakika kaydet
+    maxCatchUpHours: 120,    // uyurken en fazla 5 oyun günü telafi
+    unloadIdleMs: 10 * 60_000, // boş dünya 10 dk sonra kaydedilip bellekten çıkar
+  },
+
   world: {
     gridSize: 28,   // 28x28 parsel açık dünya (1232 x 1232 birim)
     townSize: 4,    // merkezdeki tarafsız kasaba (4x4 parsel)

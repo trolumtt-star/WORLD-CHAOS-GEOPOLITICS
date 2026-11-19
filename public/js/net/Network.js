@@ -41,7 +41,7 @@ export class Network {
 
   listRooms() { return this.request(EVENTS.LOBBY_LIST, {}); }
   createRoom(opts) { return this.request(EVENTS.ROOM_CREATE, opts, 15000); }
-  joinRoom(opts) { return this.request(EVENTS.ROOM_JOIN, opts, 15000); }
+  joinRoom(opts) { return this.request(EVENTS.ROOM_JOIN, opts, 35000); }
   leaveRoom() { return this.request(EVENTS.ROOM_LEAVE, {}); }
 
   action(type, params = {}) { return this.request(EVENTS.ACTION, { action: type, params }); }

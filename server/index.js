@@ -25,6 +25,16 @@ const lobby = new Lobby(io);
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, rooms: lobby.list() }));
 
+// Render kapatırken (yeni sürüm / uyku) dünyaları kaydet
+let closing = false;
+for (const sig of ['SIGTERM', 'SIGINT']) {
+  process.on(sig, async () => {
+    if (closing) return;
+    closing = true;
+    try { await Promise.race([lobby.shutdown(), new Promise((r) => setTimeout(r, 20000))]); } finally { process.exit(0); }
+  });
+}
+
 server.listen(CONFIG.port, '0.0.0.0', () => {
   console.log(`\n🌍 WORLD CHAOS sunucusu hazır → http://localhost:${CONFIG.port}`);
   console.log('   Telefondan bağlanmak için aynı Wi-Fi\'da bilgisayarının IP adresini kullan (ör. http://192.168.1.20:3000)\n');

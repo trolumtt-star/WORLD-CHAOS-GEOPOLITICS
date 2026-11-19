@@ -13,6 +13,7 @@ import { ACTIONS, catalog } from '../actions/index.js';
 import { describe } from '../services/InspectService.js';
 import { NetworkSyncSystem, buildClockPayload } from '../network/NetworkSyncSystem.js';
 import { missilePos } from '../systems/MissileSystem.js';
+import { restoreWorld } from '../persistence/Snapshot.js';
 
 import { NeedsSystem } from '../systems/NeedsSystem.js';
 import { NpcBrainSystem } from '../systems/NpcBrainSystem.js';
@@ -39,28 +40,41 @@ const COLORS = ['#ff4d4d', '#3ddc84', '#ffd23f', '#a06cff', '#2ec4ff', '#ff8c42'
 
 /** Bir oda = kendi dünyası, kendi saati, kendi sistemleri olan bağımsız bir evren. */
 export class Room {
-  constructor(io, { code, name, password, sandbox, npcCount }) {
+  constructor(io, { code, name, password, sandbox, npcCount, ownerName, save }) {
     this.io = io;
-    this.code = code;
-    this.name = name;
-    this.password = password || '';
-    this.sandbox = !!sandbox;
-    this.createdAt = Date.now();
+    this.code = save?.meta.code ?? code;
+    this.name = save?.meta.name ?? name;
+    this.passwordHash = save ? save.meta.passwordHash ?? '' : password ? hashPw(password) : '';
+    this.sandbox = save ? !!save.meta.sandbox : !!sandbox;
+    this.ownerName = save?.meta.ownerName ?? ownerName ?? null;
+    this.createdAt = save?.meta.createdAt ?? Date.now();
     this.emptySince = Date.now();
-    this._playerSeq = 0;
+    this._playerSeq = save?.meta.playerSeq ?? 0;
 
-    const config = structuredClone(CONFIG);
-    config.seed = Math.floor(Math.random() * 1e9);
-    if (npcCount) config.genesis.npcCount = Math.max(20, Math.min(150, npcCount));
+    let config;
+    if (save) {
+      // Kayıttaki denge ayarları + koddaki yeni ayarlar (yeni eklenen alanlar eksik kalmasın)
+      config = mergeDeep(structuredClone(CONFIG), save.config);
+      config.time.msPerGameHour = CONFIG.time.msPerGameHour;
+      config.life = { ...config.life, ...CONFIG.life };
+    } else {
+      config = structuredClone(CONFIG);
+      config.seed = Math.floor(Math.random() * 1e9);
+      if (npcCount) config.genesis.npcCount = Math.max(20, Math.min(150, npcCount));
+    }
     this.config = config;
 
     this.bus = new EventBus();
-    this.rng = createRng(config.seed);
+    this.rng = createRng(save ? Math.floor(Math.random() * 1e9) : config.seed);
     this.world = new World(config, this.bus);
-    const stats = generateWorld(this.world, this.rng, config);
+    let stats = null;
+    if (save) restoreWorld(this.world, save);
+    else stats = generateWorld(this.world, this.rng, config);
 
     // SIRA ÖNEMLİ
-    this.engine = new GameEngine({ world: this.world, rng: this.rng, bus: this.bus, config })
+    this.engine = new GameEngine({ world: this.world, rng: this.rng, bus: this.bus, config });
+    if (save) this.engine.clock.elapsedMs = save.clockMs;
+    this.engine
       .use(new DiplomacySystem())
       .use(new NeedsSystem())
       .use(new NpcBrainSystem())
@@ -80,10 +94,35 @@ export class Room {
       .use(new TerritorySystem())
       .use(new AiSystem())
       .use(new LifeSystem())
-      .use(new NetworkSyncSystem(io, code));
+      .use(new NetworkSyncSystem(io, this.code));
     this.ctx = this.engine.ctx;
+    if (save) {
+      const life = this.engine.getSystem('life');
+      if (life) life.incSeq = save.life?.incSeq ?? 0;
+      // Sunucu uyurken geçen zamanı telafi et
+      const missedHours = Math.floor((Date.now() - save.savedAt) / config.time.msPerGameHour);
+      this.caughtUp = this.engine.fastForward(Math.min(missedHours, CONFIG.persistence.maxCatchUpHours));
+      console.log(`[room ${this.code}] kayıttan yüklendi, ${this.caughtUp} oyun saati telafi edildi`);
+    } else {
+      console.log(`[room ${this.code}] "${this.name}" oluşturuldu`, stats);
+    }
     this.engine.start();
-    console.log(`[room ${code}] "${name}" oluşturuldu`, stats);
+  }
+
+  /** Lobi listesi ve veritabanı için özet */
+  summary() {
+    const humans = [...this.world.players.values()].filter((p) => !p.isAI);
+    return {
+      code: this.code,
+      name: this.name,
+      owner_name: this.ownerName,
+      locked: !!this.passwordHash,
+      sandbox: this.sandbox,
+      day: this.engine.clock.day,
+      population: this.world.npcs.size,
+      player_names: humans.map((p) => p.name).slice(0, 20),
+      countries: [...this.world.players.values()].filter((p) => p.village).length,
+    };
   }
 
   get onlineCount() {
@@ -96,7 +135,7 @@ export class Room {
     return {
       code: this.code,
       name: this.name,
-      locked: !!this.password,
+      locked: !!this.passwordHash,
       sandbox: this.sandbox,
       players: this.onlineCount,
       max: this.config.maxPlayersPerRoom,
@@ -106,9 +145,9 @@ export class Room {
   }
 
   checkPassword(pw) {
-    if (!this.password) return true;
-    const a = Buffer.from(String(pw ?? ''));
-    const b = Buffer.from(this.password);
+    if (!this.passwordHash) return true;
+    const a = Buffer.from(hashPw(String(pw ?? '')));
+    const b = Buffer.from(this.passwordHash);
     return a.length === b.length && crypto.timingSafeEqual(a, b);
   }
 
@@ -312,4 +351,16 @@ export class Room {
 export function sanitizeName(raw) {
   const name = String(raw ?? '').replace(/<[^>]*>/g, '').replace(/[<>"'&]/g, '').trim().slice(0, 16);
   return name || `Yabancı${Math.floor(Math.random() * 1000)}`;
+}
+
+function hashPw(pw) {
+  return crypto.createHash('sha256').update(`wc:${pw}`).digest('hex');
+}
+
+function mergeDeep(base, over) {
+  for (const [k, v] of Object.entries(over ?? {})) {
+    if (v && typeof v === 'object' && !Array.isArray(v) && base[k] && typeof base[k] === 'object') mergeDeep(base[k], v);
+    else base[k] = v;
+  }
+  return base;
 }
