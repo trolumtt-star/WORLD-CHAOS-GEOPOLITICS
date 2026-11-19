@@ -93,6 +93,10 @@ export class Lobby {
       if (room && player) room.handleMove(socket, player, d);
     });
 
+    socket.on('voice', (d) => {
+      if (room && player) room.handleVoice(socket, player, d);
+    });
+
     socket.on(EVENTS.ACTION, (msg, ack) => {
       if (!room || !player) return reply(ack)({ ok: false, error: 'Odada değilsin.' });
       if (--actionBudget < 0) return reply(ack)({ ok: false, error: 'Çok hızlı! Biraz yavaşla.' });

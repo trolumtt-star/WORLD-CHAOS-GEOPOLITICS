@@ -269,6 +269,31 @@ const SFX = {
   },
   whoosh: (a, v) => a.noiseBurst({ dur: 0.6, vol: 0.25 * v, type: 'bandpass', freq: 1600, freqEnd: 250, q: 1.5, attack: 0.15 }),
   built: (a, v) => SFX.success(a, v),
+  punch: (a, v) => {
+    a.noiseBurst({ dur: 0.07, vol: 0.4 * v, type: 'lowpass', freq: 900, freqEnd: 200 });
+    a.tone({ type: 'sine', freq: 140, freqEnd: 60, dur: 0.09, vol: 0.3 * v });
+  },
+  pistol: (a, v) => {
+    a.noiseBurst({ dur: 0.12, vol: 0.45 * v, type: 'bandpass', freq: 1300, freqEnd: 500, q: 0.7 });
+    a.tone({ type: 'square', freq: 220, freqEnd: 50, dur: 0.08, vol: 0.14 * v });
+  },
+  hurt: (a, v) => {
+    a.tone({ type: 'sawtooth', freq: 320, freqEnd: 180, dur: 0.18, vol: 0.12 * v });
+    a.noiseBurst({ dur: 0.06, vol: 0.2 * v, type: 'lowpass', freq: 700 });
+  },
+  eat: (a, v) => { for (let i = 0; i < 3; i++) a.noiseBurst({ dur: 0.06, vol: 0.18 * v, type: 'bandpass', freq: 1800, q: 2, when: i * 0.16 }); },
+  drink: (a, v) => { for (let i = 0; i < 3; i++) a.tone({ type: 'sine', freq: 420 + i * 60, freqEnd: 300, dur: 0.12, vol: 0.12 * v, when: i * 0.18 }); },
+  door: (a, v) => {
+    a.noiseBurst({ dur: 0.25, vol: 0.2 * v, type: 'lowpass', freq: 600, freqEnd: 200 });
+    a.tone({ type: 'triangle', freq: 180, freqEnd: 120, dur: 0.15, vol: 0.12 * v, when: 0.18 });
+  },
+  task: (a, v) => {
+    a.tone({ type: 'triangle', freq: 988, dur: 0.1, vol: 0.12 * v });
+    a.tone({ type: 'triangle', freq: 1319, dur: 0.18, vol: 0.12 * v, when: 0.08 });
+  },
+  death: (a, v) => {
+    [60, 56, 53, 48].forEach((m, i) => a.tone({ type: 'triangle', freq: midi(m), dur: 0.5, vol: 0.14 * v, when: i * 0.28 }));
+  },
 };
 
 // ---------------- Üretken müzik ----------------

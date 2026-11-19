@@ -45,6 +45,12 @@ export class CrimeSystem {
     b.lastRobbedAt = Date.now();
     npc.criminalRecord++;
     bus.news('crime', `🚨 ${b.name} soyuldu! ₺${steal.toLocaleString('tr-TR')} çalındı.${npc.armed ? ' Fail silahlıydı.' : ''}`);
+    // Mesaide polis oyuncu varsa soyguncu kaçar, oyuncular kovalar
+    const life = engine.getSystem('life');
+    if ([...world.players.values()].some((p) => life.isCopOnDuty(p))) {
+      life.startIncident(npc, b, steal);
+      return;
+    }
     bus.emit('net:fx', { t: 'alarm', x: b.x, z: b.z });
     this.dispatchPolice(b);
 

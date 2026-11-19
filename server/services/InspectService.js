@@ -1,3 +1,4 @@
+import { interiorLayout } from '../../shared/interiors.js';
 import { JOBS, ACTIVITY_LABELS, inHours } from '../data/jobs.js';
 import { PRODUCTS } from '../data/products.js';
 import { labelOf } from '../data/buildingTypes.js';
@@ -17,11 +18,17 @@ const bar = (v) => '█'.repeat(Math.round(v / 10)) + '░'.repeat(10 - Math.rou
  */
 export function describe(ctx, kind, id, player) {
   const { world } = ctx;
+  if (kind === 'shop') {
+    const b = world.buildings.get(id);
+    if (!b) return null;
+    const items = Object.entries(b.stock).filter(([, s]) => s.sell).map(([k, s]) => ({ product: k, label: PRODUCTS[k]?.label ?? k, icon: PRODUCTS[k]?.icon ?? '📦', price: s.price, qty: Math.floor(s.qty) }));
+    return { kind: 'shop', id: b.id, type: b.type, title: b.name, served: !!b.def.served, open: world.isOpen(b), items, weaponStock: Math.floor(b.stock.weapons?.qty ?? 0) };
+  }
   const e = world.findEntity(kind, id);
   if (!e) return null;
   if (kind === 'building') return describeBuilding(ctx, e, player);
-  if (kind === 'npc') return describeNpc(ctx, e);
-  if (kind === 'player') return describePlayer(ctx, e);
+  if (kind === 'npc') return describeNpc(ctx, e, player);
+  if (kind === 'player') return describePlayer(ctx, e, player);
   if (kind === 'tile') return describeTile(ctx, e, player);
   if (kind === 'unit') {
     const owner = world.players.get(e.ownerId);
@@ -91,6 +98,15 @@ function describeBuilding(ctx, b, p) {
       A(`🔓 Kefalet Öde · ${tl(left * config.crime.bailPerHour)}`, 'crime:bail', {}, { style: 'primary' });
     }
     return { kind: 'building', id: b.id, icon: def.icon, title: b.name, subtitle: labelOf(b), rows, actions };
+  }
+
+  // İçeri gir (ev: sahibi/evi olan/misafir, dükkan: açık saatler, iş yeri: çalışanlar)
+  if (interiorLayout(b.type) && b.operational && !p.inside) {
+    const access = ctx.engine.getSystem('life').canEnter(p, b);
+    A(access.ok ? '🚪 İçeri Gir' : `🔒 ${access.error.replace(/^🔒 |^🌙 /, '')}`, 'building:enter', {}, { style: access.ok ? 'primary' : 'ghost' });
+  }
+  if (b.id === p.homeId || (isOwner && def.category === 'residential')) {
+    A(b.guestsOpen ? '🔒 Kapıyı Kilitle' : '🚪 Kapıyı Misafirlere Aç', 'home:guests', { open: !b.guestsOpen }, { style: 'ghost' });
   }
 
   if (b.forSale && !isOwner) {
@@ -239,7 +255,7 @@ export function diplomacyActions(world, p, targetId, ctx) {
   return out;
 }
 
-function describeNpc({ world }, n) {
+function describeNpc({ world }, n, viewer) {
   const work = world.buildings.get(n.workId);
   const home = world.buildings.get(n.homeId);
   const now = world.clockHours();
@@ -257,10 +273,17 @@ function describeNpc({ world }, n) {
   if (n.criminalRecord) rows.push(['Sabıka', `${n.criminalRecord} kayıt`]);
   if (n.jailedUntil > now) rows.push(['Hapis', `${n.jailedUntil - now} saat kaldı`]);
   if (n.armed) rows.push(['⚠️', 'Silahlı']);
-  return { kind: 'npc', id: n.id, icon: n.gender === 'f' ? '👩' : '👨', title: n.name, subtitle: JOBS[n.job].label, rows, actions: [] };
+  const actions = [];
+  if (n.robberUntil > now) {
+    rows.unshift(['🚨', 'ARANAN SOYGUNCU!']);
+    actions.push({ label: '🚔 Tutukla', type: 'police:arrest', params: { npcId: n.id }, style: 'primary' });
+  }
+  if (n.state !== 'inside' && !viewer?.inside) actions.push({ label: '👊 Saldır', type: 'combat:attack', params: { kind: 'npc', id: n.id }, style: 'danger' });
+  rows.push(['Can', bar(n.hp)]);
+  return { kind: 'npc', id: n.id, icon: n.gender === 'f' ? '👩' : '👨', title: n.name, subtitle: JOBS[n.job].label, rows, actions };
 }
 
-function describePlayer({ world }, p) {
+function describePlayer({ world }, p, viewer) {
   let assets = 0;
   for (const id of p.ownedBuildingIds) assets += world.buildings.get(id)?.value ?? 0;
   return {
@@ -269,7 +292,8 @@ function describePlayer({ world }, p) {
       ['Net servet', tl(p.balance + assets)],
       ['Mülk', `${p.ownedBuildingIds.length} adet`],
       ['Aranma', p.wanted ? '⭐'.repeat(p.wanted) : 'Temiz'],
+      ['Ülke', p.countryName ? `🏳️ ${p.countryName}` : `Vatandaş · ${p.citizenName ?? '—'}`],
     ],
-    actions: [],
+    actions: viewer && viewer.id !== p.id && !p.dead ? [{ label: '👊 Saldır', type: 'combat:attack', params: { kind: 'player', id: p.id }, style: 'danger' }] : [],
   };
 }

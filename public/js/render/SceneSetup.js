@@ -119,8 +119,23 @@ export class SceneKit {
     this.scene.add(this.stars);
   }
 
+  /** Bina içi: gökyüzü, dağlar, sis kapalı; sabit iç mekân ışığı */
+  setInterior(on) {
+    this.interior = on;
+    for (const o of [this.sky, this.sunDisc, this.stars, this.mountains]) if (o) o.visible = !on;
+    if (on) {
+      this._fog = this.scene.fog;
+      this.scene.fog = null;
+      this.scene.background = new THREE.Color(0x0d0d12);
+    } else {
+      if (this._fog) this.scene.fog = this._fog;
+      this.scene.background = null;
+    }
+  }
+
   buildMountains() {
     const g = new THREE.Group();
+    this.mountains = g;
     const mat = new THREE.MeshStandardMaterial({ color: 0x55665a, roughness: 1, flatShading: true });
     const R = this.worldSize * 1.6;
     for (let i = 0; i < 26; i++) {
@@ -144,7 +159,7 @@ export class SceneKit {
 
     mix(k0[1], k1[1], this.skyUniforms.top.value);
     mix(k0[2], k1[2], this.skyUniforms.bottom.value);
-    this.scene.fog.color.copy(this.skyUniforms.bottom.value);
+    this.scene.fog?.color.copy(this.skyUniforms.bottom.value);
     mix(k0[3], k1[3], this.sun.color);
     this.sun.intensity = k0[4] + (k1[4] - k0[4]) * t;
     this.hemi.intensity = k0[5] + (k1[5] - k0[5]) * t;
@@ -161,6 +176,11 @@ export class SceneKit {
     this.sunDisc.position.copy(this.sun.position).multiplyScalar(2.6);
     this.sunDisc.material.color.set(isDay ? 0xfff1c0 : 0xdfe6ff);
     this.stars.material.opacity = night * 0.9;
+    if (this.interior) {
+      this.hemi.intensity = 0.75;
+      this.sun.intensity = 0.55;
+      this.sun.color.set(0xfff4e0);
+    }
 
     // Pencereler ve neonlar
     MAT.window.color.setRGB(0.32 + night * 0.68, 0.36 + night * 0.64, 0.44 + night * 0.56);

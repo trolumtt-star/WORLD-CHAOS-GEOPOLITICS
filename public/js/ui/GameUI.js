@@ -71,7 +71,7 @@ export class GameUI {
       this.canvasMini);
 
     this.ticker = el('div', { class: 'ticker' });
-    this.hint = el('div', { class: 'interact-hint hidden' });
+    this.hint = el('div', { class: 'interact-hint clickable hidden', onClick: (e) => { e.stopPropagation(); this.h.onInteract(); } });
 
     const actions = el('div', { class: 'actions' },
       btn(el('span', {}, '🔍', el('small', {}, 'İncele')), 'big primary', () => this.h.onInteract()),
@@ -120,7 +120,7 @@ export class GameUI {
 
   setPointerLock(on) {
     this.crosshair.classList.toggle('hidden', !on);
-    this.lockHint.textContent = on ? '🎯 Tıkla: nişangahtakini incele · Esc: imleç' : '🖱️ Ekrana tıkla: fareyle etrafa bak · Esc: imleci serbest bırak';
+    this.lockHint.textContent = on ? '🖱️ Sol tık: saldır · E: etkileşim · Q: silah · V: mikrofon · Tekerlek: zoom · Esc: imleç' : '🖱️ Ekrana tıkla: fareyle etrafa bak · Esc: imleci serbest bırak';
   }
 
   destroy() { this.hud.remove(); }
@@ -142,8 +142,7 @@ export class GameUI {
     }
     this.elWanted.textContent = s.wanted ? '⭐'.repeat(s.wanted) : '';
     this.elWanted.classList.toggle('flash', s.wanted > 0);
-    this.elTitle.textContent = s.countryName ? `🏳️ ${s.countryName} · 👥 ${s.population ?? 0}` : (s.title ?? 'Vatandaş');
-    this.foundBtn.classList.toggle('hidden', !!s.village);
+    this.elTitle.textContent = s.countryName ? `🏳️ ${s.countryName} · 👥 ${s.population ?? 0}` : `🧳 Vatandaş${s.citizenName ? ` · ${s.citizenName}` : ''}`;
     const wars = (s.wars ?? []).map((id) => this.h.nameOf?.(id) ?? id);
     this.elWar.textContent = wars.length ? `⚔️ SAVAŞ: ${wars.join(', ')}` : '';
     this.elWar.classList.toggle('hidden', !wars.length);
@@ -184,7 +183,7 @@ export class GameUI {
 
   setInteractHint(b) {
     if (!b) { this.hint.classList.add('hidden'); return; }
-    this.hint.textContent = `${this.touch ? '🔍' : '[E]'} ${b.name}`;
+    this.hint.textContent = `${this.touch ? '👆' : '[E]'} ${b.name}`;
     this.hint.classList.remove('hidden');
   }
 

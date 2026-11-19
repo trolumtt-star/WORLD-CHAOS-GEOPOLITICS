@@ -32,6 +32,8 @@ import { TerritorySystem } from '../systems/TerritorySystem.js';
 import { DiplomacySystem } from '../systems/DiplomacySystem.js';
 import { AirSystem } from '../systems/AirSystem.js';
 import { AiSystem } from '../systems/AiSystem.js';
+import { LifeSystem } from '../systems/LifeSystem.js';
+import { interiorLayout, interiorOrigin } from '../../shared/interiors.js';
 
 const COLORS = ['#ff4d4d', '#3ddc84', '#ffd23f', '#a06cff', '#2ec4ff', '#ff8c42', '#ff5fa2', '#00e0b8', '#c0ff3e', '#ffffff'];
 
@@ -77,6 +79,7 @@ export class Room {
       .use(new TechSystem())
       .use(new TerritorySystem())
       .use(new AiSystem())
+      .use(new LifeSystem())
       .use(new NetworkSyncSystem(io, code));
     this.ctx = this.engine.ctx;
     this.engine.start();
@@ -124,9 +127,9 @@ export class Room {
     }
     if (!player) {
       if ([...world.players.values()].filter((p) => !p.isAI).length >= config.maxPlayersPerRoom) return null;
-      // Ülke kurmaya uygun boş bir yerde doğ (sınırlardan uzakta, sıfırdan başla)
-      const spot = findFoundingSpot(world, rng, config);
-      const spawn = spot ? world.lotCenter(spot.i, spot.j) : world.randomRoadPoint(rng);
+      // Vatandaş olarak rastgele bir ülkede, kendine ayrılmış bir evde başla
+      const home = this.pickCitizenHome();
+      const spawn = home ? { x: home.door.x, z: home.door.z + 1.5 } : world.randomRoadPoint(rng);
       const [lo, hi] = config.player.startBalance;
       const used = new Set([...world.players.values()].map((p) => p.color));
       player = new Player({
@@ -141,7 +144,13 @@ export class Room {
       });
       world.players.set(player.id, player);
       if (this.sandbox) player.techs = Object.keys(TECHS);
-      bus.news('player', `🧭 ${player.name} vahşi topraklara adım attı. Henüz bir ülkesi yok...`);
+      if (home) {
+        player.homeId = home.id;
+        player.citizenOf = world.ownerAt(home.x, home.z) ?? 'state';
+      }
+      const nation = world.players.get(player.citizenOf);
+      player.citizenName = nation?.countryName ?? 'Merkez Şehir';
+      bus.news('player', `🧳 ${player.name}, ${player.citizenName} vatandaşı olarak hayata başladı.`);
     } else {
       bus.news('player', `🔌 ${player.name} geri döndü.`);
     }
@@ -161,6 +170,17 @@ export class Room {
     this.bus.news('player', `💤 ${player.name} çevrimdışı oldu (mülkleri korunuyor).`);
   }
 
+  /** Yeni vatandaşa ev: önce NPC ülkelerin köyleri, yoksa merkez şehir */
+  pickCitizenHome() {
+    const { world, rng } = this.ctx;
+    const houses = world.buildingsWhere((b) => b.operational && ['house', 'apartment', 'villa'].includes(b.type));
+    const taken = new Set([...world.players.values()].map((p) => p.homeId));
+    const free = houses.filter((b) => !taken.has(b.id));
+    const ai = free.filter((b) => world.players.get(world.ownerAt(b.x, b.z))?.isAI);
+    const pool = ai.length && rng.chance(0.75) ? ai : free;
+    return pool.length ? rng.pick(pool) : null;
+  }
+
   // Hız hilesine karşı "hareket bütçesi"
   handleMove(socket, player, data) {
     const x = Number(data?.x);
@@ -168,6 +188,10 @@ export class Room {
     const rotY = Number(data?.rotY);
     if (![x, z, rotY].every(Number.isFinite)) return;
     const world = this.world;
+    if (player.dead || (player.pose === 'sleep' && player.energy < 15)) {
+      if (Math.hypot(x - player.x, z - player.z) > 0.5) socket.emit(EVENTS.PLAYER_CORRECTION, { x: player.x, z: player.z });
+      return;
+    }
 
     if (player.jailedUntil > world.clockHours()) {
       const pr = world.prison;
@@ -187,10 +211,38 @@ export class Room {
       return;
     }
     player.moveBudget -= dist;
+    if (dist > 0.4 && player.pose && player.pose !== 'dead') { player.pose = ''; player.tv = false; world.touchPlayer(player); }
+    if (player.inside) {
+      // İç mekânda: odanın duvarları içinde kal
+      const b = world.buildings.get(player.inside);
+      const L = b && interiorLayout(b.type);
+      if (L) {
+        const o = interiorOrigin(b.id);
+        player.x = Math.max(o.x - L.w / 2 + 0.5, Math.min(o.x + L.w / 2 - 0.5, x));
+        player.z = Math.max(o.z - L.d / 2 + 0.5, Math.min(o.z + L.d / 2 - 0.5, z));
+        player.rotY = rotY;
+        return;
+      }
+    }
     const c = world.clampToBounds(x, z);
     player.x = c.x;
     player.z = c.z;
     player.rotY = rotY;
+  }
+
+  /** Yakınlık sesli sohbeti: sesi yalnızca yakındaki (aynı mekândaki) oyunculara ilet */
+  handleVoice(socket, player, data) {
+    if (typeof data !== 'string' || data.length > 4000 || player.dead) return;
+    const now = Date.now();
+    if (now - (player._voiceWin ?? 0) > 1000) { player._voiceWin = now; player._voiceN = 0; }
+    if (++player._voiceN > 25) return;
+    const range = this.config.life.voiceRange;
+    for (const o of this.world.players.values()) {
+      if (o === player || !o.online || !o.socketId || o.inside !== player.inside) continue;
+      const d = Math.hypot(o.x - player.x, o.z - player.z);
+      if (d > range) continue;
+      this.io.to(o.socketId).volatile.emit('voice:in', { id: player.id, d: Math.round(d * 10) / 10, a: data });
+    }
   }
 
   handleAction(player, type, params) {
@@ -225,6 +277,9 @@ export class Room {
         playerSpeed: config.player.speed,
         sprintMultiplier: config.player.sprintMultiplier,
         airDefenseRange: 150,
+        gridSize: config.world.gridSize,
+        townSize: config.world.townSize,
+        voiceRange: config.life.voiceRange,
       },
       catalog: {
         ...catalog(),

@@ -6,7 +6,9 @@ export function playerAtWork(player, building, hour, world) {
   if (!player.online || player.jailedUntil > world.clockHours()) return false;
   const job = building.def.staff?.job;
   if (!job || !inHours(JOBS[job].shift, hour)) return false;
-  return Math.hypot(player.x - building.door.x, player.z - building.door.z) < 30;
+  // Mesaide olmalı ve son bir saatte en az bir görev yapmış olmalı (polis devriyedeyse dışarıda da sayılır)
+  if (player.shift?.buildingId !== building.id) return false;
+  return player.shift.hourDone > 0 || (job === 'police' && player.inside !== building.id);
 }
 
 /**

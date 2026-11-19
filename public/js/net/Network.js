@@ -47,5 +47,7 @@ export class Network {
   action(type, params = {}) { return this.request(EVENTS.ACTION, { action: type, params }); }
   inspect(kind, id) { return this.request(EVENTS.INSPECT, { kind, id }, 4000); }
 
+  sendVoice(b64) { this.socket?.volatile.emit('voice', b64); }
+
   sendMove(x, z, rotY) { this.socket?.volatile.emit(EVENTS.PLAYER_MOVE, { x, z, rotY }); }
 }

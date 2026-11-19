@@ -70,11 +70,12 @@ export class NpcBrainSystem {
     const go = (activity, b) => (b ? { activity, buildingId: b.id ?? b } : null);
 
     if (npc.jailedUntil > now && world.ids.prison) return { activity: 'jail', buildingId: world.ids.prison };
+    if (npc.robberUntil > now && npc.plan.fleeTo) return { activity: 'flee', buildingId: npc.plan.fleeTo };
     if (npc.plan.respondTo && npc.plan.respondUntil > now) return { activity: 'respond', buildingId: npc.plan.respondTo };
 
     const job = JOBS[npc.job];
     // Çok açsa mesaiye öğle molası verir
-    if (npc.workId && npc.hunger < 85 && (inHours(job.shift, hour) || inHours(job.shift, (hour + 1) % 24))) {
+    if (npc.workId && npc.hunger < 85 && (inHours(job.shift, hour) || inHours(job.shift, (hour + 1) % 24) || inHours(job.shift, (hour + 2) % 24))) {
       const w = world.buildings.get(npc.workId);
       if (w?.operational) return { activity: 'work', buildingId: w.id };
     }

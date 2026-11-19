@@ -27,21 +27,21 @@ export const CONFIG = {
   },
 
   npc: {
-    speed: 22,
+    speed: 13,              // saatte 65 birim -> gerçek zamanda ~6.5 birim/sn (yürüyen insan)
     hungerPerHour: 4,
     eatAtHomeAbove: 40,
   },
 
   player: {
-    speed: 20,
-    sprintMultiplier: 1.6,
+    speed: 8,               // yürüme
+    sprintMultiplier: 1.9,  // koşu ~15
     startBalance: [4000, 6000],
     sandboxBalance: 10_000_000,
     maxUnits: 30,
   },
 
   time: {
-    msPerGameHour: Number(process.env.MS_PER_HOUR) || 5000, // test için: MS_PER_HOUR=500 npm start (10x hız)
+    msPerGameHour: Number(process.env.MS_PER_HOUR) || 10000, // 1 oyun günü = 4 dk. Test için: MS_PER_HOUR=500 npm start (10x hız)
     startHour: 7,
     simTickMs: 50,
     npcNetEvery: 4,  // 5 Hz
@@ -78,6 +78,20 @@ export const CONFIG = {
     hourlyStipend: 90,      // çağ başına saatlik devlet geliri
     warChancePerDay: 0.18,  // savaş açma ihtimali (gün başına)
     firstWarDay: 3,
+  },
+
+  // Oyuncu hayatta kalma (saat başı değişim, 0..100)
+  life: {
+    foodPerHour: 3.2,
+    waterPerHour: 4.2,
+    energyPerHour: 4.4,      // uyanıkken
+    sleepEnergyPerHour: 24,
+    starveDamagePerHour: 9,
+    regenPerHour: 4,
+    respawnMs: 8000,
+    deathCashLoss: 0.12,
+    healCost: 250,
+    voiceRange: 45,
   },
 
   war: {

@@ -69,6 +69,19 @@ npx cap open android                                         # Android Studio'da
 - **Hava savunması:** Savaştığın ülkenin füzelerini ve uçaklarını otomatik vurur. B-2 hayalet olduğu için düşürme şansı sadece %15.
 - **Harita:** 28×28 parsel, öncekinden 2 kat büyük.
 
+## 🧳 Faz 3: Vatandaş Hayatı
+
+- **Vatandaş olarak başla:** Rastgele bir NPC ülkede, sana ayrılmış bir evin önünde doğarsın. Ülke kurmadan **asker, teknoloji, toprak, savaş yok**. Sınırlardan uzak boş bir bölgeye yürüyünce **ÜLKE KUR** butonu belirir.
+- **Hayatta kal:** 🍔 Tokluk, 💧 Su, ⚡ Enerji, ❤️ Can. Aç/susuz kalırsan canın azalır; enerji biterse bayılırsın; ölürsen cebindeki paranın bir kısmını kaybedip evinde/hastanede doğarsın.
+- **Binaların içine gir:** Ev, market, kafe, restoran, bar, silah dükkanı, fabrika, karakol, banka, hastane, saray. Gece dükkanlar kapanır, içerideysen dışarı çıkarılırsın.
+- **Ev:** Buzdolabı (marketten aldıklarını koy, ye, iç), ocak (çay / Türk kahvesi demle, misafirlere ikram), kanepe + TV (canlı haberler), yatak (uyu). Kapıyı misafirlere açabilirsin; ev sahibi içerideyken arkadaşın gelirse kapı çalınır.
+- **İş:** Kapıdan işe gir → içeride **Mesaiye Başla** → sarı işaretli göreve git → **Görevi Yap**. Her görev prim, her saat maaş. Görevler mesleğe göre değişir (raf dizme, paspas, kasa, bulaşık, kokteyl, makine, rapor, muayene...).
+- **Polis:** Mesaideyken arada bir soygun ihbarı düşer. Kırmızı halkalı soyguncuyu kovala, yaklaş ve **🚔 Tutukla** (ödül + çalınan para iade).
+- **Dövüş:** Yumruk, bıçak, tabanca, tüfek. NPC'lere veya oyunculara saldırabilirsin; masuma saldırırsan aranırsın.
+- **🎙️ Sesli sohbet:** Mikrofonu aç, ~45 m içindeki (aynı odadaki) oyuncular seni duyar. Ses mesafeye göre kısılır, sağ/sol kulaktan gelir.
+- **Kamera:** ➕/➖ butonları, iki parmakla sıkıştır ya da fare tekerleği; omuz üstü yakın görüşe kadar inebilir. NPC'ler artık yürüyen insan hızında, kolları ve bacakları sallanarak yürür. Yeni insan modeli: yüz, saç modelleri, eklemli kollar ve bacaklar.
+- **PC kısayolları:** Sol tık saldır · E etkileşim · Q silah değiştir · V mikrofon · I çanta · +/- zoom.
+
 ## 🧩 4. Neler var?
 
 **Dünya:** 64 parsellik şehir. Merkezde saray, çevresinde emniyet, banka ve hastane, dışarıda fabrikalar ve cezaevi. 16 farklı bina tipinin her biri ayrı modelle çiziliyor: kiremit çatılı ev, balkonlu apartman, havuzlu villa, otoparklı market, çizgili tenteli kafe, neonlu bar, alt türüne göre silolu / tanklı / bacalı fabrika, kubbeli saray, kuleli cezaevi ve dönen radarlı hava savunma.

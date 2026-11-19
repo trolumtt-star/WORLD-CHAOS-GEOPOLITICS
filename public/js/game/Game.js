@@ -9,7 +9,12 @@ import { Controls } from '../input/Controls.js';
 import { PlayerController } from './PlayerController.js';
 import { GameUI } from '../ui/GameUI.js';
 import { isTouch } from '../core/Settings.js';
-import { tl } from '../core/dom.js';
+import { tl, el } from '../core/dom.js';
+import { InteriorRenderer } from '../render/InteriorRenderer.js';
+import { LifeUI } from '../ui/LifeUI.js';
+import { VoiceChat } from '../net/VoiceChat.js';
+import { setWeapon } from '../entities/EntityManager.js';
+import { WEAPONS, canFoundAtTiles } from '../../shared/interiors.js';
 
 /** Bir oyun oturumu: sahne + ağ olayları + arayüz + döngü. */
 export class Game {
@@ -54,8 +59,11 @@ export class Game {
     this.self = ents.getPlayer(this.selfId);
     const touch = isTouch();
 
+    this.interior = new InteriorRenderer(kit.scene);
+    this.selfAttackT = 0;
     this.rig = new CameraRig(kit.camera, app.renderer.domElement, {
       onTap: (e) => this.onTap(e),
+      onLockedClick: () => this.attack(),
       // Hedefleme modunda ya da panel açıkken imleç serbest kalsın
       canLock: () => !this.targeting && !this.ui.sheetKind,
     });
@@ -70,13 +78,21 @@ export class Game {
         if (code === 'KeyM') this.ui.openMilitary(this.myUnits().length);
         if (code === 'KeyB') this.openProperties();
         if (code === 'KeyC') this.ui.openCity('city');
+        if (code === 'KeyF') this.attack();
+        if (code === 'KeyQ') this.cycleWeapon();
+        if (code === 'KeyV') this.toggleMic();
+        if (code === 'KeyI') this.life.openBag();
+        if (code === 'Equal' || code === 'NumpadAdd') this.rig.zoomBy(0.8);
+        if (code === 'Minus' || code === 'NumpadSubtract') this.rig.zoomBy(1.25);
       },
     });
     this.controller = new PlayerController({
       object: this.self.g,
       rig: this.rig,
       controls: this.controls,
-      getColliders: () => this.city.colliders,
+      getColliders: () => (this.interior.active ? this.interior.colliders : this.city.colliders),
+      getAnim: () => this.selfAnim(),
+      onInputWhilePosed: () => this.standUp(),
       bounds: init.world.half + init.world.roadWidth,
       speed: init.config.playerSpeed,
       sprintMultiplier: init.config.sprintMultiplier,
@@ -107,9 +123,30 @@ export class Game {
         onSheetClosed: () => { this.inspecting = null; },
       },
     });
+    this.life = new LifeUI(this.ui, {
+      onAttack: () => this.attack(),
+      onCycleWeapon: () => this.cycleWeapon(),
+      onZoom: (f) => this.rig.zoomBy(f),
+      onMic: () => this.toggleMic(),
+      onExit: () => this.runAction({ type: 'building:exit', params: {} }),
+      onShift: () => this.runAction({ type: this.ui.self.shift ? 'job:shiftEnd' : 'job:shiftStart', params: {} }),
+      onGuests: () => this.runAction({ type: 'home:guests', params: { open: !this.city.get(this.ui.self.inside)?.guestsOpen && !this._guestsOpen } }).then((r) => { if (r?.ok) { this._guestsOpen = !this._guestsOpen; this.refreshInsideBar(); } }),
+      onTask: () => this.startTask(),
+      onStand: () => this.standUp(true),
+      onConsume: (item) => this.runAction({ type: 'life:consume', params: { item } }),
+      onEquip: (weapon) => this.runAction({ type: 'combat:equip', params: { weapon } }),
+    });
+    this.voice = new VoiceChat({
+      audio: this.audio,
+      range: init.config.voiceRange ?? 45,
+      send: (b64) => this.net.sendVoice(b64),
+      onSpeaking: (id) => { const e = this.entities.getPlayer(id); if (e) e.talkUntil = performance.now() + 350; },
+      onTalking: (on) => { this.life.setMic(this.voice.enabled, on); const e = this.entities.getPlayer(this.selfId); if (e && on) e.talkUntil = performance.now() + 350; },
+    });
     this.ui.minimap.setBuildings(this.cityData());
     this.ui.minimap.setTiles(this.city.tiles, this.city.playerColors);
     this.ui.setSelf(init.self);
+    this.applySelf(init.self, {});
     this.ui.balanceShown = init.self.balance;
     this.ui.setCity(init);
     this.applyClock(init);
@@ -126,7 +163,10 @@ export class Game {
     this.audio.setMusic('game');
     this.audio.startAmbience();
     this.ui.toast(`🌍 ${init.room.name} · Oda kodu ${init.room.code}`, 'info');
-    if (!init.self.village) setTimeout(() => this.ui.toast('🏳️ Henüz bir ülken yok! Bulunduğun yer uygun, ortadaki ÜLKE KUR butonuna bas. Başka yer istersen önce yürü.', 'info'), 2500);
+    if (!init.self.village) {
+      setTimeout(() => this.ui.toast(`🧳 ${init.self.citizenName ?? 'Bu ülkenin'} vatandaşısın. Evinin önündesin: içeri girip buzdolabından ye, iş bul, para kazan!`, 'info'), 2200);
+      setTimeout(() => this.ui.toast('🏳️ Kendi ülkeni kurmak için sınırlardan uzak, boş bir bölgeye yürü. ÜLKE KUR butonu orada çıkacak.', 'info'), 7000);
+    }
 
     this.raycaster = new THREE.Raycaster();
     this.clock = new THREE.Clock();
@@ -174,13 +214,18 @@ export class Game {
       const prev = this.ui.self;
       if (prev.jailed && !s.jailed) this.ui.toast('🔓 Özgürsün!', 'ok');
       if (!prev.jailed && s.jailed) this.audio.play('siren');
+      const before = { ...this.ui.self };
       this.ui.setSelf(s);
-      this.controller.locked = s.jailed;
+      this.applySelf(s, before);
       if (this.ui.sheetKind === 'props') this.openProperties();
     });
-    this.on(E.PLAYER_CORRECTION, ({ x, z, teleport }) => {
-      this.controller.applyCorrection(x, z);
+    this.on(E.PLAYER_CORRECTION, ({ x, z, teleport, rotY }) => {
+      this.controller.applyCorrection(x, z, teleport ? rotY : undefined);
       if (teleport) this.rig.snap(this.self.g.position);
+    });
+    this.on('voice:in', (m) => {
+      const e = this.entities.getPlayer(m.id);
+      this.voice.receive(m, e?.g.position);
     });
     this.on(E.ENTITY_SPAWN, ({ kind, data }) => {
       if (kind === 'npc') this.entities.addNpc(data);
@@ -228,6 +273,8 @@ export class Game {
         else if (f.t === 'explosion') this.effects.explosion(f.x, 1.5, f.z, f.r / 6);
         else if (f.t === 'alarm') this.effects.alarm(f.x, f.z);
         else if (f.t === 'built') this.effects.built(f.x, f.z);
+        else if (f.t === 'punch' || f.t === 'gun') this.combatFx(f);
+        else if (f.t === 'robber') this.entities.setRobber(f.id, !!f.on);
       }
     });
     this.on(E.MISSILE, (m) => {
@@ -256,7 +303,7 @@ export class Game {
       }
       if (erasChanged) this.city.scheduleRebuild();
     });
-    this.on(E.NEWS, (n) => this.ui.news(n));
+    this.on(E.NEWS, (n) => { this.ui.news(n); if (this.ui.self.tv) this.life.refreshTv(); });
     this.on('disconnect', () => this.ui.setReconnecting(true));
     this.on('connect', () => this.app.rejoin());
   }
@@ -300,6 +347,12 @@ export class Game {
 
   interact() {
     const p = this.self.g.position;
+    if (this.interior.active) {
+      const spot = this.interior.nearestSpot(p.x, p.z);
+      if (spot) this.openSpot(spot);
+      else this.ui.toast('Bir eşyanın yanına git (buzdolabı, yatak, kasa...).', 'warn');
+      return;
+    }
     const b = this.city.nearestBuilding(p.x, p.z, 32);
     if (b) this.inspect('building', b.id);
     else this.ui.toast('Yakında bina yok. Bir binanın kapısına yaklaş ya da dokun.', 'warn');
@@ -336,8 +389,13 @@ export class Game {
       Object.assign(params, values);
     }
     const res = await this.net.action(a.type, params);
+    if (res?.quiet) {
+      if (res.message) this.ui.toast(res.message, res.ok ? 'ok' : 'err');
+      return res;
+    }
     if (res?.ok) {
       this.audio.play(res.sfx ?? 'success');
+      if (res.entered || res.exited) this.ui.closeSheet();
       if (res.message) this.ui.toast(res.message, 'ok');
       if (a.type === 'property:build') this.ui.closeSheet();
     } else {
@@ -435,6 +493,295 @@ export class Game {
     } else this.ui.closeSheet();
   }
 
+  // ------------------------------------------------------------------ gündelik hayat
+  applySelf(s, before) {
+    this.controller.locked = !!s.jailed || !!s.dead || (s.pose === 'sleep' && s.energy < 15);
+    this.life.set(s);
+    if ((s.inside ?? null) !== (before.inside ?? null)) {
+      if (s.inside) this.enterInterior(s.inside);
+      else this.leaveInterior();
+    }
+    if (s.shift?.task?.spotId !== before.shift?.task?.spotId) {
+      this.interior.setTask(s.shift?.task?.spotId ?? null);
+      this.task = null;
+    }
+    if (s.dead && !before.dead) { this.audio.play('death', { important: true }); this.ui.closeSheet(); }
+    if (s.incident && !before.incident) this.audio.play('siren');
+    if (s.tv && !before.tv) this.interior.setTv(['📺 HABERLER', this.ui.newsLog[0]?.text?.slice(0, 30) ?? 'Şehirde bugün']);
+    this.incidentNpc = s.incident?.npcId ?? null;
+  }
+
+  enterInterior(id) {
+    const b = this.city.get(id);
+    if (!b) return;
+    this.interior.build(b, { accent: b.ownerId ? this.city.playerColors.get(b.ownerId) : undefined });
+    this.interior.setTask(this.ui.self.shift?.task?.spotId ?? null);
+    this.city.root.visible = false;
+    this.entities.setOutdoorVisible(false);
+    this.kit.setInterior(true);
+    this.rig.setInterior(true);
+    this.controller.bounds = Infinity;
+    this.ui.canvasMini.style.visibility = 'hidden';
+    this.rig.snap(this.self.g.position);
+    this._guestsOpen = !!b.guestsOpen;
+    this.refreshInsideBar();
+    this.audio.play('door');
+  }
+
+  leaveInterior() {
+    this.interior.clear();
+    this.city.root.visible = true;
+    this.entities.setOutdoorVisible(true);
+    this.kit.setInterior(false);
+    this.rig.setInterior(false);
+    this.controller.bounds = this.controller.outdoorBounds;
+    this.ui.canvasMini.style.visibility = '';
+    this.life.setInside(null);
+    this.rig.snap(this.self.g.position);
+    this.task = null;
+  }
+
+  refreshInsideBar() {
+    const s = this.ui.self;
+    const b = s.inside ? this.city.get(s.inside) : null;
+    const isHome = b && (b.id === s.homeId || (b.ownerId === this.selfId && ['house', 'villa', 'apartment', 'town_hall'].includes(b.type)));
+    this.life.setInside(b && { ...b, icon: this.init.catalog.buildings[b.type]?.icon }, isHome, this._guestsOpen);
+  }
+
+  selfAnim() {
+    const s = this.ui.self;
+    const w = s.weapon ?? 'fist';
+    return {
+      pose: this.task ? 'work' : (s.pose || ''),
+      attackT: this.selfAttackT,
+      gun: w === 'pistol' || w === 'rifle' ? w : null,
+      slow: s.energy < 8 ? 0.55 : s.health < 20 ? 0.7 : 1,
+    };
+  }
+
+  standUp(force) {
+    const s = this.ui.self;
+    if (!s.pose || s.pose === 'dead' || this._standing) return;
+    if (s.pose === 'sleep' && s.energy < 15) {
+      if (force) this.ui.toast('😵 Çok yorgunsun... Enerji %15 olunca kalkabilirsin.', 'warn');
+      return;
+    }
+    this._standing = true;
+    this.net.action('life:stand', {}).finally(() => { this._standing = false; });
+    this.ui.setSelf({ pose: '', tv: false });
+    this.life.set({ pose: '', tv: false });
+  }
+
+  // ---- mesai görevi: işarete git, butona bas, süre dolunca tamamla
+  startTask() {
+    const t = this.ui.self.shift?.task;
+    if (!t || this.task) return;
+    const w = this.interior.spotWorld(t.spotId);
+    const p = this.self.g.position;
+    if (!w || Math.hypot(p.x - w.x, p.z - w.z) > 3.8) { this.ui.toast('📍 Önce sarı işaretli yere git.', 'warn'); return; }
+    this.task = { start: performance.now(), secs: t.secs, spot: w };
+    this.self.g.rotation.y = Math.atan2(w.x - p.x, w.z - p.z) || this.self.g.rotation.y;
+    this.audio.play('click');
+  }
+
+  updateTask() {
+    const t = this.ui.self.shift?.task;
+    if (!this.life || !t) { if (this.task) this.task = null; return; }
+    const w = this.interior.spotWorld(t.spotId);
+    const p = this.self.g.position;
+    const near = !!w && Math.hypot(p.x - w.x, p.z - w.z) <= 3.8;
+    if (this.task) {
+      if (!near) { this.task = null; this.ui.toast('Görev yarıda kaldı, işaretin yanında kal!', 'warn'); }
+      else {
+        const prog = (performance.now() - this.task.start) / (this.task.secs * 1000);
+        if (prog >= 1 && !this.task.sent) {
+          this.task.sent = true;
+          this.runAction({ type: 'job:task', params: {} }).then(() => { this.task = null; });
+        }
+        this.life.setTaskNear(true, Math.min(1, prog));
+        return;
+      }
+    }
+    this.life.setTaskNear(near, 0);
+  }
+
+  // ---- iç mekân eşyaları
+  async openSpot(spot) {
+    const s = this.ui.self;
+    const b = this.city.get(s.inside);
+    if (!b) return;
+    const act = (label, cls, a, extra) => el('button', { class: `btn ${cls}`, onClick: async () => { const r = await this.runAction({ type: 'life:use', params: { spot: spot.id, act: a } }); if (r?.ok && !extra?.keep) this.ui.closeSheet(); else if (r?.ok) setTimeout(() => this.openSpot(spot), 300); } }, label);
+    const home = ['house', 'villa', 'apartment', 'town_hall'].includes(b.type);
+    const task = s.shift?.task;
+    const open = (...content) => this.ui.openSheet('spot', { icon: spot.icon, title: spot.label, subtitle: b.name }, el('div', { class: 'spot-actions' }, ...content));
+    if (task?.spotId === spot.id) return this.startTask();
+    switch (spot.tag) {
+      case 'exit': return this.runAction({ type: 'building:exit', params: {} });
+      case 'fridge': {
+        const f = s.fridge ?? { food: 0, drink: 0 };
+        const inv = s.inventory ?? {};
+        return open(
+          el('div', { class: 'grid2' }, el('div', { class: 'card' }, el('div', { class: 'big-n' }, `🍞 ${f.food}`), el('small', {}, 'Dolapta yiyecek')), el('div', { class: 'card' }, el('div', { class: 'big-n' }, `🥤 ${f.drink}`), el('small', {}, 'Dolapta içecek'))),
+          act(`🧊 Çantadakileri Koy (🍞${inv.food ?? 0} 🥤${inv.drink ?? 0})`, 'ghost', 'store', { keep: true }),
+          act('🍽️ Yemek Ye', 'primary', 'eat', { keep: true }),
+          act('🥤 Bir Şey İç', 'primary', 'drink', { keep: true }),
+          act('🎒 Çantaya Al (yolda yemek için)', 'ghost', 'take', { keep: true }),
+          el('p', { class: 'muted' }, `🍔 Tokluk %${Math.round(s.food)} · 💧 Su %${Math.round(s.water)}`));
+      }
+      case 'stove':
+        if (!home) break;
+        return open(act('🍵 Çay Demle (misafirlere de ikram)', 'primary', 'tea'), act('☕ Türk Kahvesi Yap (+enerji)', 'primary', 'coffee'), el('p', { class: 'muted' }, 'Evdeki herkes de içer. Misafirlerinle oturup sohbet edin! 🎙️'));
+      case 'sofa':
+        return open(act('📺 Otur ve TV İzle', 'primary', 'tv'), act('🛋️ Otur', 'ghost', 'sit'));
+      case 'table':
+        if (b.type === 'bar' || b.type === 'cafe' || b.type === 'restaurant') return open(act('🪑 Otur', 'primary', 'sit'), el('button', { class: 'btn ghost', onClick: () => this.openShop(b, true) }, '🧾 Sipariş Ver'));
+        return open(act('🪑 Otur', 'primary', 'sit'));
+      case 'bed':
+        if (!home && b.type !== 'hospital') break;
+        return open(act('😴 Uyu', 'primary', 'sleep'), el('p', { class: 'muted' }, `⚡ Enerji %${Math.round(s.energy)}. Uyurken enerji hızla dolar; hareket edersen uyanırsın.`));
+      case 'counter':
+        if (b.type === 'gun_shop') return this.openGunShop(b);
+        if (b.type === 'bank') break;
+        return this.openShop(b, !!(b.type === 'cafe' || b.type === 'restaurant' || b.type === 'bar'), spot);
+      case 'reception':
+        return open(act(`🩺 Tedavi Ol · ₺250`, 'primary', 'heal'), el('p', { class: 'muted' }, `❤️ Can %${Math.round(s.health)}`));
+      case 'desk':
+        if (b.type === 'town_hall') return open(
+          el('button', { class: 'btn primary', onClick: () => this.ui.openTech() }, '🔬 Teknoloji'),
+          el('button', { class: 'btn danger', onClick: () => this.ui.openMilitary(this.myUnits().length) }, '⚔️ Ordu'),
+          el('button', { class: 'btn', onClick: () => this.ui.openMap() }, '🗺️ Toprak'),
+          el('button', { class: 'btn', onClick: () => this.ui.openCity('city') }, '🏛️ Şehir'));
+        break;
+      default:
+    }
+    if (s.jobBuildingId === b.id) this.ui.toast(s.shift ? `Burası çalışma alanı. Görevin: ${task?.label ?? '—'}` : 'Burası çalışma alanı. Önce üstten 👔 Mesaiye Başla.', 'info');
+    else this.ui.toast(`${spot.icon} ${spot.label}: Burada çalışanlar görev yapar. (İşe girmek için dışarıdan binaya dokun → Burada Çalış)`, 'info');
+  }
+
+  async openShop(b, served, spot) {
+    const d = await this.net.inspect('shop', b.id);
+    if (!d) return;
+    const buy = (product, qty, now) => this.runAction({ type: 'shop:buy', params: { product, qty, now } }).then((r) => { if (r?.ok) this.openShop(b, served, spot); });
+    const rows = d.items.map((it) => el('div', { class: 'shop-item' },
+      el('span', {}, it.icon), el('span', { class: 'nm' }, `${it.label}`, el('small', { class: 'muted' }, ` · stok ${it.qty}`)), el('span', { class: 'pr' }, tl(it.price)),
+      served
+        ? el('button', { class: 'btn mini primary', onClick: () => buy(it.product, 1, true) }, it.product === 'food' ? '🍽️ Ye' : '🥤 İç')
+        : el('button', { class: 'btn mini primary', onClick: () => buy(it.product, 1) }, '+1'),
+      served ? null : el('button', { class: 'btn mini', onClick: () => buy(it.product, 5) }, '+5')));
+    const seat = spot?.seats ? el('button', { class: 'btn ghost', onClick: () => this.runAction({ type: 'life:use', params: { spot: spot.id, act: 'sit' } }) }, '🪑 Bara Otur') : null;
+    this.ui.openSheet('shop', { icon: served ? '🧾' : '🛒', title: d.title, subtitle: d.open ? (served ? 'Siparişin hemen gelir' : 'Aldıkların çantana konur') : '🌙 Kapalı' },
+      el('div', { class: 'col' }, ...(rows.length ? rows : [el('p', { class: 'muted' }, 'Raflar boş... Tedarik bekleniyor.')]), seat,
+        el('p', { class: 'muted' }, `🎒 Çanta: 🍞${this.ui.self.inventory?.food ?? 0} 🥤${this.ui.self.inventory?.drink ?? 0} · ${tl(this.ui.self.balance)}`)));
+  }
+
+  async openGunShop(b) {
+    const d = await this.net.inspect('shop', b.id);
+    const s = this.ui.self;
+    const rows = ['knife', 'pistol', 'rifle'].map((k) => {
+      const w = WEAPONS[k];
+      const owned = s.weapons?.includes(k);
+      return el('div', { class: 'shop-item' }, el('span', {}, w.icon), el('span', { class: 'nm' }, w.label, el('small', { class: 'muted' }, ` · hasar ${w.dmg}${w.ammo ? ` · menzil ${w.range}` : ''}`)),
+        owned ? el('span', { class: 'muted' }, '✔ sende') : el('span', { class: 'pr' }, tl(w.price)),
+        owned ? null : el('button', { class: 'btn mini primary', onClick: () => this.runAction({ type: 'shop:weapon', params: { weapon: k } }).then(() => this.openGunShop(b)) }, 'Satın Al'),
+        owned && w.ammo ? el('button', { class: 'btn mini', onClick: () => this.runAction({ type: 'shop:weapon', params: { weapon: k, ammo: true } }).then(() => this.openGunShop(b)) }, `📦 +${w.ammo.qty} mermi · ${tl(w.ammo.price)}`) : null);
+    });
+    this.ui.openSheet('shop', { icon: '🔫', title: b.name, subtitle: `Ateşli silah stoğu: ${d?.weaponStock ?? '?'}` },
+      el('div', { class: 'col' }, ...rows, el('p', { class: 'muted' }, '⚠️ Masum birine ateş edersen aranırsın ve polis peşine düşer.')));
+  }
+
+  // ---- dövüş
+  attack() {
+    if (this.ui.self.dead || this.ui.self.jailed || this.targeting) return;
+    const w = WEAPONS[this.ui.self.weapon] ?? WEAPONS.fist;
+    const now = performance.now();
+    if (now - (this._lastAtk ?? 0) < w.cd) return;
+    this._lastAtk = now;
+    if (this.ui.self.pose) this.standUp(true);
+    const me = this.self.g.position;
+    const range = w.range + 1.5;
+    const gunAim = !w.melee;
+    const fx = gunAim ? -Math.sin(this.rig.yaw) : Math.sin(this.self.g.rotation.y);
+    const fz = gunAim ? -Math.cos(this.rig.yaw) : Math.cos(this.self.g.rotation.y);
+    let best = null, bs = Infinity;
+    const consider = (kind, id, x, z) => {
+      const dx = x - me.x, dz = z - me.z;
+      const d = Math.hypot(dx, dz);
+      if (d > range || d < 0.01) return;
+      const cos = (dx * fx + dz * fz) / d;
+      const score = d * (cos > 0.5 ? 1 : cos > 0 ? 2.5 : 6);
+      if (score < bs) { bs = score; best = { kind, id, x, z }; }
+    };
+    if (!this.interior.active) for (const n of this.entities.npcs.values()) if (n.visible) consider('npc', n.id, n.x, n.z);
+    for (const e of this.entities.players.values()) if (e.id !== this.selfId && e.g.visible && e.pose !== 'dead') consider('player', e.id, e.g.position.x, e.g.position.z);
+    this.selfAttackT = 0.3;
+    if (!best) {
+      if (w.melee) this.audio.play('whoosh', { vol: 0.4 });
+      else this.ui.toast('🎯 Menzilde hedef yok.', 'warn');
+      return;
+    }
+    this.self.g.rotation.y = Math.atan2(best.x - me.x, best.z - me.z);
+    this.controller.dirty = true;
+    this.net.action('combat:attack', { kind: best.kind, id: best.id }).then((r) => {
+      if (r?.message) this.ui.toast(r.message, r.ok ? 'ok' : 'err');
+      else if (r && !r.ok && r.error) this.ui.toast(r.error, 'err');
+    });
+  }
+
+  combatFx(f) {
+    const e = f.by && this.entities.getPlayer(f.by);
+    if (e) e.attackT = 0.3;
+    if (f.t === 'punch') {
+      this.effects.melee(f.a, f.b);
+      this.audio.playAt('punch', f.a[0], f.a[1], { minGap: 60 });
+    } else {
+      this.effects.tracer(f.a, f.b, 'infantry');
+      this.audio.playAt(f.w === 'rifle' ? 'rifle' : 'pistol', f.a[0], f.a[1], { minGap: 40, range: 300 });
+    }
+  }
+
+  cycleWeapon() {
+    const s = this.ui.self;
+    const list = s.weapons ?? ['fist'];
+    if (list.length < 2) { this.ui.toast('🔫 Silah dükkanından bıçak / tabanca / tüfek alabilirsin.', 'info'); return; }
+    const next = list[(list.indexOf(s.weapon) + 1) % list.length];
+    this.ui.self.weapon = next;
+    this.life.set({ weapon: next });
+    this.net.action('combat:equip', { weapon: next });
+    this.audio.play('click');
+  }
+
+  async toggleMic() {
+    try {
+      if (this.voice.enabled) {
+        this.voice.stop();
+        this.ui.toast('🔇 Mikrofon kapandı.', 'info');
+      } else {
+        await this.voice.start();
+        this.ui.toast('🎙️ Mikrofon açık! Yakınındaki oyuncular seni duyar (~45 m).', 'ok');
+      }
+    } catch (err) {
+      this.ui.toast(`🎙️ Mikrofon açılamadı: ${err.message ?? err}`, 'err');
+    }
+    this.life.setMic(this.voice.enabled, false);
+  }
+
+  // ---- ülke kur butonu yalnızca sınırlardan uzaktayken
+  updateFoundButton() {
+    const s = this.ui.self;
+    let show = false;
+    if (!s.village && !s.inside && !s.dead) {
+      const w = this.init.world;
+      const p = this.self.g.position;
+      const i = Math.floor((p.x + w.half) / w.blockSize), j = Math.floor((p.z + w.half) / w.blockSize);
+      const g = this.init.config.gridSize ?? w.gridSize;
+      const ts = this.init.config.townSize ?? 4;
+      const get = (a, b) => this.city.tile(a, b);
+      for (const [di, dj] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) if (canFoundAtTiles(get, g, ts, i + di, j + dj)) { show = true; break; }
+    }
+    if (show && this.ui.foundBtn.classList.contains('hidden')) { this.audio.play('notify'); this.ui.toast('🏳️ Burası ülke kurmaya uygun! ÜLKE KUR butonu açıldı.', 'ok'); }
+    this.ui.foundBtn.classList.toggle('hidden', !show);
+  }
+
   // ------------------------------------------------------------------ döngü
   loop() {
     if (!this.running) return;
@@ -442,7 +789,14 @@ export class Game {
     const dt = Math.min(this.clock.getDelta(), 0.1);
     const kit = this.kit;
 
+    this.selfAttackT = Math.max(0, this.selfAttackT - dt);
+    this.updateTask(dt);
     this.controller.update(dt);
+    this.entities.selfInside = this.ui.self.inside || 0;
+    this.entities.camX = this.self.g.position.x;
+    this.entities.camZ = this.self.g.position.z;
+    setWeapon(this.self.g, this.ui.self.weapon ?? 'fist');
+    this.interior.update(dt, kit.night ?? 0);
     const shake = this.effects.update(dt);
     this.rig.update(dt, this.self.g.position, shake);
     this.entities.update(dt, this.self.g);
@@ -456,6 +810,7 @@ export class Game {
     this.ui.setClock(cb.day, cb.hour, Math.floor(frac * 60));
     this.ui.tickBalance(dt);
     this.audio.setListener(this.self.g.position.x, this.self.g.position.z);
+    this.voice.setListener(this.self.g.position.x, this.self.g.position.z, this.rig.yaw);
     this.audio.setMusic(performance.now() - this.lastWarAt < 25000 || this.effects.missiles.size ? 'war' : 'game');
 
     if (this.marker.visible) this.marker.rotation.z += dt * 2;
@@ -468,7 +823,7 @@ export class Game {
         selfId: this.selfId,
         self: this.self.g.position,
         yaw: this.rig.yaw,
-        players: [...this.entities.players.values()].map((p) => ({ id: p.id, x: p.g.position.x, z: p.g.position.z, color: this.roster.get(p.id)?.color ?? '#fff' })),
+        players: [...this.entities.players.values()].filter((p) => p.g.visible).map((p) => ({ id: p.id, x: p.g.position.x, z: p.g.position.z, color: this.roster.get(p.id)?.color ?? '#fff' })),
         units: this.entities.unitPositions(),
         missiles: [...this.effects.missiles.values()].map((m) => ({ ...missilePosAt(m, now), to: m.to })),
         hazards: this.hazards,
@@ -478,7 +833,14 @@ export class Game {
     if (this.hintTimer <= 0) {
       this.hintTimer = 0.3;
       const p = this.self.g.position;
-      this.ui.setInteractHint(this.targeting ? null : this.city.nearestBuilding(p.x, p.z, 26));
+      if (this.interior.active) {
+        const spot = this.interior.nearestSpot(p.x, p.z);
+        this.ui.setInteractHint(spot ? { name: `${spot.icon} ${spot.label}` } : null);
+      } else {
+        const b = this.targeting ? null : this.city.nearestBuilding(p.x, p.z, 26);
+        this.ui.setInteractHint(b ? { name: `${b.name}${b.type !== 'land' && b.type !== 'park' ? ' · 🚪' : ''}` } : null);
+      }
+      this.updateFoundButton();
     }
     // Açık inceleme panelini canlı tut (stok, kasa değişir)
     this.inspectTimer -= dt;
@@ -492,6 +854,8 @@ export class Game {
 
   destroy() {
     this.running = false;
+    this.voice.dispose();
+    this.interior.clear();
     document.removeEventListener('pointerlockchange', this.onLockChange);
     cancelAnimationFrame(this.raf);
     for (const [e, fn] of this.handlers) this.net.off(e, fn);

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { textSprite, glowTexture } from '../render/geometry.js';
+import { POSES, WEAPON_CODES } from '../../shared/interiors.js';
 
 const JOB_COLORS = {
   worker: 0xe67e22, clerk: 0x3498db, waiter: 0xf4f4f4, bartender: 0x8e44ad, civil_servant: 0x5d6d7e,
@@ -16,41 +17,167 @@ const lerpAngle = (a, b, t) => {
 const hash = (id) => { let h = 0; for (const c of id) h = (h * 31 + c.charCodeAt(0)) | 0; return h; };
 
 // ----------------------------------------------------------------------- karakter
-export function makeCharacter(shirt, { scale = 1, pants = 0x2c3e50, skin = 0xf1c27d } = {}) {
+const HAIR = [0x2b1d12, 0x1a1a1a, 0x5a3a1e, 0x8a5a2b, 0xc9a35c, 0x6b6b6b];
+const PANTS = [0x2c3e50, 0x1f2a44, 0x3b3b3b, 0x4a3a2a, 0x6b6b5a, 0x223322];
+const matCache = new Map();
+const M = (c, r = 0.75, m = 0) => {
+  const k = `${c}|${r}|${m}`;
+  if (!matCache.has(k)) matCache.set(k, new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: m }));
+  return matCache.get(k);
+};
+
+/**
+ * İnsan modeli (~3 birim boy): kafa + yüz + saç, boyun, gövde, kemer, eklemli kollar (dirsek) ve bacaklar, eller, ayakkabılar.
+ * Pozlar: yürüme, koşma, oturma, uyuma, ölü, çalışma, yumruk/ateş.
+ */
+export function makeCharacter(shirt, { scale = 1, pants, skin = 0xf1c27d, hair, seed = Math.random() * 1e6 } = {}) {
   const g = new THREE.Group();
+  const rig = new THREE.Group();
+  g.add(rig);
+  const h = Math.abs(Math.floor(seed));
   const shirtMat = new THREE.MeshStandardMaterial({ color: shirt, roughness: 0.7 });
-  const pantsMat = new THREE.MeshStandardMaterial({ color: pants, roughness: 0.8 });
-  const skinMat = new THREE.MeshStandardMaterial({ color: skin, roughness: 0.6 });
-  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.48, 0.7, 4, 10), shirtMat);
-  torso.position.y = 1.65;
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.4, 14, 10), skinMat);
-  head.position.y = 2.6;
-  const hair = new THREE.Mesh(new THREE.SphereGeometry(0.42, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x2b1d12 }));
-  hair.position.y = 2.65;
-  const mk = (geo, mat, x, y) => { const pivot = new THREE.Group(); pivot.position.set(x, y, 0); const m = new THREE.Mesh(geo, mat); m.position.y = -geo.parameters.height / 2; m.castShadow = true; pivot.add(m); return pivot; };
-  const legL = mk(new THREE.BoxGeometry(0.32, 1.1, 0.34), pantsMat, -0.22, 1.15);
-  const legR = mk(new THREE.BoxGeometry(0.32, 1.1, 0.34), pantsMat, 0.22, 1.15);
-  const armL = mk(new THREE.BoxGeometry(0.24, 0.95, 0.26), shirtMat, -0.66, 2.05);
-  const armR = mk(new THREE.BoxGeometry(0.24, 0.95, 0.26), shirtMat, 0.66, 2.05);
-  const nose = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.2), skinMat);
-  nose.position.set(0, 2.58, 0.42);
-  for (const m of [torso, head]) m.castShadow = true;
-  g.add(torso, head, hair, legL, legR, armL, armR, nose);
+  const pantsMat = M(pants ?? PANTS[h % PANTS.length], 0.85);
+  const skinMat = M(skin, 0.6);
+  const hairMat = M(hair ?? HAIR[(h >> 3) % HAIR.length], 0.9);
+  const dark = M(0x161616, 0.6);
+  const add = (parent, geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m; };
+
+  // Gövde
+  add(rig, new THREE.CylinderGeometry(0.46, 0.38, 0.95, 10).scale(1, 1, 0.62), shirtMat, 0, 2.02, 0);
+  add(rig, new THREE.SphereGeometry(0.46, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.45, 0.62), shirtMat, 0, 2.48, 0);
+  add(rig, new THREE.BoxGeometry(0.8, 0.28, 0.5), pantsMat, 0, 1.47, 0);
+  add(rig, new THREE.BoxGeometry(0.82, 0.07, 0.52), dark, 0, 1.6, 0);
+  add(rig, new THREE.CylinderGeometry(0.13, 0.15, 0.22, 8), skinMat, 0, 2.62, 0);
+  // Kafa
+  const head = new THREE.Group();
+  head.position.set(0, 2.98, 0);
+  rig.add(head);
+  add(head, new THREE.SphereGeometry(0.36, 16, 12).scale(0.95, 1.08, 1), skinMat, 0, 0, 0);
+  for (const sx of [-0.13, 0.13]) {
+    add(head, new THREE.SphereGeometry(0.05, 6, 6), dark, sx, 0.05, 0.31);
+    add(head, new THREE.BoxGeometry(0.12, 0.025, 0.03), hairMat, sx, 0.14, 0.32);
+    add(head, new THREE.SphereGeometry(0.07, 6, 6).scale(0.5, 1, 0.6), skinMat, sx * 2.6, 0, 0);
+  }
+  add(head, new THREE.BoxGeometry(0.08, 0.12, 0.1), skinMat, 0, -0.03, 0.36);
+  add(head, new THREE.BoxGeometry(0.14, 0.025, 0.03), M(0x8a3a3a), 0, -0.16, 0.32);
+  const style = (h >> 5) % 4;
+  add(head, new THREE.SphereGeometry(0.385, 14, 8, 0, Math.PI * 2, 0, Math.PI * (style === 3 ? 0.34 : 0.48)).scale(0.97, 1.08, 1.03), hairMat, 0, 0.02, -0.02);
+  if (style === 1) add(head, new THREE.BoxGeometry(0.66, 0.55, 0.22), hairMat, 0, -0.2, -0.26); // uzun saç
+  if (style === 2) add(head, new THREE.SphereGeometry(0.16, 8, 6), hairMat, 0, 0.18, -0.36);   // topuz
+
+  // Kollar: omuz -> dirsek -> el
+  const arm = (side) => {
+    const sh = new THREE.Group();
+    sh.position.set(side * 0.58, 2.42, 0);
+    rig.add(sh);
+    add(sh, new THREE.SphereGeometry(0.16, 8, 6), shirtMat, 0, 0, 0);
+    add(sh, new THREE.CylinderGeometry(0.13, 0.11, 0.6, 8), shirtMat, 0, -0.3, 0);
+    const el = new THREE.Group();
+    el.position.set(0, -0.6, 0);
+    sh.add(el);
+    add(el, new THREE.CylinderGeometry(0.1, 0.085, 0.5, 8), skinMat, 0, -0.25, 0);
+    const hand = add(el, new THREE.SphereGeometry(0.11, 8, 6).scale(0.9, 1.1, 0.8), skinMat, 0, -0.56, 0);
+    return { sh, el, hand };
+  };
+  const leg = (side) => {
+    const hip = new THREE.Group();
+    hip.position.set(side * 0.21, 1.4, 0);
+    rig.add(hip);
+    add(hip, new THREE.CylinderGeometry(0.17, 0.14, 0.7, 8), pantsMat, 0, -0.35, 0);
+    const knee = new THREE.Group();
+    knee.position.set(0, -0.7, 0);
+    hip.add(knee);
+    add(knee, new THREE.CylinderGeometry(0.135, 0.11, 0.6, 8), pantsMat, 0, -0.3, 0);
+    add(knee, new THREE.BoxGeometry(0.24, 0.14, 0.42), dark, 0, -0.63, 0.07);
+    return { hip, knee };
+  };
+  const aL = arm(-1), aR = arm(1), lL = leg(-1), lR = leg(1);
+  const weapon = new THREE.Group();
+  aR.hand.add(weapon);
   g.scale.setScalar(scale);
-  g.userData.limbs = { legL, legR, armL, armR };
+  g.userData.limbs = { aL, aR, lL, lR, rig, head, weapon };
   g.userData.phase = Math.random() * 10;
+  g.userData.weaponKey = 'fist';
   return g;
 }
 
-function animateWalk(g, speed, dt) {
+const WEAPON_MESH = {
+  knife: () => { const w = new THREE.Group(); const b = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.5, 0.1), M(0xd0d4d8, 0.3, 0.8)); b.position.y = -0.3; w.add(b); return w; },
+  pistol: () => { const w = new THREE.Group(); const b = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.14, 0.42), M(0x1a1a1a, 0.4, 0.5)); b.position.set(0, -0.05, 0.16); const gr = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.22, 0.1), M(0x2b1d12)); gr.position.set(0, -0.12, 0); w.add(b, gr); return w; },
+  rifle: () => { const w = new THREE.Group(); const b = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.16, 1.3), M(0x1f1f1f, 0.4, 0.5)); b.position.set(0, -0.05, 0.35); const st = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.2, 0.4), M(0x5a3b22)); st.position.set(0, -0.08, -0.4); const mag = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.3, 0.12), M(0x2a2a2a)); mag.position.set(0, -0.22, 0.25); w.add(b, st, mag); return w; },
+};
+
+export function setWeapon(g, key) {
+  const L = g.userData.limbs;
+  if (!L || g.userData.weaponKey === key) return;
+  g.userData.weaponKey = key;
+  L.weapon.clear();
+  if (WEAPON_MESH[key]) L.weapon.add(WEAPON_MESH[key]());
+}
+
+/**
+ * Animasyon. st: { pose, attackT, gun }
+ */
+function animateWalk(g, speed, dt, st = {}) {
   const L = g.userData.limbs;
   if (!L) return;
-  g.userData.phase += dt * (6 + speed * 0.6);
-  const a = speed > 0.3 ? Math.sin(g.userData.phase) * Math.min(0.8, 0.25 + speed * 0.04) : 0;
-  L.legL.rotation.x = a;
-  L.legR.rotation.x = -a;
-  L.armL.rotation.x = -a * 0.8;
-  L.armR.rotation.x = a * 0.8;
+  const pose = st.pose ?? '';
+  const t = (g.userData.phase += dt * (5 + speed * 0.75));
+  const rig = L.rig;
+  // sıfırla
+  rig.position.set(0, 0, 0);
+  rig.rotation.set(0, 0, 0);
+  L.head.rotation.set(0, 0, 0);
+  for (const a of [L.aL, L.aR]) { a.sh.rotation.set(0, 0, 0); a.el.rotation.set(0, 0, 0); }
+  for (const l of [L.lL, L.lR]) { l.hip.rotation.set(0, 0, 0); l.knee.rotation.set(0, 0, 0); }
+
+  if (pose === 'sit') {
+    rig.position.y = -0.28;
+    for (const l of [L.lL, L.lR]) { l.hip.rotation.x = -1.5; l.knee.rotation.x = 1.5; }
+    L.aL.sh.rotation.x = -0.35; L.aR.sh.rotation.x = -0.35; L.aL.el.rotation.x = -0.5; L.aR.el.rotation.x = -0.5;
+    L.head.rotation.y = Math.sin(t * 0.3) * 0.25; // sohbet ederken etrafa bakar
+    return;
+  }
+  if (pose === 'sleep' || pose === 'dead') {
+    const dead = pose === 'dead';
+    rig.rotation.x = dead ? Math.PI / 2 : -Math.PI / 2;
+    rig.position.set(0, dead ? 0.42 : (st.bedY ?? 1.25) + 0.42, dead ? -1.5 : 1.5);
+    L.aL.sh.rotation.z = dead ? -1.2 : 0.15; L.aR.sh.rotation.z = dead ? 1.0 : -0.15;
+    if (!dead) rig.position.y += Math.sin(t * 0.25) * 0.02;
+    return;
+  }
+  const moving = speed > 0.3;
+  const run = speed > 11;
+  const amp = moving ? Math.min(run ? 1.0 : 0.65, 0.2 + speed * 0.06) : 0;
+  const s = Math.sin(t);
+  L.lL.hip.rotation.x = s * amp;
+  L.lR.hip.rotation.x = -s * amp;
+  L.lL.knee.rotation.x = Math.max(0, -Math.cos(t)) * amp * 1.3;
+  L.lR.knee.rotation.x = Math.max(0, Math.cos(t)) * amp * 1.3;
+  L.aL.sh.rotation.x = -s * amp * 0.8;
+  L.aR.sh.rotation.x = s * amp * 0.8;
+  L.aL.el.rotation.x = L.aR.el.rotation.x = -0.2 - (run ? 0.9 : 0.2);
+  rig.position.y = moving ? Math.abs(Math.cos(t)) * (run ? 0.14 : 0.06) : Math.sin(t * 0.4) * 0.01;
+  if (run) rig.rotation.x = 0.12;
+
+  if (pose === 'work') {
+    const w = Math.sin(t * 2.2);
+    L.aL.sh.rotation.x = L.aR.sh.rotation.x = -1.1 + w * 0.25;
+    L.aL.el.rotation.x = L.aR.el.rotation.x = -0.6 - w * 0.3;
+    L.head.rotation.x = 0.3;
+  }
+  // Silah tutma / saldırı
+  const atk = st.attackT ?? 0;
+  if (st.gun) {
+    L.aR.sh.rotation.x = -1.45 + (atk > 0 ? Math.sin(atk * 30) * 0.08 : 0);
+    L.aR.el.rotation.x = 0;
+    if (st.gun === 'rifle') { L.aL.sh.rotation.x = -1.3; L.aL.sh.rotation.z = -0.5; L.aL.el.rotation.x = -0.3; }
+  } else if (atk > 0) {
+    const k = Math.sin(Math.min(1, atk / 0.3) * Math.PI);
+    L.aR.sh.rotation.x = -1.55 * k;
+    L.aR.el.rotation.x = -0.4 * (1 - k);
+    rig.rotation.y = -0.25 * k;
+  }
 }
 
 // ----------------------------------------------------------------------- at
@@ -325,29 +452,39 @@ export class EntityManager {
     this.npcs = new Map();
     this.pickables = [];
 
-    // NPC'ler: 2 InstancedMesh ile yüzlerce kişi = 2 draw call
+    // NPC'ler: parça başına bir InstancedMesh (gövde, kafa, saç, kollar, bacaklar) -> yürürken kol/bacak sallanır
     this.npcCap = 400;
-    this.npcBodies = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.42, 1.0, 3, 8).translate(0, 1.2, 0), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.75 }), this.npcCap);
-    this.npcHeads = new THREE.InstancedMesh(new THREE.SphereGeometry(0.36, 10, 8).translate(0, 2.35, 0), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 }), this.npcCap);
-    for (const m of [this.npcBodies, this.npcHeads]) {
+    const inst = (geo, cap, mat) => {
+      const m = new THREE.InstancedMesh(geo, mat ?? new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.75 }), cap);
       m.frustumCulled = false;
       m.castShadow = true;
       m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       this.scene.add(m);
-    }
+      return m;
+    };
+    const cap = this.npcCap;
+    this.npcParts = {
+      torso: inst(new THREE.CylinderGeometry(0.44, 0.37, 1.05, 8).scale(1, 1, 0.62).translate(0, 2.05, 0), cap),
+      hips: inst(new THREE.BoxGeometry(0.78, 0.3, 0.48).translate(0, 1.47, 0), cap),
+      head: inst(new THREE.SphereGeometry(0.35, 10, 8).scale(0.95, 1.08, 1).translate(0, 2.96, 0), cap),
+      hair: inst(new THREE.SphereGeometry(0.37, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.48).scale(0.97, 1.08, 1.03).translate(0, 2.98, -0.02), cap),
+      arm: inst(new THREE.CylinderGeometry(0.12, 0.09, 1.1, 6).translate(0, -0.55, 0), cap * 2),
+      leg: inst(new THREE.CylinderGeometry(0.16, 0.12, 1.36, 6).translate(0, -0.68, 0), cap * 2),
+    };
+    this.npcBodies = this.npcParts.torso;
     this.npcBodies.userData = { kind: 'npcInstanced' };
     this.freeIdx = [];
-    for (let i = this.npcCap - 1; i >= 0; i--) this.freeIdx.push(i);
+    for (let i = cap - 1; i >= 0; i--) this.freeIdx.push(i);
     this.idxToNpc = new Map();
     this._m = new THREE.Matrix4();
+    this._m2 = new THREE.Matrix4();
     this._q = new THREE.Quaternion();
     this._v = new THREE.Vector3();
     this._s = new THREE.Vector3(1, 1, 1);
     this._zero = new THREE.Matrix4().makeScale(0, 0, 0);
-    for (let i = 0; i < this.npcCap; i++) {
-      this.npcBodies.setMatrixAt(i, this._zero);
-      this.npcHeads.setMatrixAt(i, this._zero);
-    }
+    this._rx = new THREE.Matrix4();
+    for (const [k, m] of Object.entries(this.npcParts)) for (let i = 0; i < m.count; i++) m.setMatrixAt(i, this._zero);
+    this.robberRings = new Map();
 
     // Kendi oyuncumuzun altındaki parlayan halka
     this.selfRing = new THREE.Mesh(new THREE.RingGeometry(1.1, 1.5, 32), new THREE.MeshBasicMaterial({ color: 0xffd34d, transparent: true, opacity: 0.85, side: THREE.DoubleSide }));
@@ -360,9 +497,15 @@ export class EntityManager {
   // ---------- Oyuncular ----------
   addPlayer(p) {
     if (this.players.has(p.id)) return this.players.get(p.id);
-    const g = makeCharacter(new THREE.Color(p.color), { skin: SKIN[Math.abs(hash(p.id)) % SKIN.length] });
-    const label = textSprite(p.name + (p.title && p.title !== 'Vatandaş' ? ` · ${p.title}` : ''), { color: p.color, border: p.color, scale: 0.75 });
-    label.position.y = 3.8;
+    const h = Math.abs(hash(p.id + p.name));
+    const g = makeCharacter(new THREE.Color(p.color), { skin: SKIN[h % SKIN.length], seed: h });
+    const label = textSprite(p.name + (p.countryName ? ` · 🏳️ ${p.countryName}` : ''), { color: p.color, border: p.color, scale: 0.75 });
+    label.position.y = 4.0;
+    const talk = textSprite('🔊', { color: '#3ddc84', border: '#3ddc84', scale: 0.6 });
+    talk.position.y = 4.8;
+    talk.visible = false;
+    talk.material.depthTest = false;
+    g.add(talk);
     label.renderOrder = 15;
     label.material.depthTest = false;
     g.add(label);
@@ -370,7 +513,7 @@ export class EntityManager {
     g.rotation.y = p.rotY ?? 0;
     this.markPick(g, 'player', p.id);
     this.scene.add(g);
-    const e = { id: p.id, g, label, target: { x: p.x, z: p.z, rotY: p.rotY ?? 0 }, last: { x: p.x, z: p.z }, speed: 0 };
+    const e = { id: p.id, g, label, talk, target: { x: p.x, z: p.z, rotY: p.rotY ?? 0 }, last: { x: p.x, z: p.z }, speed: 0, pose: '', weapon: 'fist', inside: 0, attackT: 0, talkUntil: 0 };
     this.players.set(p.id, e);
     return e;
   }
@@ -387,11 +530,15 @@ export class EntityManager {
 
   applyPlayers(list) {
     const seen = new Set();
-    for (const [id, x, z, rotY] of list) {
+    for (const [id, x, z, rotY, pose, weapon, inside] of list) {
       seen.add(id);
       if (id === this.selfId) continue;
       const e = this.players.get(id);
-      if (e) Object.assign(e.target, { x, z, rotY });
+      if (!e) continue;
+      Object.assign(e.target, { x, z, rotY });
+      e.pose = POSES[pose] ?? '';
+      e.weapon = WEAPON_CODES[weapon] ?? 'fist';
+      if ((inside || 0) !== e.inside) { e.inside = inside || 0; e.g.position.set(x, 0, z); }
     }
   }
 
@@ -399,24 +546,70 @@ export class EntityManager {
   addNpc(n) {
     if (this.npcs.has(n.id) || !this.freeIdx.length) return;
     const idx = this.freeIdx.pop();
-    const h = hash(n.id);
-    this.npcBodies.setColorAt(idx, new THREE.Color(JOB_COLORS[n.job] ?? 0xaaaaaa).offsetHSL(0, 0, ((h & 15) / 15 - 0.5) * 0.1));
-    this.npcHeads.setColorAt(idx, new THREE.Color(SKIN[Math.abs(h) % SKIN.length]));
-    this.npcBodies.instanceColor.needsUpdate = this.npcHeads.instanceColor.needsUpdate = true;
+    const h = Math.abs(hash(n.id));
+    const P = this.npcParts;
+    const shirt = new THREE.Color(JOB_COLORS[n.job] ?? 0xaaaaaa).offsetHSL(((h >> 7) & 15) / 150, 0, ((h & 15) / 15 - 0.5) * 0.15);
+    const pants = new THREE.Color(PANTS[h % PANTS.length]);
+    const skin = new THREE.Color(SKIN[h % SKIN.length]);
+    P.torso.setColorAt(idx, shirt);
+    P.hips.setColorAt(idx, pants);
+    P.head.setColorAt(idx, skin);
+    P.hair.setColorAt(idx, new THREE.Color(HAIR[(h >> 3) % HAIR.length]));
+    P.arm.setColorAt(idx * 2, shirt); P.arm.setColorAt(idx * 2 + 1, shirt);
+    P.leg.setColorAt(idx * 2, pants); P.leg.setColorAt(idx * 2 + 1, pants);
+    for (const m of Object.values(P)) m.instanceColor.needsUpdate = true;
     const off = { x: (((h >> 3) & 255) / 255 - 0.5) * 3.6, z: (((h >> 11) & 255) / 255 - 0.5) * 3.6 };
-    this.npcs.set(n.id, { id: n.id, idx, x: n.x ?? 0, z: n.z ?? 0, tx: n.x ?? 0, tz: n.z ?? 0, rot: 0, visible: false, off, phase: h & 63 });
+    this.npcs.set(n.id, { id: n.id, idx, x: n.x ?? 0, z: n.z ?? 0, tx: n.x ?? 0, tz: n.z ?? 0, rot: 0, visible: false, off, phase: h & 63, shirt, speed: 0 });
     this.idxToNpc.set(idx, n.id);
+  }
+
+  hideNpc(n) {
+    const P = this.npcParts;
+    for (const k of ['torso', 'hips', 'head', 'hair']) P[k].setMatrixAt(n.idx, this._zero);
+    for (const k of ['arm', 'leg']) { P[k].setMatrixAt(n.idx * 2, this._zero); P[k].setMatrixAt(n.idx * 2 + 1, this._zero); }
+    for (const m of Object.values(P)) m.instanceMatrix.needsUpdate = true;
   }
 
   removeNpc(id) {
     const n = this.npcs.get(id);
     if (!n) return;
-    this.npcBodies.setMatrixAt(n.idx, this._zero);
-    this.npcHeads.setMatrixAt(n.idx, this._zero);
+    this.hideNpc(n);
+    this.setRobber(id, false);
     this.freeIdx.push(n.idx);
     this.idxToNpc.delete(n.idx);
     this.npcs.delete(id);
-    this.npcBodies.instanceMatrix.needsUpdate = this.npcHeads.instanceMatrix.needsUpdate = true;
+  }
+
+  setOutdoorVisible(on) {
+    for (const m of Object.values(this.npcParts)) m.visible = on;
+    for (const u of this.units.values()) u.g.visible = on;
+    for (const v of this.vehicles.values()) v.g.visible = on;
+    for (const r of this.robberRings.values()) r.visible = on;
+    this.outdoor = on;
+  }
+
+  npcPos(id) { const n = this.npcs.get(id); return n?.visible ? { x: n.x, z: n.z } : null; }
+
+  setRobber(id, on) {
+    const n = this.npcs.get(id);
+    const old = this.robberRings.get(id);
+    if (old) { this.scene.remove(old); this.robberRings.delete(id); }
+    if (!n) return;
+    this.npcParts.torso.setColorAt(n.idx, on ? new THREE.Color(0x111111) : n.shirt);
+    this.npcParts.torso.instanceColor.needsUpdate = true;
+    if (on) {
+      const g = new THREE.Group();
+      const ring = new THREE.Mesh(new THREE.RingGeometry(1.4, 1.9, 24), new THREE.MeshBasicMaterial({ color: 0xff2020, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthTest: false }));
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = 0.3;
+      const tag = textSprite('🚨 SOYGUNCU', { color: '#ff4040', border: '#ff4040', scale: 0.8 });
+      tag.position.y = 4.4;
+      tag.material.depthTest = false;
+      g.add(ring, tag);
+      g.renderOrder = 20;
+      this.scene.add(g);
+      this.robberRings.set(id, g);
+    }
   }
 
   applyNpcs(list) {
@@ -428,10 +621,7 @@ export class EntityManager {
       if (vis && !n.visible) { n.x = tx; n.z = tz; }
       n.tx = tx;
       n.tz = tz;
-      if (!vis && n.visible) {
-        this.npcBodies.setMatrixAt(n.idx, this._zero);
-        this.npcHeads.setMatrixAt(n.idx, this._zero);
-      }
+      if (!vis && n.visible) this.hideNpc(n);
       n.visible = !!vis;
     }
   }
@@ -443,6 +633,7 @@ export class EntityManager {
     g.position.set(u.x, u.alt ?? 0, u.z);
     g.rotation.y = u.rotY ?? 0;
     this.markPick(g, 'unit', u.id);
+    g.visible = this.outdoor !== false;
     this.scene.add(g);
     this.units.set(u.id, { ...u, g, target: { x: u.x, z: u.z, rot: u.rotY ?? 0, aim: u.rotY ?? 0, hp: 1, alt: u.alt ?? 0 }, speed: 0 });
   }
@@ -494,6 +685,7 @@ export class EntityManager {
   unpick(id) { this.pickables = this.pickables.filter((m) => m.userData.id !== id); }
 
   pickNpc(raycaster) {
+    this.npcBodies.boundingSphere = null;
     this.npcBodies.computeBoundingSphere();
     const hit = raycaster.intersectObject(this.npcBodies, false)[0];
     if (!hit || hit.instanceId === undefined) return null;
@@ -506,15 +698,21 @@ export class EntityManager {
     this.time += dt;
     const k = 1 - Math.exp(-dt * 10);
 
+    const now = performance.now();
     for (const e of this.players.values()) {
+      e.attackT = Math.max(0, e.attackT - dt);
+      e.talk.visible = now < e.talkUntil;
+      if (e.talk.visible) e.talk.position.y = 4.8 + Math.sin(now / 120) * 0.08;
       if (e.id === this.selfId) continue;
+      e.g.visible = e.inside === this.selfInside;
       const p = e.g.position;
       const ox = p.x, oz = p.z;
       p.x += (e.target.x - p.x) * k;
       p.z += (e.target.z - p.z) * k;
       e.g.rotation.y = lerpAngle(e.g.rotation.y, e.target.rotY, k);
       e.speed = Math.hypot(p.x - ox, p.z - oz) / Math.max(dt, 0.001);
-      animateWalk(e.g, e.speed, dt);
+      setWeapon(e.g, e.weapon);
+      animateWalk(e.g, e.pose ? 0 : e.speed, dt, { pose: e.pose, attackT: e.attackT, gun: e.weapon === 'pistol' || e.weapon === 'rifle' ? e.weapon : null });
     }
 
     if (selfGroup) {
@@ -523,24 +721,42 @@ export class EntityManager {
       this.selfRing.material.opacity = 0.55 + Math.sin(this.time * 4) * 0.3;
     }
 
-    // NPC instanced güncelleme
+    // NPC instanced güncelleme (kol/bacak sallanır)
     const kn = 1 - Math.exp(-dt * 5);
+    const P = this.npcParts;
+    const cx = this.camX ?? 0, cz = this.camZ ?? 0;
+    const UP = THREE.Object3D.DEFAULT_UP;
     let dirty = false;
     for (const n of this.npcs.values()) {
       if (!n.visible) continue;
       const dx = n.tx - n.x, dz = n.tz - n.z;
+      const ox = n.x, oz = n.z;
       const moving = dx * dx + dz * dz > 0.02;
       if (moving) n.rot = lerpAngle(n.rot, Math.atan2(dx, dz), kn);
       n.x += dx * kn;
       n.z += dz * kn;
-      const bob = moving ? Math.abs(Math.sin(this.time * 9 + n.phase)) * 0.18 : 0;
-      this._q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, n.rot);
+      n.speed += (Math.hypot(n.x - ox, n.z - oz) / Math.max(dt, 0.001) - n.speed) * 0.2;
+      const rb = this.robberRings.get(n.id);
+      if (rb) { rb.position.set(n.x, 0, n.z); rb.children[0].rotation.z += dt * 3; }
+      if (Math.abs(n.x - cx) + Math.abs(n.z - cz) > 420) continue; // uzaktakileri güncelleme
+      n.phase += dt * (4 + n.speed * 0.9);
+      const amp = n.speed > 0.4 ? Math.min(0.75, 0.2 + n.speed * 0.08) : 0;
+      const sw = Math.sin(n.phase) * amp;
+      const bob = amp ? Math.abs(Math.cos(n.phase)) * 0.06 : 0;
+      this._q.setFromAxisAngle(UP, n.rot);
       this._m.compose(this._v.set(n.x, bob, n.z), this._q, this._s);
-      this.npcBodies.setMatrixAt(n.idx, this._m);
-      this.npcHeads.setMatrixAt(n.idx, this._m);
+      for (const k of ['torso', 'hips', 'head', 'hair']) P[k].setMatrixAt(n.idx, this._m);
+      const limb = (mesh, i, lx, ly, ang) => {
+        this._m2.copy(this._m).multiply(this._rx.makeTranslation(lx, ly, 0)).multiply(this._rx.makeRotationX(ang));
+        mesh.setMatrixAt(i, this._m2);
+      };
+      limb(P.arm, n.idx * 2, -0.56, 2.42, -sw * 0.8);
+      limb(P.arm, n.idx * 2 + 1, 0.56, 2.42, sw * 0.8);
+      limb(P.leg, n.idx * 2, -0.2, 1.4, sw);
+      limb(P.leg, n.idx * 2 + 1, 0.2, 1.4, -sw);
       dirty = true;
     }
-    if (dirty || this.npcs.size) this.npcBodies.instanceMatrix.needsUpdate = this.npcHeads.instanceMatrix.needsUpdate = true;
+    if (dirty) for (const m of Object.values(P)) m.instanceMatrix.needsUpdate = true;
 
     const ku = 1 - Math.exp(-dt * 8);
     for (const u of this.units.values()) {

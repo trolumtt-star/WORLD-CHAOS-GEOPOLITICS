@@ -11,6 +11,8 @@ export class NPC {
     this.workId = workId;
     this.balance = balance;
     this.alive = true;
+    this.hp = 100;
+    this.robberUntil = 0;   // kaçan soyguncu (polis oyuncular yakalayabilir)
 
     // Kişilik 0..1
     this.traits = traits;     // { greed, lawfulness, sociability, loyalty }

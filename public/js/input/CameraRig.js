@@ -5,15 +5,17 @@ import * as THREE from 'three';
  * Mobil: tek parmak sürükle = döndür, iki parmak = pinch zoom + döndür. Kısa dokunuş = onTap.
  */
 export class CameraRig {
-  constructor(camera, dom, { onTap, canLock } = {}) {
+  constructor(camera, dom, { onTap, canLock, onLockedClick } = {}) {
+    this.onLockedClick = onLockedClick;
     this.camera = camera;
     this.dom = dom;
     this.onTap = onTap;
     this.yaw = 0.7;
-    this.pitch = 0.62;
-    this.distance = 34;
-    this.minDist = 10;
+    this.pitch = 0.38;
+    this.distance = 15;
+    this.minDist = 3;
     this.maxDist = 280;
+    this.outdoorMax = 280;
     this.target = new THREE.Vector3();
     this.goalDistance = this.distance;
     this.goalPitch = this.pitch;
@@ -32,7 +34,8 @@ export class CameraRig {
         if (this.desktop && e.pointerType === 'mouse') {
           if (document.pointerLockElement === d) {
             // Kilitliyken tıklama = ekranın ortasındakini incele
-            if (e.button === 0) this.onTap?.({ clientX: window.innerWidth / 2, clientY: window.innerHeight / 2 });
+            if (e.button === 0) (this.onLockedClick ?? this.onTap)?.({ clientX: window.innerWidth / 2, clientY: window.innerHeight / 2 });
+            if (e.button === 2) this.onTap?.({ clientX: window.innerWidth / 2, clientY: window.innerHeight / 2 });
             return;
           }
           if (e.button === 0 && this.canLock()) {
@@ -47,7 +50,7 @@ export class CameraRig {
       move: (e) => {
         if (document.pointerLockElement === d) {
           this.yaw -= e.movementX * 0.0032;
-          this.goalPitch = THREE.MathUtils.clamp(this.goalPitch + e.movementY * 0.0026, 0.12, 1.45);
+          this.goalPitch = THREE.MathUtils.clamp(this.goalPitch + e.movementY * 0.0026, 0.05, 1.45);
           return;
         }
         const p = this.pointers.get(e.pointerId);
@@ -60,7 +63,7 @@ export class CameraRig {
         if (this.pointers.size === 1) {
           const k = e.pointerType === 'touch' ? 0.006 : 0.005;
           this.yaw -= dx * k;
-          this.goalPitch = THREE.MathUtils.clamp(this.goalPitch + dy * k * 0.8, 0.15, 1.45);
+          this.goalPitch = THREE.MathUtils.clamp(this.goalPitch + dy * k * 0.8, 0.05, 1.45);
         } else if (this.pointers.size === 2 && this.pinch) {
           const now = this.pinchState();
           this.goalDistance = THREE.MathUtils.clamp(this.goalDistance * (this.pinch.dist / Math.max(20, now.dist)), this.minDist, this.maxDist);
@@ -97,6 +100,19 @@ export class CameraRig {
 
   zoomBy(f) { this.goalDistance = THREE.MathUtils.clamp(this.goalDistance * f, this.minDist, this.maxDist); }
 
+  /** Bina içinde kamera odadan fazla uzaklaşmasın, biraz yukarıdan baksın */
+  setInterior(on) {
+    if (on) {
+      this._outside = { d: this.goalDistance, p: this.goalPitch };
+      this.maxDist = 24;
+      this.goalDistance = Math.min(Math.max(this.goalDistance, 9), 14);
+      this.goalPitch = Math.max(this.goalPitch, 0.75);
+    } else {
+      this.maxDist = this.outdoorMax;
+      if (this._outside) { this.goalDistance = this._outside.d; this.goalPitch = this._outside.p; this._outside = null; }
+    }
+  }
+
   setStrategic(on) {
     if (on) {
       this._saved = { d: this.goalDistance, p: this.goalPitch };
@@ -117,11 +133,13 @@ export class CameraRig {
     const cp = Math.cos(this.pitch);
     this.camera.position.set(
       this.target.x + Math.sin(this.yaw) * cp * this.distance,
-      this.target.y + 2 + Math.sin(this.pitch) * this.distance,
+      this.target.y + 2.6 + Math.sin(this.pitch) * this.distance,
       this.target.z + Math.cos(this.yaw) * cp * this.distance,
     );
     if (shake) this.camera.position.add(shake);
-    this.camera.lookAt(this.target.x, this.target.y + 2, this.target.z);
+    // Yakınken omuz üstü (hafif sağa kaydırılmış), uzakken tam ortalı
+    const sh = Math.max(0, 1 - this.distance / 10) * 0.9;
+    this.camera.lookAt(this.target.x + Math.cos(this.yaw) * sh, this.target.y + 2.6, this.target.z - Math.sin(this.yaw) * sh);
   }
 
   snap(follow) {

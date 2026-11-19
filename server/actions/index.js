@@ -1,5 +1,6 @@
 import { BUILDING_TYPES, FACTORY_SUBTYPES, buildOptions } from '../data/buildingTypes.js';
 import { PRODUCTS } from '../data/products.js';
+import { JOBS } from '../data/jobs.js';
 import { buildingMaxHp, AIR_TYPES } from '../data/military.js';
 import { makeName, canFoundAt, findFoundingSpot, createVillage } from '../world/WorldGenerator.js';
 import { TECHS, ERAS, ADS, DEFAULT_UNLOCKS, isUnlocked, requiredTech, adChance, techCost, techHours } from '../data/tech.js';
@@ -29,6 +30,10 @@ function pay(ctx, player, amount) {
   return true;
 }
 
+const NEED_COUNTRY = '🏳️ Önce kendi ülkeni kurmalısın! Vatandaşken ordu, teknoloji ve toprak yönetemezsin. Sınırlardan uzak boş bir bölgeye yürü, ÜLKE KUR butonu çıkacak.';
+const needCountry = (p) => (p.village ? null : fail(NEED_COUNTRY));
+const life = (ctx) => ctx.engine.getSystem('life');
+
 function nearDoor(player, b, dist = 24) {
   return Math.hypot(player.x - b.door.x, player.z - b.door.z) <= dist;
 }
@@ -56,6 +61,7 @@ export const ACTIONS = {
     if (b.type !== 'land' || b.construction) return fail('Sadece boş arsaya inşaat yapılabilir.');
     const opt = buildOptions().find((o) => o.type === type && (o.subtype ?? null) === (subtype ?? null));
     if (!opt) return fail('Geçersiz yapı tipi.');
+    if (BUILDING_TYPES[type]?.category === 'military' && !p.village) return fail(NEED_COUNTRY);
     if (!isUnlocked(p, 'buildings', opt.key)) return fail(`Önce ${TECHS[requiredTech('buildings', opt.key)]?.label} teknolojisini geliştir.`);
     if (!pay(ctx, p, opt.cost)) return fail(`Yetersiz bakiye (${tl(opt.cost)} gerekli).`);
 
@@ -146,6 +152,7 @@ export const ACTIONS = {
   'country:found'(ctx, p, { name }) {
     const { world, rng, config, bus } = ctx;
     if (p.village) return fail('Zaten bir ülken var.');
+    if (p.inside) return fail('Önce binadan çık.');
     // Oyuncu genelde yol üstündedir: bastığı parsel ve komşularından uygun olanı seç
     const here = world.tileAt(p.x, p.z);
     const t = [here, ...(here ? world.neighbors(here) : [])].find((c) => c && canFoundAt(world, config, c.i, c.j)) ?? here;
@@ -163,31 +170,32 @@ export const ACTIONS = {
     for (const n of v.npcs) bus.emit('net:spawn', { kind: 'npc', data: n.toMeta() });
     bus.news('player', `🏳️ ${p.name} yeni bir ülke kurdu: ${clean}!`);
     bus.emit('net:alert', { level: 'info', text: `🏳️ Yeni ülke: ${clean} (${p.name})` });
+    p.citizenOf = null;
     world.touchPlayer(p);
     return { ok: true, message: `🏳️ ${clean} kuruldu! Sarayın, köylülerin ve toprakların hazır.`, sfx: 'build', founded: true };
   },
 
   // ---------------- DİPLOMASİ / SAVAŞ ----------------
-  'war:justify'(ctx, p, { targetId }) { return ctx.engine.getSystem('diplomacy').justify(p, targetId); },
-  'war:declare'(ctx, p, { targetId }) { return ctx.engine.getSystem('diplomacy').declare(p, targetId); },
+  'war:justify'(ctx, p, { targetId }) { return needCountry(p) ??  ctx.engine.getSystem('diplomacy').justify(p, targetId); },
+  'war:declare'(ctx, p, { targetId }) { return needCountry(p) ??  ctx.engine.getSystem('diplomacy').declare(p, targetId); },
   'war:peace'(ctx, p, { targetId }) { return ctx.engine.getSystem('diplomacy').offerPeace(p, targetId); },
   'war:acceptPeace'(ctx, p, { fromId }) { return ctx.engine.getSystem('diplomacy').acceptPeace(p, fromId); },
 
   'air:launch'(ctx, p, { airType, x, z }) {
-    return ctx.engine.getSystem('air').launch(ctx, p, airType, num(x), num(z));
+    return needCountry(p) ?? ctx.engine.getSystem('air').launch(ctx, p, airType, num(x), num(z));
   },
 
   // ---------------- TEKNOLOJİ / TOPRAK ----------------
   'tech:research'(ctx, p, { techId }) {
-    return ctx.engine.getSystem('tech').start(ctx, p, techId);
+    return needCountry(p) ?? ctx.engine.getSystem('tech').start(ctx, p, techId);
   },
 
   'explore:scout'(ctx, p, { i, j }) {
-    return ctx.engine.getSystem('territory').scout(ctx, p, Number(i), Number(j));
+    return needCountry(p) ?? ctx.engine.getSystem('territory').scout(ctx, p, Number(i), Number(j));
   },
 
   'territory:claim'(ctx, p, { i, j }) {
-    return ctx.engine.getSystem('territory').claim(ctx, p, Number(i), Number(j));
+    return needCountry(p) ?? ctx.engine.getSystem('territory').claim(ctx, p, Number(i), Number(j));
   },
 
   // ---------------- REKLAM ----------------
@@ -265,16 +273,46 @@ export const ACTIONS = {
     p.jobBuildingId = b.id;
     b.playerWorkerIds.push(p.id);
     ctx.world.touchPlayer(p);
-    return { ok: true, message: `İşe alındın! Mesai saatlerinde ${b.name} kapısının yakınında ol, maaşın saat başı yatar.` };
+    const job = JOBS[b.def.staff.job];
+    return { ok: true, message: `👔 İşe alındın (${job.label})! Mesai ${job.shift[0]}:00-${job.shift[1]}:00. İçeri gir, "Mesaiye Başla" de ve görevleri yap: her görev prim, her saat maaş.` };
   },
 
   'job:quit'(ctx, p) {
     const prev = ctx.world.buildings.get(p.jobBuildingId);
     if (prev) prev.playerWorkerIds = prev.playerWorkerIds.filter((x) => x !== p.id);
     p.jobBuildingId = null;
+    if (p.shift) life(ctx).endShift(p, null);
     ctx.world.touchPlayer(p);
     return { ok: true, message: 'İşten ayrıldın.' };
   },
+
+  // ---------------- GÜNDELİK HAYAT ----------------
+  'building:enter'(ctx, p, { buildingId }) {
+    const b = ctx.world.buildings.get(buildingId);
+    if (!b) return fail('Bina bulunamadı.');
+    return life(ctx).enter(p, b);
+  },
+  'building:exit'(ctx, p) {
+    if (!p.inside) return fail('Zaten dışarıdasın.');
+    return life(ctx).exit(p);
+  },
+  'home:guests'(ctx, p, { open }) {
+    const b = ctx.world.buildings.get(p.inside ?? p.homeId);
+    if (!b || !(b.id === p.homeId || (b.ownerKind === 'player' && b.ownerId === p.id))) return fail('Burası senin evin değil.');
+    b.guestsOpen = !!open;
+    return { ok: true, message: b.guestsOpen ? '🚪 Kapın misafirlere açık. Arkadaşların gelebilir!' : '🔒 Kapını kilitledin.' };
+  },
+  'life:use'(ctx, p, { spot, act }) { return life(ctx).use(p, String(spot), String(act)); },
+  'life:stand'(ctx, p) { return life(ctx).stand(p); },
+  'life:consume'(ctx, p, { item }) { return life(ctx).consume(p, String(item)); },
+  'shop:buy'(ctx, p, { product, qty, now }) { return life(ctx).buy(p, String(product), qty, !!now); },
+  'shop:weapon'(ctx, p, { weapon, ammo }) { return life(ctx).buyWeapon(p, String(weapon), !!ammo); },
+  'job:shiftStart'(ctx, p) { return life(ctx).startShift(p); },
+  'job:shiftEnd'(ctx, p) { return life(ctx).endShift(p, null); },
+  'job:task'(ctx, p) { return life(ctx).doTask(p); },
+  'combat:attack'(ctx, p, { kind, id }) { return life(ctx).attack(p, String(kind), String(id)); },
+  'combat:equip'(ctx, p, { weapon }) { return life(ctx).equip(p, String(weapon)); },
+  'police:arrest'(ctx, p, { npcId }) { return life(ctx).arrest(p, String(npcId)); },
 
   // ---------------- SUÇ ----------------
   'crime:rob'(ctx, p, { buildingId }) {
@@ -377,6 +415,7 @@ export const ACTIONS = {
 
   // ---------------- ASKERİ ----------------
   'military:train'(ctx, p, { unitType }) {
+    if (!p.village) return fail(NEED_COUNTRY);
     const r = ctx.engine.getSystem('military').train(ctx, p, unitType);
     return r.ok ? { ...r, message: 'Birlik eğitimini tamamladı ve kışladan çıktı!', sfx: 'build' } : r;
   },
@@ -392,7 +431,7 @@ export const ACTIONS = {
   },
 
   'military:launch'(ctx, p, { missileType, x, z }) {
-    return ctx.engine.getSystem('missiles').launch(ctx, p, missileType, num(x), num(z));
+    return needCountry(p) ?? ctx.engine.getSystem('missiles').launch(ctx, p, missileType, num(x), num(z));
   },
 };
 

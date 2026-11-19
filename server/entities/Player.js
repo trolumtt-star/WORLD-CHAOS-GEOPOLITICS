@@ -1,4 +1,5 @@
 import { playerEra } from '../data/tech.js';
+import { POSES, WEAPON_CODES } from '../../shared/interiors.js';
 
 const r2 = (n) => Math.round(n * 100) / 100;
 
@@ -40,6 +41,24 @@ export class Player {
     this.techs = [];          // öğrenilen teknolojiler
     this.research = null;     // { techId, hoursLeft, total }
 
+    // Hayat: 0..100 (100 = iyi)
+    this.food = 85;
+    this.water = 85;
+    this.energy = 90;
+    this.health = 100;
+    this.dead = false;
+    this.respawnAt = 0;
+    this.pose = '';           // '' | sit | sleep | dead | work
+    this.tv = false;
+    this.inside = null;       // içinde bulunulan bina id
+    this.inventory = { food: 2, drink: 2 };
+    this.weapons = ['fist'];
+    this.weapon = 'fist';
+    this.ammo = { pistol: 0, rifle: 0 };
+    this.lastAttackAt = 0;
+    this.shift = null;        // { buildingId, task, done, hourDone }
+    this.citizenOf = null;    // vatandaşı olunan ülke (oyuncu/NPC ülke id) ya da 'state'
+
     // --- İleride: ülke, ittifak ---
     this.countryId = null;
     this.allianceIds = [];
@@ -52,7 +71,7 @@ export class Player {
   }
 
   toSnapshot() {
-    return [this.id, r2(this.x), r2(this.z), r2(this.rotY)];
+    return [this.id, r2(this.x), r2(this.z), r2(this.rotY), POSES.indexOf(this.pose), WEAPON_CODES.indexOf(this.weapon), this.inside ?? 0];
   }
 
   // Sadece bu oyuncuya giden özel durum
@@ -76,6 +95,16 @@ export class Player {
       population: world.populationOf(this.id),
       wars: world.warsOf(this.id),
       justifications: world.justificationsOf(this.id),
+      citizenOf: this.citizenOf,
+      citizenName: this.citizenName ?? null,
+      food: Math.round(this.food), water: Math.round(this.water), energy: Math.round(this.energy), health: Math.round(this.health),
+      dead: this.dead, respawnAt: this.respawnAt, pose: this.pose, tv: this.tv,
+      inside: this.inside,
+      inventory: this.inventory,
+      fridge: this.inside ? world.buildings.get(this.inside)?.fridge ?? null : null,
+      weapons: this.weapons, weapon: this.weapon, ammo: this.ammo,
+      shift: this.shift ? { buildingId: this.shift.buildingId, done: this.shift.done, task: this.shift.task && { label: this.shift.task.label, spotId: this.shift.task.spotId, secs: this.shift.task.secs } } : null,
+      incident: world.incidentFor?.(this) ?? null,
     };
   }
 }

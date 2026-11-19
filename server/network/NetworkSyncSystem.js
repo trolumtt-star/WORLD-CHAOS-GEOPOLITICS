@@ -27,14 +27,18 @@ export class NetworkSyncSystem {
     bus.on('net:remove', (e) => this.room.emit(EVENTS.ENTITY_REMOVE, e));
     bus.on('net:fx', (e) => this.fx.push(e));
     bus.on('net:missile', (e) => this.room.emit(EVENTS.MISSILE, e));
-    bus.on('net:alert', (e) => this.room.emit(EVENTS.ALERT, e));
+    bus.on('net:alert', (e) => {
+      if (!e.to) return this.room.emit(EVENTS.ALERT, e);
+      const p = ctx.world.players.get(e.to);
+      if (p?.socketId) this.io.to(p.socketId).emit(EVENTS.ALERT, e);
+    });
     bus.on('net:private', ({ playerId, item }) => {
       const p = ctx.world.players.get(playerId);
       if (p?.socketId) this.io.to(p.socketId).emit(EVENTS.NEWS, { ...item, private: true, time: ctx.clock.label() });
     });
-    bus.on('net:teleport', ({ playerId, x, z }) => {
+    bus.on('net:teleport', ({ playerId, x, z, rotY }) => {
       const p = ctx.world.players.get(playerId);
-      if (p?.socketId) this.io.to(p.socketId).emit(EVENTS.PLAYER_CORRECTION, { x, z, teleport: true });
+      if (p?.socketId) this.io.to(p.socketId).emit(EVENTS.PLAYER_CORRECTION, { x, z, rotY, teleport: true });
     });
   }
 
