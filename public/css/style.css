@@ -673,3 +673,5 @@ textarea.ph-input { border-radius: 12px; resize: none; }
 .kid-ban { position: absolute; left: 50%; top: calc(140px + var(--sat)); transform: translateX(-50%); display: flex; gap: 10px; align-items: center; padding: 8px 12px; border-radius: 16px; border: 1px solid rgba(255,60,60,0.6); font-weight: 800; font-size: 13px; z-index: 9; }
 .ph-card.danger { border: 1px solid rgba(255,70,70,0.55); background: rgba(80,10,14,0.55); }
 .org-man, .org-mis { display: flex; flex-direction: column; gap: 6px; }
+.ph-row.threat { background: rgba(90,0,0,0.35); }
+.ph-bubble.threat { background: #2a0606; color: #ffb3b3; border: 1px solid rgba(255,60,60,0.4); }

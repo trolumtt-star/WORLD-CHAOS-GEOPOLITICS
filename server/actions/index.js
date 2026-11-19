@@ -338,6 +338,7 @@ export const ACTIONS = {
   'org:order'(ctx, p, params) { return ctx.engine.getSystem('orgs').order(p, params); },
   'org:hq'(ctx, p, { buildingId }) { return ctx.engine.getSystem('orgs').claimHQ(p, buildingId); },
   'org:ransom'(ctx, p) { return ctx.engine.getSystem('orgs').payRansom(p); },
+  'org:payFor'(ctx, p, params) { return ctx.engine.getSystem('orgs').payFor(p, params); },
   'noop'() { return { ok: false, error: 'Telefon › Örgüt uygulamasından örgüt kur.' }; },
   'police:arrest'(ctx, p, { npcId }) { return life(ctx).arrest(p, String(npcId)); },
 

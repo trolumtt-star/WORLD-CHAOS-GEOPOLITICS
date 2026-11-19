@@ -755,9 +755,11 @@ export class EntityManager {
     for (const m of Object.values(P)) m.instanceMatrix.needsUpdate = true;
   }
 
-  removeNpc(id) {
+  removeNpc(id, reason) {
     const n = this.npcs.get(id);
     if (!n) return;
+    // Ölen NPC: yerde kan gölü içinde 1,5 dk yatar
+    if (reason && reason !== 'göç' && n.visible) this.addCorpse(n.x, n.z, n.rot, n.shirt);
     this.hideNpc(n);
     this.setRobber(id, false);
     this.freeIdx.push(n.idx);
@@ -765,8 +767,45 @@ export class EntityManager {
     this.npcs.delete(id);
   }
 
+  /** Ceset + kan gölü (90 sn sonra solar) */
+  addCorpse(x, z, rot = 0, shirt) {
+    this.corpses = this.corpses ?? [];
+    if (this.corpses.length > 30) this.dropCorpse(this.corpses.shift());
+    const g = new THREE.Group();
+    const body = makeCharacter(shirt ?? new THREE.Color(0x777777), { seed: Math.random() * 1e6 });
+    body.rotation.x = -Math.PI / 2;
+    body.position.y = 0.35;
+    const lim = body.userData.limbs;
+    if (lim) { lim.aL.sh.rotation.z = 1.2; lim.aR.sh.rotation.z = -0.4; lim.lL.hip.rotation.z = 0.25; }
+    const pool = new THREE.Mesh(new THREE.CircleGeometry(1.6, 20), new THREE.MeshBasicMaterial({ color: 0x7a0000, transparent: true, opacity: 0.85, depthWrite: false }));
+    pool.rotation.x = -Math.PI / 2;
+    pool.position.set(0, 0.06, -0.8);
+    pool.scale.setScalar(0.3);
+    g.add(pool, body);
+    g.position.set(x, 0, z);
+    g.rotation.y = rot;
+    this.scene.add(g);
+    this.corpses.push({ g, pool, t: 0 });
+  }
+
+  dropCorpse(c) {
+    this.scene.remove(c.g);
+    c.pool.geometry.dispose(); c.pool.material.dispose(); // karakter geometrileri ortak, dokunma
+  }
+
+  tickCorpses(dt) {
+    if (!this.corpses?.length) return;
+    this.corpses = this.corpses.filter((c) => {
+      c.t += dt;
+      c.pool.scale.setScalar(Math.min(1.25, 0.3 + c.t * 0.25)); // kan yayılır
+      if (c.t > 80) { const f = Math.max(0, 1 - (c.t - 80) / 10); c.pool.material.opacity = 0.85 * f; c.g.position.y = -(1 - f) * 0.5; }
+      if (c.t > 90) { this.dropCorpse(c); return false; }
+      return true;
+    });
+  }
+
   setOutdoorVisible(on) {
-    for (const m of Object.values(this.npcParts)) m.visible = on;
+    // NPC'ler her zaman çizilir: bina içindekiler iç mekânda (müşteri, çalışan) görünür olsun
     for (const u of this.units.values()) u.g.visible = on;
     for (const v of this.vehicles.values()) v.g.visible = on;
     for (const r of this.robberRings.values()) r.visible = on;
@@ -885,6 +924,7 @@ export class EntityManager {
 
   // ---------- Kare ----------
   update(dt, selfGroup) {
+    this.tickCorpses(dt);
     this.time += dt;
     const k = 1 - Math.exp(-dt * 10);
 

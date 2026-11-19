@@ -29,6 +29,7 @@ export const MISSIONS = {
   raid:   { label: 'Mekan Basma',      icon: '🚙', men: 'enforcer',  target: 'building', cost: 400, desc: 'Kasayı soy, mekanı tara' },
   turf:   { label: 'Bölge Ele Geçir',  icon: '🏴', men: 'enforcer',  target: 'here', cost: 600, desc: 'Bölgeyi haraca bağla' },
   kidnap: { label: 'Adam Kaçırma',     icon: '🥷', men: 'kidnapper', target: 'player', cost: 400, desc: 'Kaçır, fidye al' },
+  ceonap: { label: 'CEO Kaçırma',      icon: '👔', men: 'kidnapper', target: 'building', cost: 400, desc: 'İşletmenin CEO\'sunu rehin al', hidden: true },
 };
 
 const AI_CARTELS = [
@@ -457,7 +458,24 @@ export class OrgSystem {
         for (const n of [...world.npcs.values()]) if (n.alive && (n.state !== 'inside' || n.locationId === b.id) && Math.hypot(n.x - b.x, n.z - b.z) < 14 + alive * 2 && rng.chance(0.6)) { world.killNpc(n, 'bombada öldü'); dead++; }
         this.blastPlayers(b.x, b.z, 12 + alive * 2, 70);
         bus.news('crime', `💥 ${b.name} BOMBALANDI! ${b.destroyed ? 'Bina yerle bir oldu' : 'Bina ağır hasar aldı'}, ${dead} kişi öldü. Üstlenen: "${o.name}"`);
-        if (b.ownerKind === 'player') this.grudge(o, b.ownerId);
+        if (b.ownerKind === 'player') {
+          this.killStaff(o, b, 0.75);
+          if (o.ai) this.threat(o, b.ownerId, `${b.name} artık bir enkaz. Bizimle uğraşmanın bedeli bu.`);
+          this.grudge(o, b.ownerId);
+        }
+        // oyuncunun evi bombalandı
+        for (const pl of world.players.values()) if (pl.homeId === b.id && pl !== world.players.get(m.byId)) this.say(pl, `🏠💥 EVİN BOMBALANDI! (${b.name}) "${o.name}"`, 'err', 'alarm');
+        m.done = true;
+        return true;
+      }
+      case 'ceonap': {
+        const b = T.b;
+        if (!b) { m.done = true; return true; }
+        if (!near(T.x, T.z, 8)) return false;
+        m.grab = (m.grab ?? 0) + dt;
+        if (m.grab < 4) return false;
+        this.killStaff(o, b, 0);
+        this.takeCeo(o, b);
         m.done = true;
         return true;
       }
@@ -480,7 +498,12 @@ export class OrgSystem {
         let dead = 0;
         for (const n of [...world.npcs.values()]) if (n.alive && (n.locationId === b.id || Math.hypot(n.x - b.door.x, n.z - b.door.z) < 12) && rng.chance(0.4) && dead < 5) { world.killNpc(n, 'baskında öldü'); dead++; }
         bus.news('crime', `🚙💨 "${o.name}" baskını: ${b.name}! Kasadan ${tl(loot)} götürdüler, ${dead} kişi öldü.`);
-        if (b.ownerKind === 'player') { this.say(b.ownerId, `🚙 ${b.name} basıldı! Kasadan ${tl(loot)} gitti.`, 'err', 'alarm'); this.grudge(o, b.ownerId); }
+        if (b.ownerKind === 'player') {
+          const staff = this.killStaff(o, b, o.ai ? 0.5 : 0.35);
+          this.say(b.ownerId, `🚙 ${b.name} basıldı! Kasadan ${tl(loot)} gitti${staff ? `, ${staff} çalışan öldü` : ''}.`, 'err', 'alarm');
+          if (o.ai) this.threat(o, b.ownerId, `${b.name} bizim bölgemizde. Haraç vermeyen dükkanın sonu bu.`);
+          this.grudge(o, b.ownerId);
+        }
         // karargah basıldıysa: o örgütün parası da gider
         if (b.type === 'compound' && b.orgId) this.hitOrg(b, o);
         m.done = true;
@@ -537,11 +560,14 @@ export class OrgSystem {
   }
 
   // ------------------------------------------------------------------ kaçırma
-  kidnap(o, t, m) {
-    const { world, bus } = this.ctx;
+  kidnap(o, t, m, extra = true) {
+    const { world, bus, config } = this.ctx;
     const hq = this.hqOf(o);
-    const ransom = Math.max(500, Math.round(Math.max(0, t.balance) * 0.3));
-    t.kidnapped = { orgId: o.id, ransom, until: Date.now() + 120000, byId: m.byId };
+    // NPC karteller: 24 oyun saati süre, ödenmezse rehine infaz edilir
+    const ai = !!o.ai;
+    const ransom = ai ? Math.max(2000, Math.round(Math.max(0, t.balance) * 0.5 + 1500 * this.mul())) : Math.max(500, Math.round(Math.max(0, t.balance) * 0.3));
+    const life = ai ? 24 * config.time.msPerGameHour : 120000;
+    t.kidnapped = { orgId: o.id, ransom, until: Date.now() + life, byId: m.byId, ai };
     t.pose = '';
     t.frozenUntil = t.kidnapped.until;
     if (hq) {
@@ -551,11 +577,105 @@ export class OrgSystem {
     } else { t.x = m.from.x; t.z = m.from.z; t.inside = null; }
     bus.emit('net:teleport', { playerId: t.id, x: t.x, z: t.z });
     world.touchPlayer(t);
-    this.say(t, `🥷 KAÇIRILDIN! "${o.name}" seni ${hq?.name ?? 'bir depoya'} götürdü. Fidye: ${tl(ransom)} — öde ya da 2 dakika bekle (o zaman zorla alınır).`, 'err', 'siren');
+    if (ai) {
+      this.say(t, `🥷 KAÇIRILDIN! "${o.name}" seni ${hq?.name ?? 'bir depoya'} götürdü. Fidye: ${tl(ransom)} — 24 saat içinde ödenmezse infaz edileceksin!`, 'err', 'siren');
+      this.threat(o, t.id, `Seni aldık ${t.name}. 24 saat içinde ${tl(ransom)} gönder, yoksa bu depodan çıkamazsın. Polise gidersen ölürsün.`);
+    } else this.say(t, `🥷 KAÇIRILDIN! "${o.name}" seni ${hq?.name ?? 'bir depoya'} götürdü. Fidye: ${tl(ransom)} — öde ya da 2 dakika bekle (o zaman zorla alınır).`, 'err', 'siren');
     const by = world.players.get(m.byId);
     if (by) this.say(by, `🥷 ${t.name} kaçırıldı ve karargahta! Fidye ${tl(ransom)} gelecek.`, 'ok', 'success');
     bus.news('crime', `🥷 ${t.name} sokak ortasında kaçırıldı! Şüpheli: "${o.name}"`);
     this.grudge(o, t.id);
+    // NPC kartel: örgütündeki herkesi alır, sadece 1 kişiyi bırakır; tehdit ona gider
+    if (ai && extra && t.orgId) {
+      const mates = world.orgs[t.orgId]?.members.map((id) => world.players.get(id)).filter((x) => x && x !== t && x.online && !x.dead && !x.kidnapped && !x.admin?.god) ?? [];
+      mates.sort((a, b) => b.balance - a.balance);
+      const left = mates.shift(); // en zengini dışarıda bırak: o ödeyecek
+      for (const x of mates) this.kidnap(o, x, m, false);
+      const all = [t, ...mates];
+      if (left) {
+        const sum = all.reduce((s, x) => s + x.kidnapped.ransom, 0);
+        this.threat(o, left.id, `Arkadaşlarını kaçırdık: ${all.map((x) => x.name).join(', ')}. Bir tek sen kaldın. 24 saat içinde ${tl(sum)} göndermezsen ölürler. Telefon › Örgüt › Rehineler.`);
+        this.say(left, `☠️ "${o.name}" örgütünden ${all.length} kişiyi kaçırdı, bir tek sen kaldın! Mesajlarına bak.`, 'err', 'siren');
+      }
+    }
+  }
+
+  /** Kartelin telefondan tehdit mesajı (Mesajlar uygulamasında kartelin adıyla görünür) */
+  threat(o, pid, text) {
+    const soc = this.ctx.engine.getSystem('society');
+    if (!soc) return;
+    const m = { id: soc.id('t'), from: o.id, fromName: `${o.icon ?? '🕴️'} ${o.name}`, to: pid, text, at: Date.now(), threat: true };
+    soc.S.messages.push(m);
+    soc.S.messages = soc.S.messages.slice(-300);
+    soc.to(pid, 'phone:msg', m);
+  }
+
+  /** Başkası için fidye öde (rehineler listesinden) */
+  payFor(p, { hostageId, playerId }) {
+    const { world } = this.ctx;
+    if (playerId) {
+      const t = world.players.get(playerId);
+      if (!t?.kidnapped) return fail('Bu kişi rehin değil.');
+      const amt = t.kidnapped.ransom;
+      if (p !== t && p.balance < amt) return fail(`Fidye ${tl(amt)}.`);
+      if (p !== t) { p.balance -= amt; t.balance += amt; world.touchPlayer(p); }
+      const r = this.payRansom(t);
+      if (p !== t) this.say(t, `🙏 ${p.name} senin için fidyeyi ödedi. Serbestsin!`, 'ok', 'success');
+      return p === t ? r : { ok: true, message: `💸 ${t.name} için ${tl(amt)} fidye ödendi. Serbest!` };
+    }
+    for (const o of Object.values(world.orgs)) {
+      const h = (o.hostages ?? []).find((x) => x.id === hostageId);
+      if (!h) continue;
+      if (p.balance < h.ransom) return fail(`Fidye ${tl(h.ransom)}.`);
+      p.balance -= h.ransom;
+      o.bank = (o.bank ?? 0) + h.ransom;
+      o.hostages = o.hostages.filter((x) => x !== h);
+      const b = world.buildings.get(h.buildingId);
+      if (b?.ceo) { b.ceo.held = null; world.touch(b); }
+      world.touchPlayer(p);
+      this.threat(o, p.id, `Para geldi. ${h.name} serbest. Bir dahakine bu kadar şanslı olmayabilirsin.`);
+      return { ok: true, message: `💸 ${h.name} kurtarıldı (−${tl(h.ransom)}).`, sfx: 'success' };
+    }
+    return fail('Rehine bulunamadı.');
+  }
+
+  /** CEO'yu rehin al */
+  takeCeo(o, b) {
+    const { world, bus, clock } = this.ctx;
+    if (!b?.ceo || b.ceo.held) return false;
+    const owner = world.players.get(b.ownerId);
+    const T = { junior: 15000, pro: 150000, legend: 1500000 }[b.ceo.tier] ?? 15000;
+    const h = { id: `h${Date.now().toString(36)}${++this.seq}`, kind: 'ceo', name: b.ceo.name, buildingId: b.id, ownerId: b.ownerId, ransom: Math.round(T * 0.6), deadline: clock.totalHours + 24 };
+    o.hostages = [...(o.hostages ?? []), h];
+    b.ceo.held = h.id;
+    world.touch(b);
+    bus.news('crime', `👔🥷 ${b.name} CEO'su ${h.name} kaçırıldı! Şüpheli: "${o.name}"`);
+    if (owner) {
+      this.threat(o, owner.id, `CEO'n ${h.name} bizde. 24 saat içinde ${tl(h.ransom)} göndermezsen onu bir daha göremezsin. Telefon › Örgüt › Rehineler.`);
+      this.say(owner, `👔 CEO'n ${h.name} kaçırıldı! "${o.name}" ${tl(h.ransom)} fidye istiyor. Mesajlarına bak.`, 'err', 'siren');
+    }
+    this.grudge(o, b.ownerId);
+    return true;
+  }
+
+  /** İşletmenin çalışanlarını ve CEO'sunu vur */
+  killStaff(o, b, ceoChance) {
+    const { world, bus, rng } = this.ctx;
+    let dead = 0;
+    for (const id of [...(b.employeeIds ?? [])]) {
+      const n = world.npcs.get(id);
+      if (n?.alive && (n.locationId === b.id || Math.hypot(n.x - b.door.x, n.z - b.door.z) < 20) && rng.chance(0.8)) { world.killNpc(n, 'kartel kurşunuyla öldü'); dead++; }
+    }
+    const owner = b.ownerKind === 'player' && world.players.get(b.ownerId);
+    if (b.ceo && !b.ceo.held && rng.chance(ceoChance)) {
+      const name = b.ceo.name;
+      b.ceo = null;
+      world.touch(b);
+      bus.news('crime', `👔💀 ${b.name} CEO'su ${name} "${o.name}" saldırısında vuruldu!`);
+      if (owner) { this.say(owner, `👔💀 CEO'n ${name} vuruldu! ${b.name} artık yönetimsiz.`, 'err', 'death'); this.threat(o, owner.id, `CEO'nu temizledik. Sıradaki sensin.`); }
+    }
+    if (owner && dead) this.say(owner, `💀 ${b.name} çalışanlarından ${dead} kişi öldürüldü!`, 'err', 'alarm');
+    return dead;
   }
 
   payRansom(p, forced = false) {
@@ -563,6 +683,7 @@ export class OrgSystem {
     const k = p.kidnapped;
     if (!k) return fail('Kaçırılmadın.');
     const o = world.orgs[k.orgId];
+    if (k.ai && !forced && p.balance < k.ransom) return fail(`Fidye ${tl(k.ransom)}, paran yetmiyor. Örgüt arkadaşların Telefon › Örgüt › Rehineler'den ödeyebilir.`);
     const amt = Math.min(Math.max(0, p.balance), k.ransom);
     p.balance -= amt;
     const to = world.players.get(k.byId) ?? world.players.get(o?.leaderId);
@@ -786,6 +907,10 @@ export class OrgSystem {
       const work = world.buildings.get(victim.jobBuildingId);
       const rivalHq = victim.orgId && this.hqOf(world.orgs[victim.orgId]);
       if (rivalHq && o.grudge[victim.orgId] > 3 && roll < 0.35) { this.launch(o, 'raid', { ...rivalHq.door, x: rivalHq.door.x, z: rivalHq.door.z, id: rivalHq.id }, Math.min(this.available(o, 'enforcer'), 10), null); continue; }
+      const home = world.buildings.get(victim.homeId);
+      const ceoBiz = owned.filter((x) => x.ceo && !x.ceo.held);
+      if (ceoBiz.length && roll < 0.22 && this.available(o, 'kidnapper') > 0) { this.launch(o, 'ceonap', rng.pick(ceoBiz), Math.min(4, this.available(o, 'kidnapper')), null); continue; }
+      if (home && grudgeP.includes(victim) && roll > 0.85) { this.launch(o, 'bomb', home, Math.max(2, Math.min(4, this.available(o, 'bomber'))), null); this.threat(o, victim.id, `Evini biliyoruz ${victim.name}.`); continue; }
       if (roll < 0.3 && (owned.length || work)) {
         const b = rng.pick(owned.length ? owned : [work]);
         this.launch(o, rng.chance(0.5) ? 'bomb' : 'raid', b, Math.min(this.available(o, rng.chance(0.5) ? 'bomber' : 'enforcer'), rng.int(3, 6)) || 2, null);
@@ -808,8 +933,27 @@ export class OrgSystem {
     // kaçırılanların süresi
     const now = Date.now();
     for (const p of this.world.players.values()) if (p.kidnapped && now > p.kidnapped.until) {
+      if (p.kidnapped.ai) {
+        const o = this.world.orgs[p.kidnapped.orgId];
+        p.kidnapped = null; p.frozenUntil = 0;
+        this.ctx.engine.getSystem('life').kill(p, null, 'rehineyken infaz edilerek');
+        this.ctx.bus.news('crime', `☠️ Fidyesi ödenmeyen ${p.name}, "${o?.name ?? 'kartel'}" tarafından infaz edildi!`);
+        if (o) for (const id of this.world.orgs[p.orgId]?.members ?? []) if (id !== p.id) this.threat(o, id, `${p.name} için para gelmedi. Uyarmıştık.`);
+        continue;
+      }
       const r = this.payRansom(p, true);
       this.say(p, r.message, 'warn');
+    }
+    for (const o of Object.values(this.world.orgs)) {
+      for (const h of [...(o.hostages ?? [])]) {
+        if (time.totalHours < h.deadline) continue;
+        o.hostages = o.hostages.filter((x) => x !== h);
+        const b = this.world.buildings.get(h.buildingId);
+        if (b?.ceo?.held === h.id) { b.ceo = null; this.world.touch(b); }
+        this.ctx.bus.news('crime', `☠️ Fidyesi ödenmeyen CEO ${h.name} ölü bulundu! "${o.name}" üstlendi.`);
+        const owner = this.world.players.get(h.ownerId);
+        if (owner) { this.say(owner, `👔💀 Fidye ödenmedi: CEO'n ${h.name} öldürüldü.`, 'err', 'death'); this.threat(o, owner.id, `Süre doldu. ${h.name} artık yok.`); }
+      }
     }
   }
 
@@ -887,7 +1031,11 @@ export class OrgSystem {
     const o = this.orgOf(p);
     const list = Object.values(world.orgs).map((x) => ({ id: x.id, name: x.name, icon: x.icon, color: x.color, ai: x.ai, members: x.members.length, power: Object.values(x.men).reduce((s, v) => s + v, 0), hq: this.hqOf(x)?.name ?? null, turf: x.turf.length, enemy: !!(o && (x.grudge?.[o.id] || o.grudge?.[x.id])) }));
     const invites = Object.values(world.orgs).filter((x) => x.invites?.includes(p.id)).map((x) => ({ id: x.id, name: x.name }));
-    const out = { orgs: list, invites, kidnapped: p.kidnapped ? { ransom: p.kidnapped.ransom, left: Math.max(0, Math.round((p.kidnapped.until - Date.now()) / 1000)), org: world.orgs[p.kidnapped.orgId]?.name } : null };
+    // Beni ilgilendiren rehineler: CEO'larım, örgüt arkadaşlarım
+    const hostages = [];
+    for (const x of Object.values(world.orgs)) for (const h of x.hostages ?? []) if (h.ownerId === p.id) hostages.push({ id: h.id, name: `👔 ${h.name}`, ransom: h.ransom, left: Math.max(0, h.deadline - this.ctx.clock.totalHours), by: x.name });
+    for (const q of world.players.values()) if (q.kidnapped && q !== p && ((p.orgId && q.orgId === p.orgId) || q.kidnapped.ai)) hostages.push({ playerId: q.id, name: `👤 ${q.name}`, ransom: q.kidnapped.ransom, left: Math.max(0, Math.round((q.kidnapped.until - Date.now()) / this.ctx.config.time.msPerGameHour)), by: world.orgs[q.kidnapped.orgId]?.name ?? '?' });
+    const out = { hostages, orgs: list, invites, kidnapped: p.kidnapped ? { ransom: p.kidnapped.ransom, left: Math.max(0, Math.round((p.kidnapped.until - Date.now()) / 1000)), org: world.orgs[p.kidnapped.orgId]?.name } : null };
     if (o) {
       const men = {};
       for (const k of Object.keys(MEN)) men[k] = { total: o.men[k] ?? 0, free: this.available(o, k) };

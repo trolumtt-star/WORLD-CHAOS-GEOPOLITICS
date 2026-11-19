@@ -101,7 +101,37 @@ export class IndoorSystem {
     return d - st < 0.08;
   }
 
+  /** Oyuncu bir dükkandayken orası boş kalmasın: yakındaki boştaki NPC'ler alışverişe gelir */
+  attract(dt) {
+    const { world } = this.ctx;
+    this.attractT = (this.attractT ?? 0) - dt;
+    if (this.attractT > 0) return;
+    this.attractT = 2;
+    const brain = this.ctx.engine.getSystem('npcBrain');
+    const ACT = { market: 'buy_food', cafe: 'eat_out', restaurant: 'eat_out', bar: 'leisure', gun_shop: 'weapon', tech_store: 'luxury' };
+    const seen = new Set();
+    for (const p of world.players.values()) {
+      if (!p.online || !p.inside || seen.has(p.inside)) continue;
+      seen.add(p.inside);
+      const b = world.buildings.get(p.inside);
+      const act = b && ACT[b.type];
+      if (!act || !this.geom(b.type) || !world.isOpen(b)) continue;
+      const coming = [...world.npcs.values()].filter((n) => n.targetId === b.id && n.activity === act).length + [...b.occupants].filter((id) => world.npcs.get(id)?.ind && world.npcs.get(id).ind.mode !== 'work').length;
+      if (coming >= 6) continue;
+      // sokakta yürüyen ya da evinde oturan, işte olmayan en yakın NPC
+      let best = null, bd = 260;
+      for (const n of world.npcs.values()) {
+        // işte olanlar da öğle arası/çay molası için uğrar, sonra işine döner
+        if (!n.alive || n.ind || n.balance < 10 || n.workId === b.id || n.locationId === b.id || n.jailed) continue;
+        const d = Math.hypot(n.x - b.x, n.z - b.z);
+        if (d < bd) { bd = d; best = n; }
+      }
+      if (best) { best.activity = act; brain.sendTo(best, { activity: act, buildingId: b.id }, this.ctx); }
+    }
+  }
+
   onTick(dt) {
+    this.attract(dt);
     const { world, bus } = this.ctx;
     const queues = new Map();
     for (const npc of world.npcs.values()) {

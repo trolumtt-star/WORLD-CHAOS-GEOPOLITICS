@@ -335,7 +335,7 @@ export class Game {
       else if (kind === 'vehicle') this.entities.addVehicle(data);
     });
     this.on(E.ENTITY_REMOVE, ({ kind, id, reason }) => {
-      if (kind === 'npc') this.entities.removeNpc(id);
+      if (kind === 'npc') this.entities.removeNpc(id, reason);
       else if (kind === 'unit') {
         const u = this.entities.removeUnit(id);
         if (u && reason === 'shot_down') this.effects.explosion(u.g.position.x, u.g.position.y, u.g.position.z, 1.2);

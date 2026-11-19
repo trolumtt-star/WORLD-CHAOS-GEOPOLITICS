@@ -122,7 +122,7 @@ export class SocietySystem {
     const { rng } = this.ctx;
     const byOwner = new Map();
     for (const b of world.buildings.values()) {
-      if (!b.ceo) continue;
+      if (!b.ceo || b.ceo.held) continue;
       const p = b.ownerKind === 'player' && world.players.get(b.ownerId);
       if (!p || b.destroyed) { if (!p) b.ceo = null; continue; }
       const T = CEO_TIERS[b.ceo.tier] ?? CEO_TIERS.junior;

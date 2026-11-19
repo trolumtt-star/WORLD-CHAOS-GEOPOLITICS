@@ -206,7 +206,17 @@ export class PhoneUI {
     const me = this.h.selfId();
     const body = this.page('Mesajlar');
     const people = this.contacts();
-    if (!people.length) body.append(el('p', { class: 'ph-muted' }, 'Bu dünyada henüz başka oyuncu yok. Arkadaşlarını davet et! 🔗'));
+    // Kartel tehditleri (bilinmeyen numaralar)
+    const threats = new Map();
+    for (const m of this.messages) if (m.threat && m.to === me) threats.set(m.from, m);
+    for (const [from, last] of threats) {
+      const n = this.unread.get(from) ?? 0;
+      body.append(el('button', { class: 'ph-row threat', onClick: () => this.openThread(from) },
+        el('span', { class: 'ph-avatar', style: { background: '#3a0000' } }, '☠️'),
+        el('div', { class: 'ph-rt' }, el('b', {}, last.fromName), el('small', {}, last.text)),
+        n ? el('span', { class: 'ph-count' }, String(n)) : null));
+    }
+    if (!people.length && !threats.size) body.append(el('p', { class: 'ph-muted' }, 'Bu dünyada henüz başka oyuncu yok. Arkadaşlarını davet et! 🔗'));
     for (const r of people) {
       const last = [...this.messages].reverse().find((m) => (m.from === r.id && m.to === me) || (m.to === r.id && m.from === me));
       const n = this.unread.get(r.id) ?? 0;
@@ -222,8 +232,15 @@ export class PhoneUI {
     this.unread.delete(id);
     const me = this.h.selfId();
     const r = this.h.roster().find((x) => x.id === id);
-    const body = this.page(r?.name ?? 'Sohbet');
+    const threatMsg = !r && this.messages.find((m) => m.from === id && m.threat);
+    const body = this.page(r?.name ?? threatMsg?.fromName ?? 'Sohbet');
     const list = el('div', { class: 'ph-chat' });
+    if (threatMsg) {
+      for (const m of this.messages.filter((m) => m.from === id && m.to === me)) list.append(el('div', { class: 'ph-bubble threat' }, m.text, el('small', {}, new Date(m.at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }))));
+      body.append(el('p', { class: 'ph-muted' }, '☠️ Bilinmeyen numara · cevap verilemez'), list, this.btn('💸 Rehineler & Fidye', 'danger wide', () => this.openApp('org')));
+      setTimeout(() => { list.scrollTop = list.scrollHeight; }, 0);
+      return;
+    }
     for (const m of this.messages.filter((m) => (m.from === id && m.to === me) || (m.to === id && m.from === me))) {
       list.append(el('div', { class: `ph-bubble ${m.from === me ? 'me' : ''}` },
         m.loc ? el('button', { class: 'ph-loc', onClick: () => { this.close(); this.h.showOnMap(m.loc); } }, `📍 Konum · haritada göster`) : m.text,
@@ -408,6 +425,11 @@ export class PhoneUI {
     if (O.kidnapped) {
       body.append(el('div', { class: 'ph-card hl danger' }, el('b', {}, `🥷 KAÇIRILDIN! (${O.kidnapped.org})`), el('small', {}, `Fidye ${tl(O.kidnapped.ransom)} · ${O.kidnapped.left} sn sonra zorla alınır`),
         this.btn(`💸 Fidyeyi Öde`, 'primary wide', () => run('org:ransom', {}))));
+    }
+    if (O.hostages?.length) {
+      body.append(el('h4', {}, '🥷 Rehineler'));
+      for (const h of O.hostages) body.append(el('div', { class: 'ph-card danger' }, el('b', {}, `${h.name} · ${h.by}`), el('small', {}, `Fidye ${tl(h.ransom)} · ${h.left} saat kaldı, sonra öldürülecek`),
+        this.btn(`💸 ${tl(h.ransom)} Öde ve Kurtar`, 'primary wide', () => run('org:payFor', h.playerId ? { playerId: h.playerId } : { hostageId: h.id }, `${h.name} için ${tl(h.ransom)} fidye ödensin mi?`))));
     }
     if (!o) {
       const name = el('input', { class: 'ph-input', maxlength: 24, placeholder: 'Örgüt adı (ör. Kurtlar Vadisi)' });
