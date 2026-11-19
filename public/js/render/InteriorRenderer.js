@@ -143,6 +143,7 @@ const ITEMS = {
   },
   mirror: (g, w, d, h) => { box(g, w, h, d, MAT(0xc9a227, { metalness: 0.8 }), 0, h / 2 + 0.3, 0); box(g, w + 0.02, h - 0.4, d - 0.4, MAT(0xdff3ff, { metalness: 1, roughness: 0.05 }), -0.03, h / 2 + 0.3, 0, { shadow: false }); },
   fitting: (g, w, d, h) => { box(g, 0.15, h, d, MAT(0x6b4a2e), -w / 2, h / 2, 0); box(g, w, h, 0.15, MAT(0x6b4a2e), 0, h / 2, -d / 2); box(g, w, h * 0.8, 0.05, MAT(0xb03a7a, { transparent: true, opacity: 0.85 }), 0, h * 0.45, d / 2); },
+  gangster: (g) => { const m = makeCharacter(0x111111, { seed: Math.random() * 1e6, pants: 0x0a0a0a, outfit: { acc: 'sunglasses', hat: 'fedora' } }); m.rotation.y = Math.PI; g.add(m); },
   mannequin: (g) => { const m = makeCharacter(0xb03a7a, { seed: 11, outfit: { top: 'suit_white', hat: 'fedora' } }); m.position.y = 0.3; g.add(m); cyl(g, 0.6, 0.6, 0.3, MAT(0x333333), 0, 0.15, 0, 16); },
   carDisplay: (g, w, d, h) => {
     cyl(g, w * 0.75, w * 0.75, 0.3, MAT(0x2c3e50, { metalness: 0.6, roughness: 0.3 }), 0, 0.15, 0, 28);

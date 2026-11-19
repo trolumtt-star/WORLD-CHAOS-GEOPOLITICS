@@ -9,6 +9,9 @@ export const UNIT_TYPES = {
   cannon:    { label: 'Top Bataryası',      icon: '💣', cost: 2200, hp: 160, speed: 5,  range: 55, damage: 40, fireRate: 0.25, requires: 'barracks', projectile: 'ball' },
   infantry:  { label: 'Modern Piyade',      icon: '🪖', cost: 1500, hp: 100, speed: 9,  range: 32, damage: 8,  fireRate: 1.4, requires: 'barracks' },
   tank:      { label: 'Ana Muharebe Tankı', icon: '🛡️', cost: 6000, hp: 420, speed: 11, range: 45, damage: 32, fireRate: 0.5, requires: 'barracks' },
+  // Sokak: polis memuru ve çete üyesi (savaşmaz, sistemler yönetir)
+  cop:  { label: 'Polis Memuru', icon: '👮', cost: 0, hp: 100, speed: 9,  range: 0, damage: 0, fireRate: 0, combat: false, street: true },
+  gang: { label: 'Çete Üyesi',   icon: '🕶️', cost: 0, hp: 100, speed: 14, range: 0, damage: 0, fireRate: 0, combat: false, street: true },
   // Faz 3: jet, helicopter, drone, siha
 };
 

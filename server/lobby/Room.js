@@ -36,6 +36,7 @@ import { AirSystem } from '../systems/AirSystem.js';
 import { AiSystem } from '../systems/AiSystem.js';
 import { LifeSystem } from '../systems/LifeSystem.js';
 import { SocietySystem } from '../systems/SocietySystem.js';
+import { UnderworldSystem } from '../systems/UnderworldSystem.js';
 import { interiorLayout, interiorOrigin } from '../../shared/interiors.js';
 
 const COLORS = ['#ff4d4d', '#3ddc84', '#ffd23f', '#a06cff', '#2ec4ff', '#ff8c42', '#ff5fa2', '#00e0b8', '#c0ff3e', '#ffffff'];
@@ -105,6 +106,7 @@ export class Room {
       .use(new AiSystem())
       .use(new LifeSystem())
       .use(new SocietySystem())
+      .use(new UnderworldSystem())
       .use(new NetworkSyncSystem(io, this.code));
     this.ctx = this.engine.ctx;
     if (save) {

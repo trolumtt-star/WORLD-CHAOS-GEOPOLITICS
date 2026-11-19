@@ -32,6 +32,7 @@ export const BUILDING_TYPES = {
   police:     { label: 'Emniyet Müdürlüğü', icon: '🚓', category: 'civic', footprint: [22, 26], height: [10, 12], value: [60000, 60000],  staff: { job: 'police', count: 5 } },
   bank:       { label: 'Merkez Bankası',    icon: '🏦', category: 'civic', footprint: [24, 26], height: [14, 16], value: [90000, 90000],  staff: { job: 'banker', count: 3 } },
   hospital:   { label: 'Devlet Hastanesi',  icon: '🏥', category: 'civic', footprint: [26, 30], height: [16, 20], value: [80000, 80000],  staff: { job: 'doctor', count: 4 } },
+  hideout:    { label: 'Yeraltı İni',        icon: '🕳️', category: 'civic', footprint: [14, 14], height: [5, 6], value: [5000, 5000] },
   court:      { label: 'Adliye',             icon: '⚖️', category: 'civic', footprint: [26, 28], height: [14, 16], value: [70000, 70000],  staff: { job: 'judge', count: 2 } },
   stadium:    { label: 'Stadyum',            icon: '🏟️', category: 'civic', footprint: [34, 34], height: [12, 12], value: [120000, 120000] },
   town_hall:  { label: 'Ülke Sarayı',        icon: '🏰', category: 'civic', footprint: [24, 28], height: [12, 12], value: [5000, 5000] },

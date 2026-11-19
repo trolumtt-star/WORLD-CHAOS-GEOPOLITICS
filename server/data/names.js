@@ -19,6 +19,7 @@ export const BUSINESS_NAMES = {
   clothing: ['Moda Butik', 'Şık Giyim', 'Trend Store', 'Kaos Fashion', 'Elit Butik'],
   car_dealer: ['Hız Otomotiv', 'Kral Oto', 'Prestij Motors', 'Şehir Oto Galeri'],
   court: ['Adliye Sarayı'],
+  hideout: ['Kara Mahzen', 'Gölge Kulübü', 'Kör Sokak', 'Fare Deliği'],
   stadium: ['Kaos Arena'],
   market: ['Kardeşler Market', 'Bereket Bakkal', 'Güven Market', 'Ucuzcu', 'Şehir Market', 'Mahalle Bakkalı'],
   palace: ['Belediye Sarayı'], police: ['Emniyet Müdürlüğü'], bank: ['Merkez Bankası'], hospital: ['Devlet Hastanesi'], prison: ['Kapalı Cezaevi'],

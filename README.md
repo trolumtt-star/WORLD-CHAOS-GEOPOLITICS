@@ -107,6 +107,11 @@ NPC ülkeler de bunu yapar: insan oyuncuyu kukla yapar, birbirlerini çoğunlukl
 - **NPC ülkesiz dünya:** Oda kurarken "Yok · Cumhuriyet" seçilirse herkes Kaos Cumhuriyeti'nde doğar; 2 günde bir oyuncular telefondaki 🗳️ Seçim'den cumhurbaşkanını seçer. Başkan ülke sahibi yetkilerini alır (ordu, teknoloji, toprak, savaş); kaybedince devletin toprağı, binaları, ordusu ve teknolojisi yeni başkana geçer.
 - **Ülke butonları** (🔬 Teknoloji, ⚔️ Ordu, 🚩 Toprak) sadece ülke sahiplerinin ekranında, telefonda değil.
 
+## 🕶️ Yeraltı ve Polis Kovalamacası
+- Polis artık **görünür**: suç işleyince haritada 👮 memurlar peşine düşer. Koşarak (sprint) polisten hızlısın; ~55 m uzaklaşıp 7 sn gözden kaybolursan ya da bir binaya girip ~12 sn saklanırsan izini kaybederler. Gizli zarla yakalanma yok — yakalanmak için polisin 1,5 sn dibinde olması gerekir.
+- Kovalanmıyorsan aranma yıldızları her 2 oyun saatinde 1 düşer (içerideysen daha hızlı).
+- Haritanın 4 köşesinde **Yeraltı İni** var. İçerideki Patron'a para verip iş yaptırırsın: 💵 sahte para (×10, 1 saat), 🔫 dükkan taratma, 💼 haraç (3 gün %15), 🎯 kiralık katil, 💥 darbe. Çete üyeleri haritada yürüyerek gider; polis %50 ihtimalle yakalar, bazen de seni ispiyonlarlar.
+
 ## 💾 Kalıcı Dünyalar (Supabase)
 
 Dünyalar her dakika ve sunucu kapanırken Supabase'e kaydedilir; boş dünya 10 dk sonra bellekten çıkar ("💤 Uyuyor") ve biri girince geri yüklenir. Sunucu uyurken geçen zaman (en fazla 5 oyun günü) hızlıca simüle edilir. **🌐 Sunucuya Katıl** ekranında tüm dünyalar listelenir; aynı telefondan dönen oyuncu aynı karakterle devam eder.

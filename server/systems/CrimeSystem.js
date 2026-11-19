@@ -87,10 +87,16 @@ export class CrimeSystem {
         bus.news('crime', `🔓 ${p.name} cezaevinden tahliye edildi.`);
         world.touchPlayer(p);
       }
-      if (p.wanted <= 0) continue;
-      if (rng.chance(0.05 * p.wanted * (1 + police * 0.15))) {
-        this.arrestPlayer(p);
-      } else if ((p.wantedDecay = (p.wantedDecay ?? 0) + 1) >= 6) {
+      if (p.wanted <= 0 || p.isAI) continue;
+      const uw = this.ctx.engine.getSystem('underworld');
+      const chased = uw?.chases.has(p.id);
+      // Gizli zar yok: devriye seni görürse peşine düşer (dışarıdaysan, gündüz daha sık)
+      if (!chased && !p.inside && p.online && rng.chance(0.08 * p.wanted * (police > 0 ? 1 : 0.4))) { uw?.startChase(p); continue; }
+      if (chased) continue;
+      // Kovalanmıyorsan aranman hızla düşer (saklanırsan daha da hızlı)
+      p.wantedDecay = (p.wantedDecay ?? 0) + 1 + (p.inside ? 1 : 0) + (p.hidingBonus ?? 0);
+      p.hidingBonus = 0;
+      if (p.wantedDecay >= 2) {
         p.wanted--;
         p.wantedDecay = 0;
         world.touchPlayer(p);

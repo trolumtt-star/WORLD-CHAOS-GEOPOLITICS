@@ -372,6 +372,17 @@ const BUILDERS = {
     for (let i = 0; i < 3; i++) pb.box(w * 0.6, 0.4, 1, 0, 0.2 + i * 0.4, d * 0.35 + 2.6 - i * 0.9, 0xd8d0bc);
   },
 
+  hideout({ pb, glow, w, d, h, lotSize, extras }) {
+    lotBase(pb, lotSize, 0x2a2a2a);
+    pb.box(w, h, d, 0, h / 2, 0, 0x2b2622);
+    pb.box(w + 0.4, 0.4, d + 0.4, 0, h + 0.2, 0, 0x151515);
+    for (let i = 0; i < 4; i++) pb.box(1.4, 1.4, 1.4, -w / 2 - 1.6, 0.7 + (i % 2) * 1.4, -d / 2 + 1 + i * 1.4, 0x6b4a2e);
+    glow.box(w * 0.6, 0.7, 0.15, 0, h - 0.9, d / 2 + 0.1, 0xff1e3c);
+    glow.box(0.25, 2.6, 0.15, -1.9, 1.4, d / 2 + 0.1, 0xff1e3c);
+    door(pb, d, 0x111111, 2.4, 3);
+    extras.signY = h + 2;
+  },
+
   court({ pb, win, glow, w, d, h, lotSize, extras }) {
     lotBase(pb, lotSize, C.plaza);
     pb.box(w, h, d * 0.7, 0, h / 2, -d * 0.12, 0xd9cfbd);

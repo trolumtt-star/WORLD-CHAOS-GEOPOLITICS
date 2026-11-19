@@ -632,3 +632,14 @@ textarea.ph-input { border-radius: 12px; resize: none; }
 .commentary { position: absolute; left: 50%; top: calc(54px + var(--sat)); transform: translateX(-50%); padding: 7px 16px; border-radius: 20px; background: linear-gradient(160deg, rgba(10, 40, 18, 0.92), rgba(4, 16, 8, 0.88)); border: 1px solid rgba(61, 220, 132, 0.6); font-size: 13px; font-weight: 800; white-space: nowrap; z-index: 8; pointer-events: none !important; }
 .commentary.pop { animation: comPop 0.35s cubic-bezier(.2,.9,.3,1.4); }
 @keyframes comPop { from { transform: translateX(-50%) scale(0.7); opacity: 0; } }
+/* Polis kovalamacası */
+.chase-ban { position: absolute; left: 50%; top: calc(96px + var(--sat)); transform: translateX(-50%); padding: 8px 16px; border-radius: 22px; font-weight: 900; font-size: 13px; white-space: nowrap; z-index: 8;
+  background: linear-gradient(90deg, rgba(200, 20, 30, 0.92), rgba(30, 60, 200, 0.92)); background-size: 200% 100%; animation: siren 0.7s linear infinite; box-shadow: 0 6px 22px rgba(0,0,0,0.5); pointer-events: none !important; }
+@keyframes siren { 50% { background-position: 100% 0; } }
+.chase-edge { position: fixed; inset: 0; pointer-events: none !important; z-index: 3; animation: sirenEdge 0.7s steps(1) infinite; }
+@keyframes sirenEdge { 0% { box-shadow: inset 0 0 90px rgba(255, 30, 40, 0.55); } 50% { box-shadow: inset 0 0 90px rgba(40, 90, 255, 0.55); } }
+/* Yeraltı patronu */
+.uw-card { padding: 10px 12px; border-radius: 14px; background: linear-gradient(160deg, rgba(40, 8, 10, 0.85), rgba(12, 10, 14, 0.85)); border: 1px solid rgba(255, 50, 60, 0.35); display: flex; flex-direction: column; gap: 6px; }
+.uw-h { display: flex; gap: 8px; align-items: center; font-size: 14px; } .uw-card small { color: var(--muted); }
+.uw-sel { width: 100%; padding: 8px; border-radius: 10px; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid rgba(255,255,255,0.15); }
+.uw-range { width: 100%; accent-color: #ff3b3b; }

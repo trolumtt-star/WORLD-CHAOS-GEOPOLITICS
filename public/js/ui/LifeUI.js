@@ -49,6 +49,9 @@ export class LifeUI {
     this.taskCard = el('div', { class: 'task-card glass hidden' }, this.taskLabel, el('div', { class: 'task-prog' }, this.taskFill), this.taskBtn);
     this.incident = el('div', { class: 'incident glass hidden' });
     this.trial = el('div', { class: 'trial glass hidden' });
+    this.chase = el('div', { class: 'chase-ban hidden' });
+    this.chaseEdge = el('div', { class: 'chase-edge hidden' });
+    hud.append(this.chase, this.chaseEdge);
     hud.append(this.insideBar, this.taskCard, this.incident, this.trial);
 
     // Tam ekran katmanlar
@@ -91,6 +94,12 @@ export class LifeUI {
     if (task) this.taskLabel.textContent = `👔 Görev ${s.shift.done + 1}: ${task.label}`;
     this.shiftBtn.classList.toggle('hidden', !(s.inside && s.jobBuildingId === s.inside));
     this.shiftBtn.textContent = s.shift ? '🏁 Mesaiyi Bitir' : '👔 Mesaiye Başla';
+    // polis kovalamacası
+    const ch = s.chase;
+    this.chase.classList.toggle('hidden', !ch);
+    this.chaseEdge.classList.toggle('hidden', !ch || !!ch?.hiding);
+    if (ch) this.chase.textContent = ch.hiding ? `🤫 Saklanıyorsun... polis kapıda bekliyor` : `🚨 POLİS PEŞİNDE · ${ch.cops} memur · en yakın ${ch.nearest ?? '?'} m${ch.lost > 0 ? ' · izini kaybediyorlar...' : ' · KOŞ!'}`;
+    if (ch && !prev.chase) this.ui.sfx('siren');
     // duruşma
     this.trial.classList.toggle('hidden', !s.myCase);
     if (s.myCase && (!prev.myCase || prev.myCase.id !== s.myCase.id)) {

@@ -14,7 +14,7 @@ const tl = (n) => `₺${Math.round(n).toLocaleString('tr-TR')}`;
 const clamp = (v) => Math.max(0, Math.min(100, v));
 const fail = (error) => ({ ok: false, error });
 
-const ENTERABLE_CIVIC = new Set(['police', 'bank', 'hospital', 'palace', 'town_hall', 'court', 'stadium']);
+const ENTERABLE_CIVIC = new Set(['police', 'bank', 'hospital', 'palace', 'town_hall', 'court', 'stadium', 'hideout']);
 
 export class LifeSystem {
   name = 'life';
@@ -627,6 +627,7 @@ export class LifeSystem {
           bus.news('crime', `💀 ${p.name} sokak ortasında ${npc.name}'i öldürdü! Polis alarmda.`);
           msg = `💀 ${npc.name} öldü. Aranma: ${'⭐'.repeat(p.wanted)}`;
           this.callPolice(p);
+          engine.getSystem('underworld')?.startChase(p, true);
         }
       } else {
         // Saldırıya uğrayan NPC kaçar
@@ -636,7 +637,7 @@ export class LifeSystem {
     } else if (victim && hit) {
       this.damage(victim, dmg, p, 'saldırı');
       this.say(victim, `🩸 ${p.name} sana saldırıyor! (-${dmg} can)`, 'err', 'hurt');
-      if (victim.dead) { p.wanted = Math.min(5, p.wanted + 2); world.logCrime?.(p, `Cinayet: ${victim.name}`); }
+      if (victim.dead) { p.wanted = Math.min(5, p.wanted + 2); world.logCrime?.(p, `Cinayet: ${victim.name}`); engine.getSystem('underworld')?.startChase(p, true); }
       else if (p.wanted < 1) p.wanted = 1;
     }
     world.touchPlayer(p);

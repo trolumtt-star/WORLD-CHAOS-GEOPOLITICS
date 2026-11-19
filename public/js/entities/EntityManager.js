@@ -408,7 +408,35 @@ function makeAircraft(type, color) {
   return g;
 }
 
+function makeStreetUnit(type) {
+  const g = new THREE.Group();
+  const cop = type === 'cop';
+  const ch = makeCharacter(cop ? 0x1f3a93 : 0x111111, { seed: Math.random() * 1e6, pants: cop ? 0x1b2440 : 0x0a0a0a, outfit: cop ? { hat: 'cap_black' } : { top: 'hoodie_grey', acc: 'sunglasses' } });
+  if (!cop) ch.traverse((m) => { if (m.isMesh && m.material?.color?.getHex?.() === 0x7f8c8d) m.material = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.8 }); });
+  g.add(ch);
+  if (cop) {
+    // Omuzda yanıp sönen mavi-kırmızı ışık
+    const r = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff2020 }));
+    const b = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), new THREE.MeshBasicMaterial({ color: 0x2060ff }));
+    r.position.set(-0.45, 2.75, 0); b.position.set(0.45, 2.75, 0);
+    g.add(r, b);
+    g.userData.siren = [r, b];
+    const tag = textSprite('👮 POLİS', { color: '#5aa0ff', border: '#5aa0ff', scale: 0.55 });
+    tag.position.y = 4.3; g.add(tag);
+  } else {
+    const tag = textSprite('🕶️', { color: '#ff4040', border: '#ff4040', scale: 0.5 });
+    tag.position.y = 4.2; g.add(tag);
+  }
+  const hp = new THREE.Sprite(new THREE.SpriteMaterial({ color: 0x3dff6a, depthTest: false, transparent: true, opacity: 0 }));
+  hp.scale.set(0.01, 0.01, 1);
+  g.add(hp);
+  g.userData.hpBar = hp;
+  g.userData.soldiers = [ch];
+  return g;
+}
+
 function makeUnit(type, color) {
+  if (type === 'cop' || type === 'gang') return makeStreetUnit(type);
   const g = new THREE.Group();
   const olive = new THREE.MeshStandardMaterial({ color: 0x556b2f, roughness: 0.8 });
   const team = new THREE.MeshStandardMaterial({ color, roughness: 0.6 });
@@ -896,6 +924,7 @@ export class EntityManager {
       if (u.speed > 0.5) u.g.rotation.y = lerpAngle(u.g.rotation.y, u.target.rot, ku);
       if (u.g.userData.turret) u.g.userData.turret.rotation.y = lerpAngle(u.g.userData.turret.rotation.y, u.target.aim - u.g.rotation.y, ku);
       if (u.g.userData.soldiers) for (const s of u.g.userData.soldiers) animateWalk(s, u.speed, dt);
+      if (u.g.userData.siren) { const on = Math.floor(performance.now() / 180) % 2; u.g.userData.siren[0].visible = !!on; u.g.userData.siren[1].visible = !on; }
       if (u.g.userData.horse) animateHorse(u.g.userData.horse, u.speed, dt);
       const bar = u.g.userData.hpBar;
       bar.scale.x = 3 * Math.max(0.05, u.target.hp);

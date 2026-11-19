@@ -317,6 +317,7 @@ export const ACTIONS = {
   'job:task'(ctx, p) { return life(ctx).doTask(p); },
   'combat:attack'(ctx, p, { kind, id }) { return life(ctx).attack(p, String(kind), String(id)); },
   'combat:equip'(ctx, p, { weapon }) { return life(ctx).equip(p, String(weapon)); },
+  'under:order'(ctx, p, params) { return ctx.engine.getSystem('underworld').order(p, params); },
   'police:arrest'(ctx, p, { npcId }) { return life(ctx).arrest(p, String(npcId)); },
 
   // ---------------- TOPLUM (mahkeme, maç, banka, telefon, sosyal, sipariş, giyim, araba) ----------------
@@ -381,10 +382,7 @@ export const ACTIONS = {
     bus.emit('net:fx', { t: 'alarm', x: b.x, z: b.z });
     const crime = engine.getSystem('crime');
     crime.dispatchPolice(b, 3);
-    if (crime.policeOnDuty() > 0 && rng.chance(0.15)) {
-      crime.arrestPlayer(p);
-      return { ok: true, message: `${tl(steal)} çaldın ama polis tam kapıdaydı! 🚔`, sfx: 'siren' };
-    }
+    engine.getSystem('underworld')?.startChase(p, true);
     return { ok: true, message: `${tl(steal)} çaldın! Aranma seviyen: ${'⭐'.repeat(p.wanted)}`, sfx: 'cash' };
   },
 

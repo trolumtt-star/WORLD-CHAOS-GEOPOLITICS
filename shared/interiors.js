@@ -20,7 +20,7 @@ const KIND_BY_TYPE = {
   market: 'shop', tech_store: 'shop', gun_shop: 'gunshop',
   cafe: 'cafe', restaurant: 'cafe', bar: 'bar',
   factory: 'factory', police: 'police', bank: 'bank', hospital: 'hospital', palace: 'office',
-  court: 'court', clothing: 'clothing', stadium: 'stadium', car_dealer: 'showroom',
+  court: 'court', clothing: 'clothing', stadium: 'stadium', car_dealer: 'showroom', hideout: 'hideout',
 };
 
 export function interiorKind(type) { return KIND_BY_TYPE[type] ?? null; }
@@ -224,6 +224,19 @@ L.office = {
     { id: 'shelf', tag: 'shelf', label: 'Arşiv', icon: '📚', x: -11, z: -7.4 },
     { id: 'table', tag: 'table', label: 'Toplantı Masası', icon: '🏛️', x: 0, z: 2.6, seats: [[-4, 1, Math.PI], [0, 1, Math.PI], [4, 1, Math.PI], [-4, -5, 0], [0, -5, 0], [4, -5, 0]] },
     { id: 'exit', tag: 'exit', label: 'Dışarı Çık', icon: '🚪', x: 0, z: 10.6 },
+  ],
+};
+
+L.hideout = {
+  w: 22, d: 18, floor: 0x2a2420, wall: 0x2b2b30, accent: 0x8b0000,
+  items: [
+    ['roundTable', 0, -2, 4, 4, 1.4, 0x3a1a1a], ['chair', -2.6, -2, 1.2, 1.2, 1.1, null, Math.PI / 2], ['chair', 2.6, -2, 1.2, 1.2, 1.1, null, -Math.PI / 2],
+    ['crate', -8.5, -6.5, 2.4, 2.4, 2.4], ['crate', -6, -7, 2, 2, 1.6], ['crate', 8.5, -6.5, 2.4, 2.4, 2.2], ['gunrack', 0, -8.6, 10, 0.6, 4],
+    ['vault', 9, 3, 3, 2, 3.5], ['lamp', -9, 6, 0.8, 0.8, 3.6], ['gangster', 0, -4.2, 1, 1, 3], ['gangster', -8, 1, 1, 1, 3], ['gangster', 8, -2, 1, 1, 3],
+  ],
+  spots: [
+    { id: 'boss', tag: 'boss', label: 'Patron · Yasadışı İşler', icon: '🕶️', x: 0, z: 0.6 },
+    { id: 'exit', tag: 'exit', label: 'Dışarı Çık', icon: '🚪', x: 0, z: 7.6 },
   ],
 };
 

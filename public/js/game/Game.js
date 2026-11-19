@@ -45,6 +45,7 @@ export class Game {
     for (const r of init.leaderboard) this.roster.set(r.id, { ...r });
     for (const p of init.players) this.roster.set(p.id, { ...this.roster.get(p.id), ...p, online: true });
     const colors = new Map([...this.roster.values()].map((r) => [r.id, r.color]));
+    colors.set('underworld', '#5a0a0a');
 
     this.city = new CityRenderer(kit.scene, init.world, [], { effects: this.effects, tiles: init.tiles, playerColors: colors });
     for (const r of init.leaderboard) this.city.playerEras.set(r.id, r.era ?? 1);
@@ -774,6 +775,31 @@ export class Game {
     this.tvTex.needsUpdate = true;
   }
 
+  /** Yeraltı patronu: parayı ver, adamlar işi yapsın */
+  openUnderworld() {
+    const s = this.ui.self;
+    const mul = s.econ?.mul ?? 1;
+    const me = this.self.g.position;
+    const shops = [...this.city.entries.values()].map((e) => e.data).filter((b) => this.init.catalog.buildings[b.type]?.category === 'commercial' && b.ownerId !== this.selfId)
+      .sort((a, b) => Math.hypot(a.x - me.x, a.z - me.z) - Math.hypot(b.x - me.x, b.z - me.z)).slice(0, 25);
+    const players = [...this.roster.values()].filter((r) => !r.isAI && r.id !== this.selfId);
+    const sel = (list, label) => el('select', { class: 'uw-sel' }, el('option', { value: '' }, label), ...list.map((x) => el('option', { value: x.id }, x.name)));
+    const order = (job, params, confirm) => this.runAction({ type: 'under:order', params: { job, ...params }, confirm }).then((r) => { if (r?.ok) this.ui.closeSheet(); });
+    const fakeAmt = el('input', { type: 'range', min: 100, max: Math.max(100, Math.min(20000, Math.floor(s.balance / 100) * 100)), step: 100, value: 100, class: 'uw-range' });
+    const fakeOut = el('b', {}, `${tl(100)} ver → ${tl(1000)} sahte para`);
+    fakeAmt.addEventListener('input', () => { fakeOut.textContent = `${tl(fakeAmt.value)} ver → ${tl(fakeAmt.value * 10)} sahte para`; });
+    const shopSel = sel(shops, '🏪 Hedef dükkan seç'), shopSel2 = sel(shops, '🏪 Hedef dükkan seç'), plSel = sel(players, '🎯 Hedef oyuncu seç');
+    const card = (icon, title, desc, ...rest) => el('div', { class: 'uw-card' }, el('div', { class: 'uw-h' }, el('span', {}, icon), el('b', {}, title)), el('small', {}, desc), ...rest);
+    const price = (c) => tl(Math.round(c * mul));
+    this.ui.openSheet('uw', { icon: '🕶️', title: 'Patron', subtitle: '"Paranı ver, gerisini düşünme. Polis %50 ihtimalle adamlarımı yakalar, bazen de ötüyorlar..."' },
+      el('div', { class: 'col' },
+        card('💵', 'Sahte Para Bastır', '1 saat sonra hazır. %50 polis baskını riski.', fakeOut, fakeAmt, el('button', { class: 'btn primary', onClick: () => order('fake', { amount: Number(fakeAmt.value) }) }, 'Matbaayı Çalıştır')),
+        card('🔫', `Dükkan Tarat · ${price(2500)}`, `3-4 adam gider, kasanın %30'u gider, bina hasar alır, etraftakiler ölür.`, shopSel, el('button', { class: 'btn danger', onClick: () => shopSel.value ? order('shoot', { targetId: shopSel.value }) : this.ui.toast('Dükkan seç.', 'warn') }, 'Tarat')),
+        card('💼', `Haraç Kestir · ${price(1500)}`, `Dükkan 3 gün boyunca cirosunun %15'ini sana öder.`, shopSel2, el('button', { class: 'btn', onClick: () => shopSel2.value ? order('racket', { targetId: shopSel2.value }) : this.ui.toast('Dükkan seç.', 'warn') }, 'Haraç Kes')),
+        card('🎯', `Oyuncu Öldürt · ${price(6000)}`, 'Kiralık katil hedefin peşine düşer.', plSel, el('button', { class: 'btn danger', onClick: () => plSel.value ? order('hit', { targetId: plSel.value }, 'Kiralık katil gönderilsin mi?') : this.ui.toast('Oyuncu seç.', 'warn') }, 'Katili Gönder')),
+        card('💥', `Devlete Darbe · ${price(60000)}`, '8 adam merkez şehre saldırır: dükkanlar patlar, sokaktakiler vurulur. Başarırsa yönetim senin.', el('button', { class: 'btn danger', onClick: () => order('coup', {}, 'Darbe başlasın mı? Merkez şehir yanacak!') }, '💥 DARBEYİ BAŞLAT'))));
+  }
+
   openOutfitShop(b) {
     const s = this.ui.self;
     const mul = s.econ?.mul ?? 1;
@@ -933,6 +959,7 @@ export class Game {
         if (b.type === 'bank') return this.phone.open('bank');
         return this.openShop(b, !!(b.type === 'cafe' || b.type === 'restaurant' || b.type === 'bar'), spot);
       case 'bench': return this.phone.open('court');
+      case 'boss': return this.openUnderworld();
       case 'tribune': return open(act('🏟️ Tribüne Otur ve İzle', 'primary', 'sit'), el('p', { class: 'muted' }, this.match?.status === 'live' ? '🔴 Maç canlı!' : `Maç her gün 14:00'te · 2 dakika sürer`), el('button', { class: 'btn ghost', onClick: () => this.phone.open('match') }, '🎟️ Bahis & Kadro'));
       case 'mirror': return this.phone.open('wardrobe');
       case 'pitch': return this.match?.status === 'live' ? this.ui.toast('⚽ Kadrodaysan ekrandaki ⚽ Şut butonuna bas!', 'info') : this.phone.open('match');
