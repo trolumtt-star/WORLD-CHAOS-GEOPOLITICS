@@ -453,7 +453,7 @@ export class PhoneUI {
       for (const [k, ic, lb, pr] of MEN_UI) {
         const m = men[k] ?? { free: 0, total: 0 };
         body.append(el('div', { class: 'ph-card org-man' }, el('b', {}, `${ic} ${lb}`), el('small', {}, `${m.free} / ${m.total} · tanesi ${tl(pr * mul)}`),
-          el('div', { class: 'ph-row-actions' }, ...[1, 10, 50, 100].map((n) => this.btn(`+${n}`, n === 10 ? 'primary' : '', () => run('org:hire', { type: k, n }, n >= 50 ? `${n} ${lb} = ${tl(pr * mul * n)}. Tutulsun mu?` : null)))),
+          el('div', { class: 'ph-row-actions' }, ...[1, 10, 50, 100].map((n) => this.btn(`+${n}`, n === 10 ? 'primary' : '', () => run('org:hire', { type: k, n })))),
           (() => {
             // istediğin kadar: paran neye yetiyorsa
             const max = Math.max(1, Math.min(500, Math.floor((this.self.balance ?? 0) / (pr * mul))));
@@ -616,7 +616,7 @@ export class PhoneUI {
         const pr = priceOf(c.price, mul);
         body.append(el('div', { class: 'ph-card gal-item' }, el('div', { class: 'ph-row' }, swatch(c), el('div', { class: 'ph-rt' }, el('b', {}, c.label),
           el('small', {}, `${tl(pr)} · ⚡${c.speed} · 💺${c.seats}${c.armor ? ` · 🛡️x${c.armor}` : ''}${c.gold ? ' · ✨ altın' : ''}${c.diamond ? ' · 💎 elmas' : ''}`))),
-          has ? el('small', { class: 'ph-ok' }, '✅ Sende var') : this.btn('Satın Al', 'primary', () => run('veh:buy', { kind: tab, model: k }, `${c.label} alınsın mı? ${tl(pr)}`))));
+          has ? el('small', { class: 'ph-ok' }, '✅ Sende var') : this.btn('Satın Al', 'primary', () => run('veh:buy', { kind: tab, model: k }))));
       }
       return;
     }
@@ -632,7 +632,7 @@ export class PhoneUI {
         const n = (kind === 'car' ? F.cars : F.helis)[k] ?? 0;
         body.append(el('div', { class: 'ph-card gal-item' }, el('div', { class: 'ph-row' }, swatch(c), el('div', { class: 'ph-rt' }, el('b', {}, `${c.label}${n ? ` ×${n}` : ''}`),
           el('small', {}, `${tl(priceOf(c.price, mul))}${c.armor ? ` · 🛡️x${c.armor}` : ''}${c.dmg ? ` · 💥${c.dmg}` : ''}${c.bombs ? ' · 💣 bomba' : ''}`))),
-          this.btn('+ Filoya Kat', 'primary', () => run('veh:buy', { kind, model: k, forOrg: true }, `${c.label} örgüt filosuna alınsın mı? ${tl(priceOf(c.price, mul))}`))));
+          el('div', { class: 'ph-row-actions' }, this.btn('+1', 'primary', () => run('veh:buy', { kind, model: k, forOrg: true, n: 1 })), this.btn('+10', '', () => run('veh:buy', { kind, model: k, forOrg: true, n: 10 })))));
       }
     }
   }

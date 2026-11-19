@@ -47,12 +47,13 @@ export class VehicleSystem {
   }
 
   // ------------------------------------------------------------------ satın alma (Telefon › Galeri)
-  buy(p, { kind, model, forOrg }) {
+  buy(p, { kind, model, forOrg, n }) {
     const { world, bus } = this.ctx;
     const C = kind === 'heli' ? HELIS[model] : CARS[model];
     if (!C) return fail('Model bulunamadı.');
-    const price = priceOf(C.price, this.mul());
-    if (p.balance < price) return fail(`${C.label}: ${tl(price)}.`);
+    const k = forOrg ? Math.max(1, Math.min(100, Math.round(Number(n) || 1))) : 1;
+    const price = priceOf(C.price, this.mul()) * k;
+    if (p.balance < price) return fail(`${k > 1 ? `${k} × ` : ''}${C.label}: ${tl(price)}.`);
     if (forOrg) {
       const o = p.orgId && world.orgs?.[p.orgId];
       if (!o) return fail('Önce örgüt kur.');
@@ -60,10 +61,10 @@ export class VehicleSystem {
       p.balance -= price;
       o.fleet = o.fleet ?? { cars: {}, helis: {} };
       const bag = kind === 'heli' ? o.fleet.helis : o.fleet.cars;
-      bag[model] = (bag[model] ?? 0) + 1;
+      bag[model] = (bag[model] ?? 0) + k;
       world.touchPlayer(p);
-      bus.news('crime', `🕴️ "${o.name}" filosuna ${C.label} kattı.`);
-      return { ok: true, message: `${kind === 'heli' ? '🚁' : '🚙'} ${C.label} örgüt filosunda! ${kind === 'heli' ? 'Telefon › Örgüt › Hava Filosu\'ndan gönder.' : 'Görevlerde adamlar bu araçlarla gidecek.'}`, sfx: 'cash' };
+      bus.news('crime', `🕴️ "${o.name}" filosuna ${k > 1 ? `${k} adet ` : ''}${C.label} kattı.`);
+      return { ok: true, message: `${kind === 'heli' ? '🚁' : '🚙'} ${k > 1 ? `${k} × ` : ''}${C.label} örgüt filosunda (toplam ${bag[model]})! ${kind === 'heli' ? 'Telefon › Örgüt › Hava Filosu\'ndan gönder.' : 'Görevlerde adamlar bu araçlarla gidecek.'}`, sfx: 'cash' };
     }
     const list = kind === 'heli' ? (p.helis = p.helis ?? []) : (p.cars = p.cars ?? []);
     if (list.some((x) => x.model === model && !x.until)) return fail('Bu model zaten sende.');

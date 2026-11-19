@@ -22,6 +22,11 @@ import { MatchSim } from './MatchSim.js';
 import { OUTFITS, CARS, HELIS, CLUBS, priceOf } from '../../shared/catalogs.js';
 
 /** Bir oyun oturumu: sahne + ağ olayları + arayüz + döngü. */
+/** Onay sorulmadan direkt yapılan satın almalar */
+const NO_CONFIRM = new Set(['veh:buy', 'car:buy', 'car:rent', 'org:hire', 'org:found', 'org:hq', 'org:escort', 'org:payFor', 'org:ransom', 'ceo:hire', 'home:rent',
+  'property:buy', 'property:build', 'territory:claim', 'outfit:buy', 'shop:buy', 'life:buy', 'weapon:buy', 'tech:buy', 'tech:research', 'military:train',
+  'missile:buy', 'air:buy', 'shop:weapon', 'shop:order', 'business:advertise', 'war:independence', 'bank:loan', 'bank:repay', 'org:press']);
+
 export class Game {
   constructor(app, init) {
     this.app = app;
@@ -491,7 +496,8 @@ export class Game {
     if (a.inspect) return this.inspect(a.inspect.kind, a.inspect.id);
 
     const params = { ...(a.params ?? {}) };
-    if (a.confirm && !(await this.ui.confirm(a.confirm))) return;
+    // Satın almalarda "emin misin?" sorulmaz: tıkla, al
+    if (a.confirm && !NO_CONFIRM.has(a.type) && !(await this.ui.confirm(a.confirm))) return;
     if (a.input) {
       const values = await this.ui.form(a.input);
       if (!values) return;
