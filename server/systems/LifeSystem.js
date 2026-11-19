@@ -84,6 +84,7 @@ export class LifeSystem {
     for (const p of world.players.values()) {
       if (!p.inside || p.isAI) continue;
       const b = world.buildings.get(p.inside);
+      if (p.pendingCase) continue;
       if (!b || b.destroyed) {
         this.exit(p, '💥 Bina yıkıldı! Enkazın altından zor çıktın.');
         this.damage(p, 35, null, 'enkaz');
@@ -178,6 +179,7 @@ export class LifeSystem {
     if (Math.hypot(p.x - b.door.x, p.z - b.door.z) > 18) return fail('Kapıya yaklaş.');
     const ok = this.canEnter(p, b);
     if (!ok.ok) return ok;
+    if (p.rideWith) this.ctx.engine.getSystem('society')?.leaveCar(p);
     if (p.driving) this.ctx.engine.getSystem('society')?.park(p);
     const layout = interiorLayout(b.type);
     const o = interiorOrigin(b.id);
@@ -190,6 +192,7 @@ export class LifeSystem {
   }
 
   exit(p, msg) {
+    if (p.pendingCase) return fail('⚖️ Duruşma bitmeden adliyeden çıkamazsın!');
     const b = this.ctx.world.buildings.get(p.inside);
     p.inside = null;
     p.pose = '';

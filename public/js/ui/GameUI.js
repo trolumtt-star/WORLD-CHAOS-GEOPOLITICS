@@ -150,7 +150,7 @@ export class GameUI {
     const era = this.catalog.eras?.[s.era ?? 1];
     if (era) this.elEra.textContent = `${era.icon} ${era.label}${s.research ? ` · 🔬 ${s.research.hoursLeft}sa` : ''}`;
     if (prev.era && s.era > prev.era) this.sfx('success');
-    this.setJail(s.jailed);
+    this.setJail(s.jailed && !s.myCase);
     if (this.sheetKind === 'tech') this.openTech();
   }
 

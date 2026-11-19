@@ -92,10 +92,10 @@ NPC ülkeler de bunu yapar: insan oyuncuyu kukla yapar, birbirlerini çoğunlukl
 ## 📱 Faz 4: Telefon, Mahkeme, Stadyum, Arabalar, Banka
 
 - **📱 iPhone tarzı telefon** (sağdaki 📱 ya da P): Mesajlar, Telefon (uzaktan sesli arama), Kamera (oyun içi fotoğraf), ChaosGram (paylaşım + reklam bütçesi çubuğu → görüntülenme, beğeni, dükkâna müşteri), Sipariş (yemek/kıyafet, oyuncu ya da NPC kurye eve getirir), Sahibinden (satılık/kiralık/vasıta), Banka (kredi, ödeme, para gönderme), Bahis, Ekonomi, Garaj, Gardırop, Adalet ve tüm eski menüler.
-- **⚖️ Mahkeme:** Adliye'de hakim ol; tutuklanan oyuncunun cezasına sen karar ver: 0-30 dk hapis, para cezası, idam ya da beraat. 2,5 dk içinde karar verilmezse kanun uygulanır.
+- **⚖️ Mahkeme:** Yakalanan suçlu doğrudan adliyedeki sanık kürsüsüne ışınlanır. Hakim oyuncu varsa o karar verir (0-30 dk hapis, para cezası, idam ya da beraat, 2,5 dk süre); yoksa NPC hakim ~20 sn içinde suçun ağırlığına göre karar verir.
 - **👕 Giyim mağazası:** 30 parça (tişört, kapşonlu, deri ceket, takım elbise, forma, elbise, kot, şort, etek, şapka, fötr, kovboy, altın taç, gözlük, kolye, çanta). Herkes ne giydiğini görür.
 - **🏟️ Stadyum:** Her gün 14:00'te maç. Bahis oyna (1/X/2), ya da kadroya gir ve sahada ⚽ Şut butonuyla gol at.
-- **🚗 Arabalar:** Bayiden 8 model satın al ya da 24 saatliğine kirala, 🚗 butonuyla (G) bin ve sür.
+- **🚗 Arabalar:** Bayiden 8 model satın al ya da 24 saatliğine kirala, 🚗 butonuyla (G) bin ve sür. Arkadaşın sürerken yanına gidip 🚕 ile yolcu olarak bin (spor arabalar 2, diğerleri 4 kişilik).
 - **📈 Enflasyon:** Her 3 günde bir maaşlar ve fiyatlar birlikte %2,5-5 artar.
 - **📺 TV:** Kanepede TV izlerken kamera koltuktan ekrana geçer; ekranda canlı haberler, ekonomi, sponsorlu paylaşımlar ve maç skoru döner.
 - **Sade arayüz:** Büyük buton ızgarası kalktı, her şey telefonda.

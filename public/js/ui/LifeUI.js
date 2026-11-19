@@ -48,7 +48,8 @@ export class LifeUI {
     this.taskBtn = el('button', { class: 'btn primary task-do', onClick: (e) => { e.stopPropagation(); this.h.onTask(); } }, '🛠️ Görevi Yap');
     this.taskCard = el('div', { class: 'task-card glass hidden' }, this.taskLabel, el('div', { class: 'task-prog' }, this.taskFill), this.taskBtn);
     this.incident = el('div', { class: 'incident glass hidden' });
-    hud.append(this.insideBar, this.taskCard, this.incident);
+    this.trial = el('div', { class: 'trial glass hidden' });
+    hud.append(this.insideBar, this.taskCard, this.incident, this.trial);
 
     // Tam ekran katmanlar
     this.sleep = el('div', { class: 'sleep-ov hidden' }, el('div', { class: 'zzz' }, '😴 Zzz…'), (this.sleepE = el('div', { class: 'sleep-e' })), btn('☀️ Uyan', 'primary', () => this.h.onStand()));
@@ -83,15 +84,26 @@ export class LifeUI {
     this.death.classList.toggle('hidden', !s.dead);
     if (s.dead && !prev.dead) this.deathTimer(s.respawnAt);
     this.tv.classList.toggle('hidden', !s.tv);
-    this.carBtn.classList.toggle('hidden', !(s.cars?.length) || !!s.inside);
-    this.carBtn.classList.toggle('on', !!s.driving);
-    this.carBtn.textContent = s.driving ? '🅿️' : '🚗';
+    this.h.onCarState?.();
     // mesai
     const task = s.shift?.task;
     this.taskCard.classList.toggle('hidden', !task);
     if (task) this.taskLabel.textContent = `👔 Görev ${s.shift.done + 1}: ${task.label}`;
     this.shiftBtn.classList.toggle('hidden', !(s.inside && s.jobBuildingId === s.inside));
     this.shiftBtn.textContent = s.shift ? '🏁 Mesaiyi Bitir' : '👔 Mesaiye Başla';
+    // duruşma
+    this.trial.classList.toggle('hidden', !s.myCase);
+    if (s.myCase && (!prev.myCase || prev.myCase.id !== s.myCase.id)) {
+      clearInterval(this._trialT);
+      const c = s.myCase;
+      const tick = () => {
+        const left = Math.max(0, Math.ceil((c.autoAt - Date.now()) / 1000));
+        clear(this.trial).append(el('b', {}, '⚖️ DURUŞMA'), el('div', {}, c.npc ? `NPC hakim kararını açıklıyor... ${left} sn` : `Hakim kararını veriyor · en geç ${left} sn`), el('small', {}, `Suçlar: ${c.crimes.join(' · ') || '—'}`));
+        if (!this.s.myCase) clearInterval(this._trialT);
+      };
+      tick();
+      this._trialT = setInterval(tick, 500);
+    }
     // polis ihbarı
     this.incident.classList.toggle('hidden', !s.incident);
     if (s.incident) clear(this.incident).append(el('b', {}, '🚨 SOYGUN İHBARI'), el('div', {}, `${s.incident.building} soyuldu! Kaçan: ${s.incident.name}`), el('small', {}, 'Haritada ve sokakta kırmızı halkayla işaretli. Yaklaş ve 🚔 Tutukla!'));

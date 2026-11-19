@@ -35,14 +35,14 @@ export const OUTFITS = {
 };
 
 export const CARS = {
-  sahin:   { label: 'Tofaş Şahin',      model: 'sedan',  color: 0xf2f2f2, price: 18000,  rent: 400,  speed: 24 },
-  doblo:   { label: 'Fiat Doblo',       model: 'van',    color: 0xb03a2e, price: 26000,  rent: 550,  speed: 23 },
-  corolla: { label: 'Toyota Corolla',   model: 'sedan',  color: 0x95a5a6, price: 42000,  rent: 800,  speed: 27 },
-  pickup:  { label: 'Ford Ranger',      model: 'pickup', color: 0x1f3a93, price: 65000,  rent: 1100, speed: 27 },
-  bmw:     { label: 'BMW M5',           model: 'sedan',  color: 0x111111, price: 140000, rent: 2400, speed: 34 },
-  gwagon:  { label: 'Mercedes G-Class', model: 'suv',    color: 0x2d2d2d, price: 210000, rent: 3500, speed: 31 },
-  ferrari: { label: 'Ferrari F8',       model: 'sport',  color: 0xd10000, price: 420000, rent: 7000, speed: 42 },
-  lambo:   { label: 'Lamborghini',      model: 'sport',  color: 0xf5c400, price: 520000, rent: 8500, speed: 44 },
+  sahin:   { label: 'Tofaş Şahin',      model: 'sedan',  color: 0xf2f2f2, price: 18000,  rent: 400,  speed: 24, seats: 4 },
+  doblo:   { label: 'Fiat Doblo',       model: 'van',    color: 0xb03a2e, price: 26000,  rent: 550,  speed: 23, seats: 4 },
+  corolla: { label: 'Toyota Corolla',   model: 'sedan',  color: 0x95a5a6, price: 42000,  rent: 800,  speed: 27, seats: 4 },
+  pickup:  { label: 'Ford Ranger',      model: 'pickup', color: 0x1f3a93, price: 65000,  rent: 1100, speed: 27, seats: 2 },
+  bmw:     { label: 'BMW M5',           model: 'sedan',  color: 0x111111, price: 140000, rent: 2400, speed: 34, seats: 4 },
+  gwagon:  { label: 'Mercedes G-Class', model: 'suv',    color: 0x2d2d2d, price: 210000, rent: 3500, speed: 31, seats: 4 },
+  ferrari: { label: 'Ferrari F8',       model: 'sport',  color: 0xd10000, price: 420000, rent: 7000, speed: 42, seats: 2 },
+  lambo:   { label: 'Lamborghini',      model: 'sport',  color: 0xf5c400, price: 520000, rent: 8500, speed: 44, seats: 2 },
 };
 export const CAR_CODES = ['', ...Object.keys(CARS)];
 

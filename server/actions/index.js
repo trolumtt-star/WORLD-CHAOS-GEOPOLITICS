@@ -346,6 +346,8 @@ export const ACTIONS = {
   'car:buy'(ctx, p, params) { return soc(ctx).buyCar(p, params); },
   'car:drive'(ctx, p, params) { return soc(ctx).drive(p, params); },
   'car:park'(ctx, p) { return soc(ctx).park(p); },
+  'car:ride'(ctx, p, params) { return soc(ctx).ride(p, params); },
+  'car:leave'(ctx, p) { return soc(ctx).leaveCar(p); },
   'market:listings'(ctx) {
     const { world } = ctx;
     const items = [...world.buildings.values()].filter((b) => b.forSale && b.operational !== false).slice(0, 80).map((b) => ({ id: b.id, name: b.name, type: b.type, price: b.salePrice, x: b.x, z: b.z, rent: b.rentPerResident || 0 }));

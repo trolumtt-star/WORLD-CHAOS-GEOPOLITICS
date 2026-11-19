@@ -72,7 +72,7 @@ export class Player {
   }
 
   toSnapshot() {
-    return [this.id, r2(this.x), r2(this.z), r2(this.rotY), POSES.indexOf(this.pose), WEAPON_CODES.indexOf(this.weapon), this.inside ?? 0, this.driving ? CAR_CODES.indexOf(this.driving) : 0];
+    return [this.id, r2(this.x), r2(this.z), r2(this.rotY), POSES.indexOf(this.pose), WEAPON_CODES.indexOf(this.weapon), this.inside ?? 0, this.driving ? CAR_CODES.indexOf(this.driving) : this.rideWith ? -this.seat : 0, this.rideWith ?? 0];
   }
 
   // Sadece bu oyuncuya giden özel durum

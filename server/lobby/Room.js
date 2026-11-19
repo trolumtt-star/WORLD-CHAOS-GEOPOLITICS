@@ -238,7 +238,9 @@ export class Room {
       return;
     }
 
-    if (player.jailedUntil > world.clockHours()) {
+    // Arabada yolcuysa konumunu sürücü belirler
+    if (player.rideWith) return;
+    if (player.jailedUntil > world.clockHours() && !player.pendingCase) {
       const pr = world.prison;
       if (pr && Math.hypot(x - pr.door.x, z - pr.door.z) > 6) {
         socket.emit(EVENTS.PLAYER_CORRECTION, { x: pr.door.x, z: pr.door.z });
@@ -273,6 +275,7 @@ export class Room {
     player.x = c.x;
     player.z = c.z;
     player.rotY = rotY;
+    if (player.driving) this.engine.getSystem('society')?.carryPassengers(player);
   }
 
   /** Yakınlık sesli sohbeti: sesi yalnızca yakındaki (aynı mekândaki) oyunculara ilet */
@@ -287,6 +290,7 @@ export class Room {
     if (callee?.online && callee.socketId) this.io.to(callee.socketId).volatile.emit('voice:in', { id: player.id, d: 4, a: data, call: 1 });
     for (const o of this.world.players.values()) {
       if (o === player || o === callee || !o.online || !o.socketId || o.inside !== player.inside) continue;
+      // Aynı arabadakiler birbirini net duyar
       const d = Math.hypot(o.x - player.x, o.z - player.z);
       if (d > range) continue;
       this.io.to(o.socketId).volatile.emit('voice:in', { id: player.id, d: Math.round(d * 10) / 10, a: data });
@@ -296,7 +300,10 @@ export class Room {
   handleAction(player, type, params) {
     const fn = ACTIONS[type];
     if (!fn) return { ok: false, error: 'Bilinmeyen eylem.' };
-    if (player.jailedUntil > this.world.clockHours() && type !== 'crime:bail') {
+    if (player.pendingCase && !String(type).startsWith('phone:') && type !== 'social:feed') {
+      return { ok: false, error: '⚖️ Duruşmadasın! Hakimin kararını bekle.' };
+    }
+    if (player.jailedUntil > this.world.clockHours() && type !== 'crime:bail' && !player.pendingCase) {
       return { ok: false, error: 'Cezaevindesin! Önce kefalet ödemelisin.' };
     }
     try {

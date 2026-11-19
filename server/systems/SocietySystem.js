@@ -57,6 +57,7 @@ export class SocietySystem {
       outfit: p.outfit ?? {}, wardrobe: p.wardrobe ?? [], cars: p.cars ?? [], driving: p.driving ?? null,
       loan: p.loan ?? null, loanLimit: this.loanLimit(p), callWith: p.callWith ?? null,
       econ: { mul: Math.round(S.econ.mul * 1000) / 1000, history: S.econ.history.slice(-6) },
+      rideWith: p.rideWith ?? null, seat: p.seat ?? 0,
       myCase: S.cases.find((c) => c.defendantId === p.id && c.status === 'open') ?? null,
       bets: (S.match?.bets ?? []).filter((b) => b.playerId === p.id),
       orders: S.orders.filter((o) => o.status !== 'done' && (o.buyerId === p.id || o.courierId === p.id)).map((o) => this.orderPublic(o)),
@@ -135,85 +136,153 @@ export class SocietySystem {
     return [...this.ctx.world.players.values()].filter((p) => p.online && this.jobOf(p) === 'judge');
   }
 
-  /** Tutuklanan oyuncu hakim varsa mahkemeye çıkar. true -> ceza mahkemede verilecek */
+  courtBuilding() { return [...this.ctx.world.buildings.values()].find((b) => b.type === 'court' && b.operational) ?? null; }
+
+  npcJudgeName() {
+    const c = this.courtBuilding();
+    const n = c && c.employeeIds.map((id) => this.ctx.world.npcs.get(id)).find(Boolean);
+    return n ? `NPC Hakim ${n.name}` : 'NPC Hakim Adalet Bey';
+  }
+
+  /** Tutuklanan oyuncu doğrudan adliyedeki sanık kürsüsüne ışınlanır; oyuncu hakim yoksa NPC hakim karar verir */
   openCase(p) {
-    const { world, bus, config } = this.ctx;
+    const { world, bus } = this.ctx;
+    const court = this.courtBuilding();
+    if (!court) return false;
     const judges = this.judgesOnline().filter((j) => j.id !== p.id);
-    if (!judges.length) return false;
-    const c = { id: this.id('c'), defendantId: p.id, name: p.name, wanted: p.wanted, crimes: (p.crimeLog ?? []).slice(-5), balance: Math.round(p.balance), createdAt: Date.now(), autoAt: Date.now() + 150000, status: 'open' };
+    const c = { id: this.id('c'), defendantId: p.id, name: p.name, wanted: Math.max(1, p.wanted), crimes: (p.crimeLog ?? []).slice(-5), balance: Math.round(Math.max(0, p.balance)), createdAt: Date.now(),
+      autoAt: Date.now() + (judges.length ? 150000 : 20000), npc: !judges.length, status: 'open' };
     this.S.cases.push(c);
     this.S.cases = this.S.cases.slice(-30);
-    // Duruşmaya kadar tutukevinde (en fazla ~2,5 dk)
-    p.jailedUntil = world.clockHours() + Math.ceil(170000 / config.time.msPerGameHour);
-    p.wasJailed = true;
     p.wanted = 0;
-    p.inside = null;
+    p.pendingCase = c.id;
+    p.jailedUntil = world.clockHours() + 1000; // duruşma bitene kadar tutuklu
     if (p.driving) this.park(p);
-    const pr = world.prison;
-    if (pr) { p.x = pr.door.x; p.z = pr.door.z; bus.emit('net:teleport', { playerId: p.id, x: p.x, z: p.z }); }
+    this.leaveCar(p);
+    if (p.shift) this.ctx.engine.getSystem('life').endShift(p, null);
+    // Sanık kürsüsüne ışınla
+    const L = interiorLayout(court.type), o = interiorOrigin(court.id), st = spotById(L, 'witness');
+    p.inside = court.id;
+    p.pose = '';
+    p.tv = false;
+    p.x = o.x + st.x;
+    p.z = o.z + st.z;
+    p.rotY = Math.PI;
+    bus.emit('net:teleport', { playerId: p.id, x: p.x, z: p.z, rotY: p.rotY });
     world.touchPlayer(p);
     for (const j of judges) {
-      bus.emit('net:alert', { level: 'warning', text: `⚖️ Yeni dava: ${p.name} (${'⭐'.repeat(Math.max(1, c.wanted))}). Telefondan ⚖️ Davalar'ı aç!`, to: j.id });
+      bus.emit('net:alert', { level: 'warning', text: `⚖️ Yeni dava: ${p.name} (${'⭐'.repeat(c.wanted)}). Telefon › Adalet'ten kararı ver!`, to: j.id });
       world.touchPlayer(j);
     }
-    bus.news('crime', `⚖️ ${p.name} tutuklandı ve hakim karşısına çıkarılacak!`);
-    this.say(p, '⚖️ Tutuklandın! Hakim kararını verene kadar tutukevindesin (en fazla 2,5 dk).', 'err', 'siren');
+    bus.news('crime', `⚖️ ${p.name} kelepçelenip adliyeye getirildi! Duruşma başlıyor.`);
+    this.say(p, judges.length ? '⚖️ Adliyedesin! Hakim kararını verene kadar sanık kürsüsündesin.' : `⚖️ Adliyedesin! ${this.npcJudgeName()} birazdan kararını açıklayacak...`, 'err', 'siren');
     return true;
   }
 
   verdict(judge, { caseId, minutes, fine, death, free }) {
-    const { world, bus, config, engine } = this.ctx;
+    const { world } = this.ctx;
     if (this.jobOf(judge) !== 'judge') return fail('Sadece hakimler karar verebilir. (Adliye\'de işe gir.)');
     const c = this.S.cases.find((x) => x.id === caseId && x.status === 'open');
     if (!c) return fail('Dava bulunamadı ya da karara bağlanmış.');
     const p = world.players.get(c.defendantId);
     if (!p) return fail('Sanık bulunamadı.');
     if (p.id === judge.id) return fail('Kendi davana bakamazsın!');
-    const m = Math.max(0, Math.min(30, Math.round(Number(minutes) || 0)));
-    const f = Math.max(0, Math.min(Math.max(0, p.balance), Math.round(Number(fine) || 0)));
-    let text;
-    p.jailedUntil = 0;
-    if (f > 0) { p.balance -= f; world.treasury += f; }
-    if (death) {
-      engine.getSystem('life').kill(p, null, 'idam edilerek');
-      text = `💀 İDAM`;
-    } else if (free) {
-      text = '🕊️ BERAAT';
-    } else if (m > 0) {
-      p.jailedUntil = world.clockHours() + Math.max(1, Math.ceil((m * 60000) / config.time.msPerGameHour));
-      p.wasJailed = true;
-      text = `⛓️ ${m} dk hapis`;
-    } else text = 'serbest';
-    if (f > 0) text += ` + ${tl(f)} para cezası`;
-    c.status = 'done';
-    c.verdict = text;
-    c.judge = judge.name;
+    const text = this.applyVerdict(c, p, { minutes, fine, death, free }, `Hakim ${judge.name}`);
     const fee = Math.round(200 * this.mul());
     world.treasury -= fee;
     judge.balance += fee;
     judge.earnedToday += fee;
-    world.touchPlayer(p);
     world.touchPlayer(judge);
-    bus.news('crime', `⚖️ Hakim ${judge.name}, ${p.name} hakkında kararını verdi: ${text}`);
-    this.say(p, `⚖️ KARAR (Hakim ${judge.name}): ${text}`, death ? 'err' : 'warn', 'alarm');
     return { ok: true, message: `⚖️ Karar verildi: ${text} · +${tl(fee)} hakim ücreti`, sfx: 'success' };
   }
 
-  tickCourts({ world, bus, config }) {
+  applyVerdict(c, p, { minutes, fine, death, free }, judgeName) {
+    const { world, bus, config, engine } = this.ctx;
+    const m = Math.max(0, Math.min(30, Math.round(Number(minutes) || 0)));
+    const f = Math.max(0, Math.min(Math.max(0, p.balance), Math.round(Number(fine) || 0)));
+    let text;
+    p.jailedUntil = 0;
+    p.pendingCase = null;
+    if (f > 0) { p.balance -= f; world.treasury += f; }
+    const court = world.buildings.get(p.inside);
+    p.inside = null;
+    if (death) {
+      engine.getSystem('life').kill(p, null, 'idam edilerek');
+      text = '💀 İDAM';
+    } else if (!free && m > 0) {
+      p.jailedUntil = world.clockHours() + Math.max(1, Math.ceil((m * 60000) / config.time.msPerGameHour));
+      p.wasJailed = true;
+      const pr = world.prison;
+      if (pr) { p.x = pr.door.x; p.z = pr.door.z; bus.emit('net:teleport', { playerId: p.id, x: p.x, z: p.z }); }
+      text = `⛓️ ${m} dk hapis`;
+    } else {
+      text = free ? '🕊️ BERAAT' : 'serbest';
+      const d = court?.door ?? world.palace?.door;
+      if (d) { p.x = d.x; p.z = d.z + 1.5; bus.emit('net:teleport', { playerId: p.id, x: p.x, z: p.z }); }
+    }
+    if (f > 0) text += ` + ${tl(f)} para cezası`;
+    c.status = 'done';
+    c.verdict = text;
+    c.judge = judgeName;
+    world.touchPlayer(p);
+    bus.news('crime', `⚖️ ${judgeName}, ${p.name} hakkında kararını verdi: ${text}`);
+    this.say(p, `⚖️ KARAR (${judgeName}): ${text}`, death ? 'err' : 'warn', 'alarm');
+    return text;
+  }
+
+  tickCourts({ world, rng }) {
     const now = Date.now();
     for (const c of this.S.cases) {
       if (c.status !== 'open' || now < c.autoAt) continue;
       const p = world.players.get(c.defendantId);
-      c.status = 'done';
-      if (!p) continue;
-      const hours = Math.max(2, (c.wanted || 1) * config.crime.jailHoursPerWanted);
-      const fine = Math.round(Math.max(0, p.balance) * 0.1);
-      p.balance -= fine;
-      world.treasury += fine;
-      p.jailedUntil = world.clockHours() + hours;
-      c.verdict = `⛓️ ${hours} saat hapis + ${tl(fine)} (otomatik)`;
-      world.touchPlayer(p);
-      bus.news('crime', `⚖️ Hakim karar vermedi; ${p.name} kanun gereği ${hours} saat hapis aldı.`);
+      if (!p) { c.status = 'done'; continue; }
+      // NPC hakim: suçun ağırlığına göre hapis + para cezası (çok ağır suçta nadiren idam)
+      const murders = c.crimes.filter((x) => x.includes('Cinayet')).length;
+      const minutes = Math.max(1, Math.min(20, c.wanted * 2 + murders * 2 + rng.int(0, 3)));
+      const fine = Math.round(Math.max(0, p.balance) * rng.range(0.06, 0.14));
+      const death = c.wanted >= 5 && murders >= 2 && rng.chance(0.2);
+      this.applyVerdict(c, p, { minutes, fine, death }, this.npcJudgeName());
+    }
+  }
+
+  // ================================================================== ARABA YOLCULARI
+  seatsOf(model) { return CARS[model]?.seats ?? 4; }
+
+  ride(p, { driverId }) {
+    const { world } = this.ctx;
+    const d = world.players.get(driverId);
+    if (!d?.driving || d === p) return fail('Bu kişi araba sürmüyor.');
+    if (p.inside || p.dead || p.driving) return fail('Şu an binemezsin.');
+    if (Math.hypot(d.x - p.x, d.z - p.z) > 10) return fail('Arabaya yaklaş.');
+    const taken = [...world.players.values()].filter((x) => x.rideWith === d.id).map((x) => x.seat);
+    const seat = [1, 2, 3].slice(0, this.seatsOf(d.driving) - 1).find((s) => !taken.includes(s));
+    if (!seat) return fail('🚗 Arabada boş koltuk yok.');
+    p.rideWith = d.id;
+    p.seat = seat;
+    p.pose = 'drive';
+    p.x = d.x; p.z = d.z; p.rotY = d.rotY;
+    this.say(d, `🚗 ${p.name} arabana bindi.`, 'info', 'door');
+    world.touchPlayer(p);
+    return { ok: true, message: `🚗 ${d.name}'in ${CARS[d.driving].label} arabasına bindin (${seat === 1 ? 'ön' : 'arka'} koltuk).`, sfx: 'door' };
+  }
+
+  leaveCar(p) {
+    if (!p.rideWith) return { ok: true, quiet: true };
+    const d = this.ctx.world.players.get(p.rideWith);
+    p.rideWith = null;
+    p.seat = 0;
+    if (p.pose === 'drive') p.pose = '';
+    if (d) { p.x = d.x + Math.cos(d.rotY) * 3; p.z = d.z - Math.sin(d.rotY) * 3; this.ctx.bus.emit('net:teleport', { playerId: p.id, x: p.x, z: p.z }); }
+    this.ctx.world.touchPlayer(p);
+    return { ok: true, quiet: true };
+  }
+
+  /** Sürücü hareket edince yolcular da onunla gider */
+  carryPassengers(d) {
+    for (const p of this.ctx.world.players.values()) {
+      if (p.rideWith !== d.id) continue;
+      p.x = d.x; p.z = d.z; p.rotY = d.rotY;
+      p.moveBudget = p.maxSpeed;
     }
   }
 
@@ -689,6 +758,7 @@ export class SocietySystem {
     const owned = (p.cars ?? []).find((c) => c.model === model);
     if (!owned) return fail('Bu araba sende yok.');
     if (p.inside) return fail('Önce dışarı çık.');
+    if (p.rideWith) this.leaveCar(p);
     if (p.dead || p.jailedUntil > this.ctx.world.clockHours()) return fail('Şu an süremezsin.');
     p.driving = model;
     p.pose = 'drive';
@@ -701,7 +771,8 @@ export class SocietySystem {
   }
 
   park(p) {
-    const { config } = this.ctx;
+    const { config, world } = this.ctx;
+    for (const x of world.players.values()) if (x.rideWith === p.id) this.leaveCar(x);
     p.driving = null;
     if (p.pose === 'drive') p.pose = '';
     p.maxSpeed = config.player.speed * config.player.sprintMultiplier;

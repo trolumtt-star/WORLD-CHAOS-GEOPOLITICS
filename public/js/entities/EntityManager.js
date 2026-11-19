@@ -186,6 +186,8 @@ function makeMoped() {
   return g;
 }
 
+const SEATS = [[-0.6, -0.4], [0.6, -0.4], [-0.6, -2.2], [0.6, -2.2]];
+
 const WEAPON_MESH = {
   knife: () => { const w = new THREE.Group(); const b = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.5, 0.1), M(0xd0d4d8, 0.3, 0.8)); b.position.y = -0.3; w.add(b); return w; },
   pistol: () => { const w = new THREE.Group(); const b = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.14, 0.42), M(0x1a1a1a, 0.4, 0.5)); b.position.set(0, -0.05, 0.16); const gr = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.22, 0.1), M(0x2b1d12)); gr.position.set(0, -0.12, 0); w.add(b, gr); return w; },
@@ -218,7 +220,7 @@ function animateWalk(g, speed, dt, st = {}) {
 
   if (pose === 'sit' || pose === 'drive') {
     rig.position.y = pose === 'drive' ? 0.35 : -0.28;
-    if (pose === 'drive') { rig.position.x = -0.6; rig.position.z = -0.4; for (const l of [L.lL, L.lR]) { l.hip.rotation.x = -1.4; l.knee.rotation.x = 1.3; } L.aL.sh.rotation.x = L.aR.sh.rotation.x = -1.1; return; }
+    if (pose === 'drive') { const S = SEATS[st.seat ?? 0] ?? SEATS[0]; rig.position.x = S[0]; rig.position.z = S[1]; for (const l of [L.lL, L.lR]) { l.hip.rotation.x = -1.4; l.knee.rotation.x = 1.3; } L.aL.sh.rotation.x = L.aR.sh.rotation.x = -1.1; return; }
     for (const l of [L.lL, L.lR]) { l.hip.rotation.x = -1.5; l.knee.rotation.x = 1.5; }
     L.aL.sh.rotation.x = -0.35; L.aR.sh.rotation.x = -0.35; L.aL.el.rotation.x = -0.5; L.aR.el.rotation.x = -0.5;
     L.head.rotation.y = Math.sin(t * 0.3) * 0.25; // sohbet ederken etrafa bakar
@@ -645,7 +647,7 @@ export class EntityManager {
 
   applyPlayers(list) {
     const seen = new Set();
-    for (const [id, x, z, rotY, pose, weapon, inside, car] of list) {
+    for (const [id, x, z, rotY, pose, weapon, inside, car, rideWith] of list) {
       seen.add(id);
       if (id === this.selfId) continue;
       const e = this.players.get(id);
@@ -653,7 +655,9 @@ export class EntityManager {
       Object.assign(e.target, { x, z, rotY });
       e.pose = POSES[pose] ?? '';
       e.weapon = WEAPON_CODES[weapon] ?? 'fist';
-      this.setCar(e, CAR_CODES[car] ?? '');
+      this.setCar(e, car > 0 ? CAR_CODES[car] ?? '' : '');
+      e.seat = car < 0 ? -car : 0;
+      e.rideWith = rideWith || null;
       if ((inside || 0) !== e.inside) { e.inside = inside || 0; e.g.position.set(x, 0, z); }
     }
   }
@@ -828,7 +832,7 @@ export class EntityManager {
       e.g.rotation.y = lerpAngle(e.g.rotation.y, e.target.rotY, k);
       e.speed = Math.hypot(p.x - ox, p.z - oz) / Math.max(dt, 0.001);
       setWeapon(e.g, e.weapon);
-      animateWalk(e.g, e.pose ? 0 : e.speed, dt, { pose: e.car ? 'drive' : e.pose, attackT: e.attackT, gun: !e.car && (e.weapon === 'pistol' || e.weapon === 'rifle') ? e.weapon : null });
+      animateWalk(e.g, e.pose ? 0 : e.speed, dt, { pose: e.car || e.seat ? 'drive' : e.pose, seat: e.seat, attackT: e.attackT, gun: !e.car && (e.weapon === 'pistol' || e.weapon === 'rifle') ? e.weapon : null });
     }
 
     if (selfGroup) {

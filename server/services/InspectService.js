@@ -310,6 +310,8 @@ function describePlayer({ world }, p, viewer) {
       ['Aranma', p.wanted ? '⭐'.repeat(p.wanted) : 'Temiz'],
       ['Ülke', p.countryName ? `🏳️ ${p.countryName}` : `Vatandaş · ${p.citizenName ?? '—'}`],
     ],
-    actions: viewer && viewer.id !== p.id && !p.dead ? [{ label: '👊 Saldır', type: 'combat:attack', params: { kind: 'player', id: p.id }, style: 'danger' }] : [],
+    actions: viewer && viewer.id !== p.id && !p.dead ? [
+      ...(p.driving ? [{ label: '🚗 Arabasına Bin', type: 'car:ride', params: { driverId: p.id }, style: 'primary' }] : []),
+      { label: '👊 Saldır', type: 'combat:attack', params: { kind: 'player', id: p.id }, style: 'danger' }] : [],
   };
 }

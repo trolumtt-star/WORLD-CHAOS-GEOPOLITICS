@@ -142,6 +142,7 @@ export class Game {
       onConsume: (item) => this.runAction({ type: 'life:consume', params: { item } }),
       onEquip: (weapon) => this.runAction({ type: 'combat:equip', params: { weapon } }),
       onCar: () => this.toggleCar(),
+      onCarState: () => this.updateCarButton(),
       onShoot: () => this.runAction({ type: 'match:shoot', params: {} }),
     });
     this.match = init.match ?? null;
@@ -548,7 +549,7 @@ export class Game {
 
   // ------------------------------------------------------------------ gündelik hayat
   applySelf(s, before) {
-    this.controller.locked = !!s.jailed || !!s.dead || (s.pose === 'sleep' && s.energy < 15);
+    this.controller.locked = (!!s.jailed && !s.myCase) || !!s.dead || (s.pose === 'sleep' && s.energy < 15) || !!s.rideWith || !!s.myCase;
     this.life.set(s);
     if ((s.inside ?? null) !== (before.inside ?? null)) {
       if (s.inside) this.enterInterior(s.inside);
@@ -577,9 +578,38 @@ export class Game {
     this.life?.shootBtn.classList.toggle('hidden', !on);
   }
 
+  /** Yakında sürücüsü olan bir araba varsa ona bin */
+  nearbyRide() {
+    const s = this.ui.self;
+    if (s.driving || s.rideWith || s.inside) return null;
+    const me = this.self.g.position;
+    let best = null, bd = 9;
+    for (const e of this.entities.players.values()) {
+      if (e.id === this.selfId || !e.car || !e.g.visible) continue;
+      const d = Math.hypot(e.g.position.x - me.x, e.g.position.z - me.z);
+      if (d < bd) { bd = d; best = e; }
+    }
+    return best;
+  }
+
+  updateCarButton() {
+    const s = this.ui.self;
+    const b = this.life?.carBtn;
+    if (!b) return;
+    const ride = this.nearbyRide();
+    const mode = s.rideWith ? 'leave' : s.driving ? 'park' : ride ? 'ride' : s.cars?.length && !s.inside ? 'drive' : null;
+    b.classList.toggle('hidden', !mode);
+    b.classList.toggle('on', mode === 'park' || mode === 'leave');
+    b.textContent = { leave: '🚪', park: '🅿️', ride: '🚕', drive: '🚗' }[mode] ?? '🚗';
+    b.title = { leave: 'Arabadan in', park: 'Park et', ride: `${this.roster.get(ride?.id)?.name ?? ''} arabasına bin`, drive: 'Arabana bin' }[mode] ?? '';
+  }
+
   toggleCar() {
     const s = this.ui.self;
+    if (s.rideWith) return this.runAction({ type: 'car:leave', params: {} });
     if (s.driving) return this.runAction({ type: 'car:park', params: {} });
+    const ride = this.nearbyRide();
+    if (ride) return this.runAction({ type: 'car:ride', params: { driverId: ride.id } });
     const car = s.cars?.[0];
     if (!car) return this.ui.toast('🚗 Araban yok. Araba bayisinden al ya da kirala (Telefon › Sahibinden › Vasıta).', 'info');
     return this.runAction({ type: 'car:drive', params: { model: car.model } });
@@ -759,7 +789,8 @@ export class Game {
     const s = this.ui.self;
     const w = s.weapon ?? 'fist';
     return {
-      pose: this.task ? 'work' : (s.pose || ''),
+      seat: s.seat ?? 0,
+      pose: this.task ? 'work' : s.rideWith ? 'drive' : (s.pose || ''),
       attackT: this.selfAttackT,
       gun: w === 'pistol' || w === 'rifle' ? w : null,
       slow: s.energy < 8 ? 0.55 : s.health < 20 ? 0.7 : 1,
@@ -1004,6 +1035,11 @@ export class Game {
     const kit = this.kit;
 
     this.selfAttackT = Math.max(0, this.selfAttackT - dt);
+    // Yolcuysan sürücüyle birlikte git
+    if (this.ui.self.rideWith) {
+      const d = this.entities.getPlayer(this.ui.self.rideWith);
+      if (d) { this.self.g.position.x = d.g.position.x; this.self.g.position.z = d.g.position.z; this.self.g.rotation.y = d.g.rotation.y; }
+    }
     this.updateTask(dt);
     this.controller.update(dt);
     this.entities.selfInside = this.ui.self.inside || 0;
@@ -1057,6 +1093,7 @@ export class Game {
         this.ui.setInteractHint(b ? { name: `${b.name}${b.type !== 'land' && b.type !== 'park' ? ' · 🚪' : ''}` } : null);
       }
       this.updateFoundButton();
+      this.updateCarButton();
     }
     // Açık inceleme panelini canlı tut (stok, kasa değişir)
     this.inspectTimer -= dt;
