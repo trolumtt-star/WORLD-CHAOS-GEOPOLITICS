@@ -125,7 +125,23 @@ export class CameraRig {
     }
   }
 
+  /** Birinci şahıs (TV izlerken): göz konumundan bakış; sürükleyerek etrafa bakılır */
+  setFirstPerson(eye, look) {
+    if (!eye) { this.fp = null; if (this._fpSaved) { this.goalPitch = this._fpSaved.p; this.yaw = this._fpSaved.y; this._fpSaved = null; } return; }
+    this._fpSaved ??= { p: this.goalPitch, y: this.yaw };
+    this.fp = { ...eye };
+    this.yaw = Math.atan2(-(look.x - eye.x), -(look.z - eye.z));
+    this.goalPitch = this.pitch = 0.62;
+  }
+
   update(dt, follow, shake) {
+    if (this.fp) {
+      this.pitch += (this.goalPitch - this.pitch) * Math.min(1, dt * 8);
+      const look = (this.pitch - 0.62) * 0.9;
+      this.camera.position.set(this.fp.x, this.fp.y, this.fp.z);
+      this.camera.lookAt(this.fp.x - Math.sin(this.yaw) * 10, this.fp.y - Math.sin(look) * 10, this.fp.z - Math.cos(this.yaw) * 10);
+      return;
+    }
     const k = 1 - Math.exp(-dt * 8);
     this.target.lerp(follow, Math.min(1, k * 1.5));
     this.distance += (this.goalDistance - this.distance) * k;

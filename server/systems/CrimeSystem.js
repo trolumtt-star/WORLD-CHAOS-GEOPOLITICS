@@ -100,6 +100,8 @@ export class CrimeSystem {
 
   arrestPlayer(p) {
     const { world, config, bus } = this.ctx;
+    // Hakim oyuncu varsa cezayı mahkeme verir
+    if (this.ctx.engine.getSystem('society')?.openCase(p)) return;
     const prison = world.prison;
     const hours = Math.max(2, p.wanted * config.crime.jailHoursPerWanted);
     const fine = Math.round(p.balance * 0.1);

@@ -1,5 +1,6 @@
 import { playerEra } from '../data/tech.js';
 import { POSES, WEAPON_CODES } from '../../shared/interiors.js';
+import { CAR_CODES } from '../../shared/catalogs.js';
 
 const r2 = (n) => Math.round(n * 100) / 100;
 
@@ -67,11 +68,11 @@ export class Player {
   get era() { return playerEra(this); }
 
   toPublic() {
-    return { id: this.id, name: this.name, color: this.color, x: this.x, z: this.z, rotY: this.rotY, title: this.title, era: this.era, countryName: this.countryName };
+    return { id: this.id, name: this.name, color: this.color, x: this.x, z: this.z, rotY: this.rotY, title: this.title, era: this.era, countryName: this.countryName, outfit: this.outfit ?? {} };
   }
 
   toSnapshot() {
-    return [this.id, r2(this.x), r2(this.z), r2(this.rotY), POSES.indexOf(this.pose), WEAPON_CODES.indexOf(this.weapon), this.inside ?? 0];
+    return [this.id, r2(this.x), r2(this.z), r2(this.rotY), POSES.indexOf(this.pose), WEAPON_CODES.indexOf(this.weapon), this.inside ?? 0, this.driving ? CAR_CODES.indexOf(this.driving) : 0];
   }
 
   // Sadece bu oyuncuya giden özel durum
@@ -108,6 +109,8 @@ export class Player {
       weapons: this.weapons, weapon: this.weapon, ammo: this.ammo,
       shift: this.shift ? { buildingId: this.shift.buildingId, done: this.shift.done, task: this.shift.task && { label: this.shift.task.label, spotId: this.shift.task.spotId, secs: this.shift.task.secs } } : null,
       incident: world.incidentFor?.(this) ?? null,
+      followers: this.followers ?? 0,
+      ...(world.societyFor?.(this) ?? {}),
     };
   }
 }

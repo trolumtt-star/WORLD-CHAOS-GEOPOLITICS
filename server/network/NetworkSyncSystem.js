@@ -36,6 +36,11 @@ export class NetworkSyncSystem {
       const p = ctx.world.players.get(playerId);
       if (p?.socketId) this.io.to(p.socketId).emit(EVENTS.NEWS, { ...item, private: true, time: ctx.clock.label() });
     });
+    bus.on('net:room', ({ event, data }) => this.room.emit(event, data));
+    bus.on('net:to', ({ playerId, event, data }) => {
+      const p = ctx.world.players.get(playerId);
+      if (p?.socketId) this.io.to(p.socketId).emit(event, data);
+    });
     bus.on('net:teleport', ({ playerId, x, z, rotY }) => {
       const p = ctx.world.players.get(playerId);
       if (p?.socketId) this.io.to(p.socketId).emit(EVENTS.PLAYER_CORRECTION, { x, z, rotY, teleport: true });

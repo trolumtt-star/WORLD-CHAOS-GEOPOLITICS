@@ -138,8 +138,9 @@ function buildLots(world) {
 }
 
 // Merkez kasaba: 16 parsel, her şey bir arada
-const TOWN = ['police', 'prison', 'hospital', 'bank', 'market', 'market', 'restaurant', 'cafe', 'bar',
-  'factory:food', 'factory:drink', 'factory:steel', 'apartment', 'apartment', 'apartment'];
+const TOWN = ['police', 'prison', 'hospital', 'bank', 'court', 'stadium', 'market', 'market', 'restaurant', 'cafe', 'bar',
+  'clothing', 'car_dealer', 'tech_store', 'gun_shop',
+  'factory:food', 'factory:drink', 'factory:steel', 'apartment', 'apartment', 'apartment', 'house', 'house', 'market'];
 
 function assignTownTypes(lots, rng) {
   const byCenter = [...lots].sort((x, y) => x.r - y.r);
@@ -387,4 +388,27 @@ export function createVillage(world, rng, config, player, { spot: given = null, 
     npcs.push(npc);
   }
   return { hall, buildings: created, npcs };
+}
+
+/** Eski kayıtlarda olmayan devlet binalarını kasabanın hemen dışına ekler (göç) */
+export function ensureTownExtras(world, rng, config) {
+  const need = ['court', 'stadium', 'clothing', 'car_dealer'].filter((t) => ![...world.buildings.values()].some((b) => b.type === t));
+  if (!need.length) return [];
+  const { a, b } = townRange(world, config);
+  const cands = world.tiles.filter((t) => !t.owner && t.terrain !== 'w' && t.terrain !== 'm'
+    && Math.max(Math.max(a - t.i, t.i - b, 0), Math.max(a - t.j, t.j - b, 0)) === 1)
+    .sort((x, y) => Math.abs(x.i - (a + b) / 2) + Math.abs(x.j - (a + b) / 2) - Math.abs(y.i - (a + b) / 2) - Math.abs(y.j - (a + b) / 2));
+  const ctx = { counters: { street: 900 } };
+  const made = [];
+  for (const type of need) {
+    const t = cands.shift();
+    if (!t) break;
+    t.terrain = 'p';
+    world.setTileOwner(t, 'state');
+    const bl = createBuilding(world, rng, config, { i: t.i, j: t.j, x: -world.half + t.i * world.blockSize + world.blockSize / 2, z: -world.half + t.j * world.blockSize + world.blockSize / 2, type, subtype: null }, ctx);
+    world.addBuilding(bl);
+    t.buildingId = bl.id;
+    made.push(bl);
+  }
+  return made;
 }

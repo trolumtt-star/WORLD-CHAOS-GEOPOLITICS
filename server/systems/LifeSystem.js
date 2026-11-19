@@ -1,4 +1,4 @@
-import { JOBS, inHours } from '../data/jobs.js';
+import { JOBS, inHours, wageOf } from '../data/jobs.js';
 import { PRODUCTS } from '../data/products.js';
 import { interiorLayout, interiorOrigin, spotById, entryPoint, JOB_TASKS, WEAPONS } from '../../shared/interiors.js';
 
@@ -178,6 +178,7 @@ export class LifeSystem {
     if (Math.hypot(p.x - b.door.x, p.z - b.door.z) > 18) return fail('Kapıya yaklaş.');
     const ok = this.canEnter(p, b);
     if (!ok.ok) return ok;
+    if (p.driving) this.ctx.engine.getSystem('society')?.park(p);
     const layout = interiorLayout(b.type);
     const o = interiorOrigin(b.id);
     const e = entryPoint(layout);
@@ -447,7 +448,7 @@ export class LifeSystem {
     if (err) return err;
     if (Date.now() - t.givenAt < t.secs * 700) return fail('Daha bitmedi, biraz daha çalış!');
     const b = r.b;
-    const wage = JOBS[b.def.staff.job].wage;
+    const wage = wageOf(b.def.staff.job, this.ctx.config);
     const bonus = Math.max(3, Math.round(wage * 0.6));
     let paid = false;
     if (engine.getSystem('payroll').payWage(this.ctx, b, bonus)) {
@@ -617,6 +618,7 @@ export class LifeSystem {
           if (inc) this.closeIncident(inc);
         } else {
           p.wanted = Math.min(5, p.wanted + 2);
+          world.logCrime?.(p, `Cinayet: ${npc.name}`);
           bus.news('crime', `💀 ${p.name} sokak ortasında ${npc.name}'i öldürdü! Polis alarmda.`);
           msg = `💀 ${npc.name} öldü. Aranma: ${'⭐'.repeat(p.wanted)}`;
           this.callPolice(p);
@@ -624,12 +626,12 @@ export class LifeSystem {
       } else {
         // Saldırıya uğrayan NPC kaçar
         if (!robber && npc.homeId) engine.getSystem('npcBrain').sendTo(npc, { activity: 'home', buildingId: npc.homeId }, this.ctx);
-        if (!robber && p.wanted < 1) { p.wanted = 1; this.callPolice(p); }
+        if (!robber && p.wanted < 1) { p.wanted = 1; this.callPolice(p); world.logCrime?.(p, `Darp: ${npc.name}`); }
       }
     } else if (victim && hit) {
       this.damage(victim, dmg, p, 'saldırı');
       this.say(victim, `🩸 ${p.name} sana saldırıyor! (-${dmg} can)`, 'err', 'hurt');
-      if (victim.dead) p.wanted = Math.min(5, p.wanted + 2);
+      if (victim.dead) { p.wanted = Math.min(5, p.wanted + 2); world.logCrime?.(p, `Cinayet: ${victim.name}`); }
       else if (p.wanted < 1) p.wanted = 1;
     }
     world.touchPlayer(p);

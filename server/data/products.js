@@ -9,5 +9,5 @@ export const PRODUCTS = {
 };
 
 export function wholesalePrice(product, config) {
-  return Math.round(PRODUCTS[product].baseCost * config.economy.wholesaleMarkup * 100) / 100;
+  return Math.round(PRODUCTS[product].baseCost * config.economy.wholesaleMarkup * (config.economy.priceMul ?? 1) * 100) / 100;
 }

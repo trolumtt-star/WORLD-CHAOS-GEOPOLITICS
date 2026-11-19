@@ -1,5 +1,5 @@
 import { interiorLayout } from '../../shared/interiors.js';
-import { JOBS, ACTIVITY_LABELS, inHours } from '../data/jobs.js';
+import { JOBS, ACTIVITY_LABELS, inHours, wageOf } from '../data/jobs.js';
 import { PRODUCTS } from '../data/products.js';
 import { labelOf } from '../data/buildingTypes.js';
 import { UNIT_TYPES } from '../data/military.js';
@@ -141,7 +141,7 @@ function describeBuilding(ctx, b, p) {
       if (p.jobBuildingId === b.id) A('🚪 İşten Ayrıl', 'job:quit', {}, { style: 'ghost' });
       else {
         const job = JOBS[staff.job];
-        A(`💼 Burada Çalış · ${tl(job.wage)}/saat (${hours(job.shift)})`, 'job:apply');
+        A(`💼 Burada Çalış · ${tl(wageOf(staff.job, ctx.config))}/saat (${hours(job.shift)})`, 'job:apply');
       }
     }
     if (def.category === 'commercial') {

@@ -13,7 +13,7 @@ export const CONFIG = {
 
   world: {
     gridSize: 28,   // 28x28 parsel açık dünya (1232 x 1232 birim)
-    townSize: 4,    // merkezdeki tarafsız kasaba (4x4 parsel)
+    townSize: 5,    // merkezdeki tarafsız kasaba (5x5 parsel)
     blockSize: 44,
     roadWidth: 9,
   },

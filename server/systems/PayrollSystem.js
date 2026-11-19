@@ -1,4 +1,4 @@
-import { JOBS, inHours } from '../data/jobs.js';
+import { wageOf, JOBS, inHours } from '../data/jobs.js';
 import { playerAtWork } from './ProductionSystem.js';
 
 /**
@@ -21,9 +21,10 @@ export class PayrollSystem {
       const job = JOBS[npc.job];
       if (!inHours(job.shift, hour)) continue;
       const employer = world.buildings.get(npc.workId);
-      if (this.payWage(ctx, employer, job.wage)) {
-        npc.balance += job.wage;
-        npc.earnedToday += job.wage;
+      const w = wageOf(npc.job, ctx.config);
+      if (this.payWage(ctx, employer, w)) {
+        npc.balance += w;
+        npc.earnedToday += w;
         npc.happiness = Math.min(100, npc.happiness + 0.3);
       } else {
         npc.happiness = Math.max(0, npc.happiness - 4);
@@ -39,7 +40,7 @@ export class PayrollSystem {
     for (const p of world.players.values()) {
       const b = world.buildings.get(p.jobBuildingId);
       if (!b || !b.operational || !playerAtWork(p, b, hour, world)) continue;
-      const wage = JOBS[b.def.staff.job].wage;
+      const wage = wageOf(b.def.staff.job, ctx.config);
       if (this.payWage(ctx, b, wage)) {
         p.balance += wage;
         p.earnedToday += wage;

@@ -9,8 +9,14 @@ export const JOBS = {
   banker:        { label: 'Bankacı',        wage: 15, shift: [9, 17] },
   doctor:        { label: 'Doktor',         wage: 18, shift: [8, 20] },
   guard:         { label: 'Gardiyan',       wage: 11, shift: [6, 22] },
+  judge:         { label: 'Hakim',          wage: 22, shift: [9, 21] },
   unemployed:    { label: 'İşsiz',          wage: 0,  shift: null },
 };
+
+/** Enflasyonlu saatlik ücret (her 3 günde bir artar) */
+export function wageOf(job, config) {
+  return Math.round((JOBS[job]?.wage ?? 0) * (config?.economy?.wageMul ?? 1) * 100) / 100;
+}
 
 export function inHours(range, hour) {
   if (!range) return false;

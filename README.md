@@ -89,6 +89,17 @@ Savaştığın ülkenin **sarayının 60 m çevresine en az 3 asker** sok (savun
 - **🏴 İlhak:** Tüm parseller, binalar ve nüfus senin olur; ordusu dağılır, lideri senin vatandaşın olur (sonra yeniden ülke kurabilir).
 NPC ülkeler de bunu yapar: insan oyuncuyu kukla yapar, birbirlerini çoğunlukla ilhak eder.
 
+## 📱 Faz 4: Telefon, Mahkeme, Stadyum, Arabalar, Banka
+
+- **📱 iPhone tarzı telefon** (sağdaki 📱 ya da P): Mesajlar, Telefon (uzaktan sesli arama), Kamera (oyun içi fotoğraf), ChaosGram (paylaşım + reklam bütçesi çubuğu → görüntülenme, beğeni, dükkâna müşteri), Sipariş (yemek/kıyafet, oyuncu ya da NPC kurye eve getirir), Sahibinden (satılık/kiralık/vasıta), Banka (kredi, ödeme, para gönderme), Bahis, Ekonomi, Garaj, Gardırop, Adalet ve tüm eski menüler.
+- **⚖️ Mahkeme:** Adliye'de hakim ol; tutuklanan oyuncunun cezasına sen karar ver: 0-30 dk hapis, para cezası, idam ya da beraat. 2,5 dk içinde karar verilmezse kanun uygulanır.
+- **👕 Giyim mağazası:** 30 parça (tişört, kapşonlu, deri ceket, takım elbise, forma, elbise, kot, şort, etek, şapka, fötr, kovboy, altın taç, gözlük, kolye, çanta). Herkes ne giydiğini görür.
+- **🏟️ Stadyum:** Her gün 14:00'te maç. Bahis oyna (1/X/2), ya da kadroya gir ve sahada ⚽ Şut butonuyla gol at.
+- **🚗 Arabalar:** Bayiden 8 model satın al ya da 24 saatliğine kirala, 🚗 butonuyla (G) bin ve sür.
+- **📈 Enflasyon:** Her 3 günde bir maaşlar ve fiyatlar birlikte %2,5-5 artar.
+- **📺 TV:** Kanepede TV izlerken kamera koltuktan ekrana geçer; ekranda canlı haberler, ekonomi, sponsorlu paylaşımlar ve maç skoru döner.
+- **Sade arayüz:** Büyük buton ızgarası kalktı, her şey telefonda.
+
 ## 💾 Kalıcı Dünyalar (Supabase)
 
 Dünyalar her dakika ve sunucu kapanırken Supabase'e kaydedilir; boş dünya 10 dk sonra bellekten çıkar ("💤 Uyuyor") ve biri girince geri yüklenir. Sunucu uyurken geçen zaman (en fazla 5 oyun günü) hızlıca simüle edilir. **🌐 Sunucuya Katıl** ekranında tüm dünyalar listelenir; aynı telefondan dönen oyuncu aynı karakterle devam eder.

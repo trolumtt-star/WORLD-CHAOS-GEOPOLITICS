@@ -20,6 +20,7 @@ const KIND_BY_TYPE = {
   market: 'shop', tech_store: 'shop', gun_shop: 'gunshop',
   cafe: 'cafe', restaurant: 'cafe', bar: 'bar',
   factory: 'factory', police: 'police', bank: 'bank', hospital: 'hospital', palace: 'office',
+  court: 'court', clothing: 'clothing', stadium: 'stadium', car_dealer: 'showroom',
 };
 
 export function interiorKind(type) { return KIND_BY_TYPE[type] ?? null; }
@@ -226,6 +227,66 @@ L.office = {
   ],
 };
 
+L.court = {
+  w: 30, d: 24, floor: 0x6b4a2e, wall: 0xf1e6d0, accent: 0x7b1f1f,
+  items: [
+    ['judgeBench', 0, -8.4, 10, 3, 2.6], ['flag', -6.6, -10.8, 1, 1, 6.5], ['flag', 6.6, -10.8, 1, 1, 6.5],
+    ['witness', -8, -3.5, 3, 2.4, 1.6], ['desk', -6, 1.5, 5, 2, 1.6], ['desk', 6, 1.5, 5, 2, 1.6],
+    ['bench', -7, 6.5, 9, 1.2, 1], ['bench', 7, 6.5, 9, 1.2, 1], ['bench', -7, 9, 9, 1.2, 1], ['bench', 7, 9, 9, 1.2, 1],
+  ],
+  spots: [
+    { id: 'bench', tag: 'bench', label: 'Hakim Kürsüsü · Davalar', icon: '⚖️', x: 0, z: -5.8 },
+    { id: 'desk', tag: 'desk', label: 'Dosya Masası', icon: '📁', x: 6, z: 3.6 },
+    { id: 'witness', tag: 'witness', label: 'Sanık Kürsüsü', icon: '🧑‍⚖️', x: -8, z: -1.2 },
+    { id: 'exit', tag: 'exit', label: 'Dışarı Çık', icon: '🚪', x: 0, z: 10.6 },
+  ],
+};
+
+L.clothing = {
+  w: 26, d: 22, floor: 0xe8e0d4, wall: 0xfaf6f0, accent: 0xb03a7a,
+  items: [
+    ['rack', -7, -4, 8, 1.4, 3.6], ['rack', 5, -4, 8, 1.4, 3.6], ['rack', -7, 2, 8, 1.4, 3.6],
+    ['mirror', 12.4, -2, 0.3, 4, 5], ['fitting', 10.5, -8.5, 4, 3, 5], ['counter', 4, 5.5, 7, 2, 1.7, 0xb03a7a], ['register', 2.8, 5.5, 1.4, 1.2, 2.4],
+    ['mannequin', -11, 8, 1, 1, 3], ['mannequin', 11, 8, 1, 1, 3], ['plant', -12, -9.2, 1.2, 1.2, 2.4],
+  ],
+  spots: [
+    { id: 'counter', tag: 'counter', label: 'Kasa · Kıyafetler', icon: '👕', x: 4, z: 7.8 },
+    { id: 'mirror', tag: 'mirror', label: 'Ayna · Gardırobum', icon: '🪞', x: 10.6, z: -2 },
+    { id: 'shelf1', tag: 'shelf', label: 'Askılar', icon: '👔', x: -7, z: -2.2 },
+    { id: 'shelf2', tag: 'shelf', label: 'Askılar', icon: '👔', x: 5, z: -2.2 },
+    { id: 'floor', tag: 'floor', label: 'Zemin', icon: '🧽', x: 0, z: 1 },
+    { id: 'exit', tag: 'exit', label: 'Dışarı Çık', icon: '🚪', x: 0, z: 9.6 },
+  ],
+};
+
+L.showroom = {
+  w: 40, d: 28, floor: 0xdfe3e8, wall: 0xf6f8fa, accent: 0xc0392b,
+  items: [
+    ['carDisplay', -12, -5, 6, 10, 2], ['carDisplay', 0, -5, 6, 10, 2], ['carDisplay', 12, -5, 6, 10, 2],
+    ['desk', 10, 8, 5, 2.2, 1.6], ['computer', 10, 7.6, 1.4, 0.4, 2.6], ['plant', -18, 12, 1.2, 1.2, 2.6], ['plant', 18, 12, 1.2, 1.2, 2.6],
+  ],
+  spots: [
+    { id: 'counter', tag: 'counter', label: 'Satış Danışmanı · Al / Kirala', icon: '🚗', x: 10, z: 10.4 },
+    { id: 'shelf1', tag: 'shelf', label: 'Araç Bakımı', icon: '🧽', x: -12, z: 1.5 },
+    { id: 'shelf2', tag: 'shelf', label: 'Araç Bakımı', icon: '🧽', x: 12, z: 1.5 },
+    { id: 'exit', tag: 'exit', label: 'Dışarı Çık', icon: '🚪', x: 0, z: 12.6 },
+  ],
+};
+
+L.stadium = {
+  w: 76, d: 52, floor: 0x3e3e3e, wall: 0x22303f, accent: 0x2e7d32,
+  items: [
+    ['pitch', 0, -2, 56, 34, 0.05], ['goal', -28.5, -2, 1.5, 7, 2.6], ['goal', 28.5, -2, 1.5, 7, 2.6, null, Math.PI],
+    ['stand', 0, -23, 70, 4, 6], ['stand', -35, -2, 4, 40, 6], ['stand', 35, -2, 4, 40, 6],
+    ['scoreboard', 0, -25.4, 14, 1, 9], ['counter', -20, 20, 8, 2, 1.7, 0x2e7d32],
+  ],
+  spots: [
+    { id: 'counter', tag: 'counter', label: 'Bilet & Bahis Gişesi', icon: '🎟️', x: -20, z: 22.4 },
+    { id: 'pitch', tag: 'pitch', label: 'Saha · Maça Katıl', icon: '⚽', x: 0, z: 17 },
+    { id: 'exit', tag: 'exit', label: 'Dışarı Çık', icon: '🚪', x: 0, z: 24.6 },
+  ],
+};
+
 export function interiorLayout(type) {
   const k = interiorKind(type);
   return k ? { kind: k, ...L[k] } : null;
@@ -284,6 +345,10 @@ export const JOB_TASKS = {
     { tag: 'table', label: 'Toplantıya katıl', secs: 5 },
   ],
   guard: [{ tag: 'cell', label: 'Koğuşları kontrol et', secs: 4 }],
+  judge: [
+    { tag: 'desk', label: 'Dava dosyalarını incele', secs: 4 },
+    { tag: 'bench', label: 'Duruşma tutanağını onayla', secs: 3 },
+  ],
 };
 
 // ---------------------------------------------------------------- silahlar
@@ -294,7 +359,7 @@ export const WEAPONS = {
   rifle:  { label: 'Tüfek',   icon: '🎯', dmg: 45, range: 60, cd: 220, price: 5500, ammo: { price: 150, qty: 30 } },
 };
 export const WEAPON_CODES = ['fist', 'knife', 'pistol', 'rifle'];
-export const POSES = ['', 'sit', 'sleep', 'dead', 'work'];
+export const POSES = ['', 'sit', 'sleep', 'dead', 'work', 'drive'];
 
 // ---------------------------------------------------------------- ülke kurma uygunluğu (istemci butonu için)
 export function canFoundAtTiles(getTile, gridSize, townSize, ci, cj) {

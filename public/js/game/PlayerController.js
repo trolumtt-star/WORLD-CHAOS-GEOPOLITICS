@@ -5,8 +5,8 @@ const SEND_EVERY = 0.05;
 
 /** Yerel oyuncu: kameraya göre hareket, bina çarpışması, yürüme animasyonu, sunucuya 20 Hz konum. */
 export class PlayerController {
-  constructor({ object, rig, controls, getColliders, bounds, speed, sprintMultiplier, onMove, audio, getAnim, onInputWhilePosed }) {
-    Object.assign(this, { object, rig, controls, getColliders, bounds, speed, sprintMultiplier, onMove, audio, getAnim, onInputWhilePosed });
+  constructor({ object, rig, controls, getColliders, bounds, speed, sprintMultiplier, onMove, audio, getAnim, onInputWhilePosed, getDrive }) {
+    Object.assign(this, { object, rig, controls, getColliders, bounds, speed, sprintMultiplier, onMove, audio, getAnim, onInputWhilePosed, getDrive });
     this.outdoorBounds = bounds;
     this.locked = false;
     this.sendTimer = 0;
@@ -18,9 +18,10 @@ export class PlayerController {
     const inp = this.controls.read();
     let speed = 0;
     const anim = this.getAnim?.() ?? {};
-    if (anim.pose && anim.pose !== 'dead' && inp.mag > 0.3) this.onInputWhilePosed?.();
+    const drive = this.getDrive?.() ?? 0;
+    if (anim.pose && anim.pose !== 'dead' && !drive && inp.mag > 0.3) this.onInputWhilePosed?.();
     const slow = anim.slow ?? 1;
-    if (!this.locked && inp.mag > 0.05 && (!anim.pose || inp.mag > 0.3)) {
+    if (!this.locked && inp.mag > 0.05 && (!anim.pose || drive || inp.mag > 0.3)) {
       const yaw = this.rig.yaw;
       const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
       const rx = Math.cos(yaw), rz = -Math.sin(yaw);
@@ -29,7 +30,7 @@ export class PlayerController {
       const len = Math.hypot(mx, mz) || 1;
       mx /= len;
       mz /= len;
-      speed = this.speed * (inp.sprint && slow >= 1 ? this.sprintMultiplier : 1) * inp.mag * slow;
+      speed = drive ? drive * Math.min(1, inp.mag * 1.15) : this.speed * (inp.sprint && slow >= 1 ? this.sprintMultiplier : 1) * inp.mag * slow;
       const p = this.object.position;
       p.x += mx * speed * dt;
       p.z += mz * speed * dt;
@@ -38,10 +39,10 @@ export class PlayerController {
       p.z = Math.max(-this.bounds, Math.min(this.bounds, p.z));
       let d = Math.atan2(mx, mz) - this.object.rotation.y;
       d = Math.atan2(Math.sin(d), Math.cos(d));
-      this.object.rotation.y += d * Math.min(1, dt * 12);
+      this.object.rotation.y += d * Math.min(1, dt * (drive ? 4 : 12));
       this.dirty = true;
     }
-    animateWalk(this.object, anim.pose ? 0 : speed, dt, anim);
+    animateWalk(this.object, anim.pose || drive ? 0 : speed, dt, drive ? { ...anim, pose: 'drive' } : anim);
 
     this.sendTimer += dt;
     if (this.dirty && this.sendTimer >= SEND_EVERY) {

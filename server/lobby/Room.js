@@ -5,7 +5,7 @@ import { createRng } from '../core/rng.js';
 import { EventBus } from '../core/EventBus.js';
 import { GameEngine } from '../core/GameEngine.js';
 import { World } from '../world/World.js';
-import { generateWorld, findFoundingSpot } from '../world/WorldGenerator.js';
+import { generateWorld, findFoundingSpot, ensureTownExtras } from '../world/WorldGenerator.js';
 import { TECHS, techCost, techHours } from '../data/tech.js';
 import { Player } from '../entities/Player.js';
 import { UNIT_TYPES, MISSILE_TYPES } from '../data/military.js';
@@ -34,6 +34,7 @@ import { DiplomacySystem } from '../systems/DiplomacySystem.js';
 import { AirSystem } from '../systems/AirSystem.js';
 import { AiSystem } from '../systems/AiSystem.js';
 import { LifeSystem } from '../systems/LifeSystem.js';
+import { SocietySystem } from '../systems/SocietySystem.js';
 import { interiorLayout, interiorOrigin } from '../../shared/interiors.js';
 
 const COLORS = ['#ff4d4d', '#3ddc84', '#ffd23f', '#a06cff', '#2ec4ff', '#ff8c42', '#ff5fa2', '#00e0b8', '#c0ff3e', '#ffffff'];
@@ -68,7 +69,7 @@ export class Room {
     this.rng = createRng(save ? Math.floor(Math.random() * 1e9) : config.seed);
     this.world = new World(config, this.bus);
     let stats = null;
-    if (save) restoreWorld(this.world, save);
+    if (save) { restoreWorld(this.world, save); ensureTownExtras(this.world, this.rng, config); }
     else stats = generateWorld(this.world, this.rng, config);
 
     // SIRA ÖNEMLİ
@@ -94,6 +95,7 @@ export class Room {
       .use(new TerritorySystem())
       .use(new AiSystem())
       .use(new LifeSystem())
+      .use(new SocietySystem())
       .use(new NetworkSyncSystem(io, this.code));
     this.ctx = this.engine.ctx;
     if (save) {
@@ -250,7 +252,7 @@ export class Room {
       return;
     }
     player.moveBudget -= dist;
-    if (dist > 0.4 && player.pose && player.pose !== 'dead') { player.pose = ''; player.tv = false; world.touchPlayer(player); }
+    if (dist > 0.4 && player.pose && player.pose !== 'dead' && player.pose !== 'drive') { player.pose = ''; player.tv = false; world.touchPlayer(player); }
     if (player.inside) {
       // İç mekânda: odanın duvarları içinde kal
       const b = world.buildings.get(player.inside);
@@ -276,8 +278,11 @@ export class Room {
     if (now - (player._voiceWin ?? 0) > 1000) { player._voiceWin = now; player._voiceN = 0; }
     if (++player._voiceN > 25) return;
     const range = this.config.life.voiceRange;
+    // Telefonla konuşuyorsa karşı taraf her yerden duyar
+    const callee = player.callWith && this.world.players.get(player.callWith);
+    if (callee?.online && callee.socketId) this.io.to(callee.socketId).volatile.emit('voice:in', { id: player.id, d: 4, a: data, call: 1 });
     for (const o of this.world.players.values()) {
-      if (o === player || !o.online || !o.socketId || o.inside !== player.inside) continue;
+      if (o === player || o === callee || !o.online || !o.socketId || o.inside !== player.inside) continue;
       const d = Math.hypot(o.x - player.x, o.z - player.z);
       if (d > range) continue;
       this.io.to(o.socketId).volatile.emit('voice:in', { id: player.id, d: Math.round(d * 10) / 10, a: data });
@@ -336,6 +341,7 @@ export class Room {
       vehicles: [...world.vehicles.values()].map((v) => v.toMeta()),
       missiles: [...world.missiles.values()].map((m) => ({ id: m.id, type: m.type, ownerId: m.ownerId, from: m.from, to: m.to, flightMs: m.flightMs, apex: m.apex, elapsed: now - m.start, pos: missilePos(m, now) })),
       hazards: world.hazards,
+      match: this.engine.getSystem('society')?.matchPublic() ?? null,
       self: player.toPrivate(world),
       ...buildClockPayload(this.ctx),
     };

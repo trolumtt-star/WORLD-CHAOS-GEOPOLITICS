@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { interiorLayout, interiorOrigin } from '../../shared/interiors.js';
 import { textSprite, glowTexture } from './geometry.js';
+import { makeCar, makeCharacter } from '../entities/EntityManager.js';
+import { CARS, CLUBS } from '../../shared/catalogs.js';
+let carDisplayIdx = 0;
 
 /**
  * Bina içi: sunucuyla aynı yerleşim dosyasından (shared/interiors.js) üretilir.
@@ -131,6 +134,71 @@ const ITEMS = {
   lockers: (g, w, d, h) => { box(g, w, h, d, MAT(0x5d6d7e, { metalness: 0.5 }), 0, h / 2, 0); for (let i = 0; i < 4; i++) box(g, 0.04, h - 0.3, 0.04, MAT(0x2c3e50), -w / 2, h / 2, -d / 2 + (i + 0.5) * (d / 4)); },
   vault: (g, w, d, h) => { box(g, w, h, d, MAT(0x7f8c8d, { metalness: 0.7, roughness: 0.3 }), 0, h / 2, 0); const door = cyl(g, h * 0.38, h * 0.38, 0.4, MAT(0xbdc3c7, { metalness: 0.9, roughness: 0.2 }), 0, h / 2, d / 2 + 0.1, 24); door.rotation.x = Math.PI / 2; },
   curtain: (g, w, d, h) => box(g, w, h, d, MAT(0xaed6f1, { transparent: true, opacity: 0.8 }), 0, h / 2 + 0.3, 0),
+  judgeBench: (g, w, d, h) => { box(g, w, h, d, MAT(0x4a2c17), 0, h / 2, 0); box(g, w + 0.2, 0.15, d + 0.2, MAT(0x2b1a0e), 0, h, 0); box(g, w * 0.3, 3.4, 0.4, MAT(0x3a2412), 0, h + 1.7, -d / 2 + 0.2); cyl(g, 0.12, 0.2, 0.5, MAT(0x8a5a33), 1.6, h + 0.3, 0); const s = textSprite('⚖️ T.C. ADALET', { color: '#ffd34d', border: '#ffd34d', scale: 0.6 }); s.position.set(0, h + 4.4, -d / 2); g.add(s); },
+  witness: (g, w, d, h) => { box(g, w, h, d, MAT(0x6b4a2e), 0, h / 2, 0); box(g, w, 0.12, d, MAT(0x3a2412), 0, h, 0); },
+  rack: (g, w, d, h) => {
+    cyl(g, 0.05, 0.05, w, MAT(0xaaaaaa, { metalness: 0.8 }), 0, h, 0, 6).rotation.z = Math.PI / 2;
+    for (const x of [-w / 2, w / 2]) cyl(g, 0.06, 0.06, h, MAT(0xaaaaaa, { metalness: 0.8 }), x, h / 2, 0, 6);
+    for (let i = 0; i < Math.floor(w / 0.55); i++) { const c = PRODUCT_COLORS[(i * 3) % 8]; box(g, 0.45, 1.6, 0.9, MAT(c), -w / 2 + 0.4 + i * 0.55, h - 0.95, 0, { shadow: false }); }
+  },
+  mirror: (g, w, d, h) => { box(g, w, h, d, MAT(0xc9a227, { metalness: 0.8 }), 0, h / 2 + 0.3, 0); box(g, w + 0.02, h - 0.4, d - 0.4, MAT(0xdff3ff, { metalness: 1, roughness: 0.05 }), -0.03, h / 2 + 0.3, 0, { shadow: false }); },
+  fitting: (g, w, d, h) => { box(g, 0.15, h, d, MAT(0x6b4a2e), -w / 2, h / 2, 0); box(g, w, h, 0.15, MAT(0x6b4a2e), 0, h / 2, -d / 2); box(g, w, h * 0.8, 0.05, MAT(0xb03a7a, { transparent: true, opacity: 0.85 }), 0, h * 0.45, d / 2); },
+  mannequin: (g) => { const m = makeCharacter(0xb03a7a, { seed: 11, outfit: { top: 'suit_white', hat: 'fedora' } }); m.position.y = 0.3; g.add(m); cyl(g, 0.6, 0.6, 0.3, MAT(0x333333), 0, 0.15, 0, 16); },
+  carDisplay: (g, w, d, h) => {
+    cyl(g, w * 0.75, w * 0.75, 0.3, MAT(0x2c3e50, { metalness: 0.6, roughness: 0.3 }), 0, 0.15, 0, 28);
+    const ids = Object.keys(CARS);
+    const id = ids[(carDisplayIdx++) % ids.length];
+    const car = makeCar(id);
+    car.position.y = 0.3;
+    car.rotation.y = 0.6;
+    car.userData.spin = true;
+    g.add(car);
+    const t = textSprite(`${CARS[id].label}`, { color: '#ffffff', border: '#c0392b', scale: 0.55 });
+    t.position.set(0, 5, 0);
+    g.add(t);
+  },
+  pitch: (g, w, d) => {
+    const f = new THREE.Mesh(new THREE.PlaneGeometry(w, d), MAT(0x2e8b3a, { roughness: 1 }));
+    f.rotation.x = -Math.PI / 2; f.position.y = 0.03; f.receiveShadow = true; g.add(f);
+    for (let i = 0; i < 8; i++) { const st = new THREE.Mesh(new THREE.PlaneGeometry(w / 8, d), MAT(0x37a043, { roughness: 1 })); st.rotation.x = -Math.PI / 2; st.position.set(-w / 2 + w / 16 + i * (w / 8), 0.035, 0); if (i % 2) g.add(st); }
+    const line = MAT(0xffffff, { emissive: 0xffffff, emissiveIntensity: 0.3 });
+    for (const [lw, ld, x, z] of [[w, 0.25, 0, -d / 2], [w, 0.25, 0, d / 2], [0.25, d, -w / 2, 0], [0.25, d, w / 2, 0], [0.25, d, 0, 0]]) { const l = new THREE.Mesh(new THREE.PlaneGeometry(lw, ld), line); l.rotation.x = -Math.PI / 2; l.position.set(x, 0.05, z); g.add(l); }
+    const c = new THREE.Mesh(new THREE.RingGeometry(5, 5.3, 40), line); c.rotation.x = -Math.PI / 2; c.position.y = 0.05; g.add(c);
+  },
+  goal: (g, w, d, h) => { const m = MAT(0xffffff); for (const z of [-d / 2, d / 2]) cyl(g, 0.12, 0.12, h, m, 0, h / 2, z, 8); const bar = cyl(g, 0.12, 0.12, d, m, 0, h, 0, 8); bar.rotation.x = Math.PI / 2; box(g, w, h, d, MAT(0xffffff, { transparent: true, opacity: 0.18 }), -w / 2, h / 2, 0, { shadow: false }); void m; },
+  stand: (g, w, d, h) => {
+    const rows = 5;
+    for (let r = 0; r < rows; r++) {
+      const along = w > d;
+      const off = (r - rows / 2) * (along ? d / rows : w / rows);
+      box(g, along ? w : w / rows, 0.8 + r * 1.1, along ? d / rows : d, MAT(r % 2 ? 0x1e88e5 : 0xd62828), along ? 0 : off, (0.8 + r * 1.1) / 2, along ? off : 0, { shadow: false });
+    }
+    // Seyirciler: renkli küçük kafalar
+    const n = Math.floor(Math.max(w, d) / 1.4) * 3;
+    const geo = new THREE.SphereGeometry(0.32, 6, 4);
+    const crowd = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ color: 0xffffff }), n);
+    const m4 = new THREE.Matrix4(), col = new THREE.Color();
+    for (let i = 0; i < n; i++) {
+      const r = i % 3 + 1, t = Math.floor(i / 3) / (n / 3);
+      const along = w > d;
+      const L = (along ? w : d) * (t - 0.5);
+      const off = (r - rows / 2) * (along ? d / rows : w / rows);
+      m4.makeTranslation(along ? L : off, 1.4 + r * 1.1, along ? off : L);
+      crowd.setMatrixAt(i, m4);
+      crowd.setColorAt(i, col.setHSL(Math.random(), 0.6, 0.55));
+    }
+    crowd.userData.crowd = true;
+    g.add(crowd);
+  },
+  scoreboard: (g, w, d, h) => {
+    box(g, 0.6, h, 0.6, MAT(0x333333), -w / 2 + 1, h / 2, 0); box(g, 0.6, h, 0.6, MAT(0x333333), w / 2 - 1, h / 2, 0);
+    const c = document.createElement('canvas'); c.width = 512; c.height = 128;
+    const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+    const scr = new THREE.Mesh(new THREE.PlaneGeometry(w, 3.5), new THREE.MeshBasicMaterial({ map: tex }));
+    scr.position.set(0, h - 1.5, 0.35);
+    scr.userData.scoreboard = { canvas: c, tex };
+    g.add(scr);
+  },
   cabinet: (g, w, d, h) => { box(g, w, h, d, MAT(0xffffff), 0, h / 2, 0); box(g, 0.05, 0.5, 0.5, MAT(0xc0392b), -w / 2, h * 0.75, 0, { shadow: false }); },
 };
 
@@ -228,7 +296,10 @@ export class InteriorRenderer {
         const rot = Math.abs(Math.sin(ry)) > 0.7;
         this.colliders.push({ x: o.x + x, z: o.z + z, hw: (rot ? id : iw) / 2, hd: (rot ? iw : id) / 2 });
       }
-      if (kind === 'tv') this.tvScreen = ig.children.find((c) => c.userData.screen);
+      if (kind === 'tv') { this.tvScreen = ig.children.find((c) => c.userData.screen); this.tvPos = { x: o.x + x, z: o.z + z, y: ih - 0.2 }; }
+      if (kind === 'scoreboard') this.scoreboard = ig.children.find((c) => c.userData.scoreboard)?.userData.scoreboard;
+      if (kind === 'pitch') this.pitch = { x: o.x + x, z: o.z + z, w: iw, d: id };
+      ig.traverse((c) => { if (c.userData.spin) (this.spinners ??= []).push(c); });
     }
     // Duvar çarpışmaları
     const T = 2;
@@ -266,6 +337,60 @@ export class InteriorRenderer {
 
     this.group = g;
     this.scene.add(g, this.light);
+    if (this.pitch) this.setupMatch(g, o);
+  }
+
+  // ---- stadyum: 10 futbolcu + top, sunucudaki skora göre canlanır
+  setupMatch(g, o) {
+    this.footballers = [];
+    this.ball = new THREE.Mesh(new THREE.SphereGeometry(0.45, 12, 10), MAT(0xffffff));
+    this.ball.position.set(this.pitch.x - o.x, 0.45, this.pitch.z - o.z);
+    this.ball.castShadow = true;
+    g.add(this.ball);
+    this.ballTarget = { x: 0, z: 0 };
+    this.matchOrigin = o;
+  }
+
+  setMatch(match) {
+    if (!this.pitch || !this.group) return;
+    this.match = match;
+    const want = match && match.status === 'live' ? 10 : 0;
+    if (this.footballers.length === want && this.matchTeams === `${match?.home}-${match?.away}`) return;
+    for (const f of this.footballers) this.group.remove(f.g);
+    this.footballers = [];
+    this.matchTeams = `${match?.home}-${match?.away}`;
+    if (!want) return;
+    const P = this.pitch, o = this.matchOrigin;
+    for (let i = 0; i < 10; i++) {
+      const side = i < 5 ? 0 : 1;
+      const club = CLUBS[side ? match.away : match.home];
+      const ch = makeCharacter(club.color, { seed: i * 31 + 5, pants: club.color2, outfit: {} });
+      const k = i % 5;
+      const home = { x: (side ? 1 : -1) * (k === 0 ? P.w * 0.45 : P.w * (0.12 + (k % 2) * 0.18)), z: (k - 2) * P.d * 0.18 };
+      ch.position.set(P.x - o.x + home.x, 0, P.z - o.z + home.z);
+      this.group.add(ch);
+      this.footballers.push({ g: ch, side, keeper: k === 0, home, speed: 0 });
+    }
+  }
+
+  goalFx(side) {
+    if (!this.pitch || !this.ball) return;
+    this.ballTarget = { x: (side ? -1 : 1) * (this.pitch.w / 2 + 0.5), z: (Math.random() - 0.5) * 4, goal: 1.2 };
+  }
+
+  drawScoreboard(match, clubName) {
+    const sb = this.scoreboard;
+    if (!sb) return;
+    const x = sb.canvas.getContext('2d');
+    x.fillStyle = '#0b0f17'; x.fillRect(0, 0, 512, 128);
+    x.fillStyle = '#ffd34d'; x.font = 'bold 30px sans-serif'; x.textAlign = 'center';
+    if (!match) { x.fillText('KAOS ARENA', 256, 75); sb.tex.needsUpdate = true; return; }
+    const min = match.status === 'live' && match.startedAt ? Math.min(90, Math.floor((Date.now() - match.startedAt) / 1000)) : match.status === 'done' ? 90 : 0;
+    x.fillStyle = '#ffffff'; x.font = 'bold 26px sans-serif';
+    x.fillText(`${clubName(match.home)}  ${match.score[0]} - ${match.score[1]}  ${clubName(match.away)}`, 256, 60);
+    x.fillStyle = match.status === 'live' ? '#3ddc84' : '#aaaaaa'; x.font = 'bold 22px sans-serif';
+    x.fillText(match.status === 'live' ? `CANLI · ${min}'` : match.status === 'done' ? 'MAÇ SONU' : 'BUGÜN 14:00', 256, 100);
+    sb.tex.needsUpdate = true;
   }
 
   setTask(spotId) {
@@ -300,6 +425,31 @@ export class InteriorRenderer {
 
   update(dt, night) {
     if (!this.group) return;
+    if (this.spinners) for (const c of this.spinners) c.rotation.y += dt * 0.3;
+    if (this.ball && this.footballers?.length) {
+      const P = this.pitch, o = this.matchOrigin;
+      const bx = this.ball.position.x, bz = this.ball.position.z;
+      const t = this.ballTarget;
+      if (t.goal > 0) t.goal -= dt;
+      else if (Math.hypot(t.x - (bx - (P.x - o.x)), t.z - (bz - (P.z - o.z))) < 1.5 || Math.random() < dt * 0.6) {
+        this.ballTarget = { x: (Math.random() - 0.5) * P.w * 0.8, z: (Math.random() - 0.5) * P.d * 0.8, goal: 0 };
+      }
+      const tx = P.x - o.x + this.ballTarget.x, tz = P.z - o.z + this.ballTarget.z;
+      const k = Math.min(1, dt * (this.ballTarget.goal > 0 ? 4 : 1.6));
+      this.ball.position.x += (tx - bx) * k;
+      this.ball.position.z += (tz - bz) * k;
+      this.ball.rotation.x += dt * 6;
+      for (const f of this.footballers) {
+        const gx = f.keeper ? P.x - o.x + f.home.x : (this.ball.position.x * 0.7 + (P.x - o.x + f.home.x) * 0.3);
+        const gz = f.keeper ? P.z - o.z + Math.max(-4, Math.min(4, this.ball.position.z - (P.z - o.z))) : (this.ball.position.z * 0.6 + (P.z - o.z + f.home.z) * 0.4);
+        const dx = gx - f.g.position.x, dz = gz - f.g.position.z;
+        const d = Math.hypot(dx, dz);
+        const sp = Math.min(d, dt * 9);
+        if (d > 0.3) { f.g.position.x += (dx / d) * sp; f.g.position.z += (dz / d) * sp; f.g.rotation.y = Math.atan2(dx, dz); }
+        f.speed = sp / Math.max(dt, 0.001);
+        animateFootballer(f.g, f.speed, dt);
+      }
+    }
     if (this.taskMarker.visible) {
       this.taskMarker.children[0].rotation.z += dt * 2;
       this.taskMarker.children[1].position.y = 3.6 + Math.sin(performance.now() / 200) * 0.3;
@@ -323,6 +473,16 @@ export class InteriorRenderer {
     this.layout = null;
     this.colliders = [];
     this.tvScreen = null;
+    this.tvPos = null;
     this.buildingId = null;
+    this.pitch = null;
+    this.footballers = [];
+    this.ball = null;
+    this.scoreboard = null;
+    this.spinners = null;
+    this.matchTeams = null;
   }
 }
+
+import { animateWalk } from '../entities/EntityManager.js';
+function animateFootballer(g, speed, dt) { animateWalk(g, speed, dt, {}); }

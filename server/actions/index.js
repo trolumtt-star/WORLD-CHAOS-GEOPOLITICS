@@ -33,6 +33,7 @@ function pay(ctx, player, amount) {
 const NEED_COUNTRY = '🏳️ Önce kendi ülkeni kurmalısın! Vatandaşken ordu, teknoloji ve toprak yönetemezsin. Sınırlardan uzak boş bir bölgeye yürü, ÜLKE KUR butonu çıkacak.';
 const needCountry = (p) => (p.village ? null : fail(NEED_COUNTRY));
 const life = (ctx) => ctx.engine.getSystem('life');
+const soc = (ctx) => ctx.engine.getSystem('society');
 
 function nearDoor(player, b, dist = 24) {
   return Math.hypot(player.x - b.door.x, player.z - b.door.z) <= dist;
@@ -317,6 +318,43 @@ export const ACTIONS = {
   'combat:equip'(ctx, p, { weapon }) { return life(ctx).equip(p, String(weapon)); },
   'police:arrest'(ctx, p, { npcId }) { return life(ctx).arrest(p, String(npcId)); },
 
+  // ---------------- TOPLUM (mahkeme, maç, banka, telefon, sosyal, sipariş, giyim, araba) ----------------
+  'court:verdict'(ctx, p, params) { return soc(ctx).verdict(p, params); },
+  'match:bet'(ctx, p, params) { return soc(ctx).bet(p, params); },
+  'match:join'(ctx, p, params) { return soc(ctx).joinTeam(p, params); },
+  'match:shoot'(ctx, p) { return soc(ctx).shoot(p); },
+  'bank:loan'(ctx, p, params) { return soc(ctx).loan(p, params); },
+  'bank:repay'(ctx, p, params) { return soc(ctx).repay(p, params); },
+  'bank:transfer'(ctx, p, params) { return soc(ctx).transfer(p, params); },
+  'phone:msg'(ctx, p, params) { return soc(ctx).message(p, params); },
+  'phone:inbox'(ctx, p) { return soc(ctx).inbox(p); },
+  'phone:call'(ctx, p, params) { return soc(ctx).call(p, params); },
+  'phone:answer'(ctx, p, params) { return soc(ctx).answer(p, params); },
+  'phone:hangup'(ctx, p) { return soc(ctx).hangup(p); },
+  'social:post'(ctx, p, params) { return soc(ctx).post(p, params); },
+  'social:feed'(ctx) { return soc(ctx).feed(); },
+  'social:like'(ctx, p, params) { return soc(ctx).like(p, params); },
+  'order:create'(ctx, p, params) { return soc(ctx).order(p, params); },
+  'order:accept'(ctx, p, params) { return soc(ctx).acceptOrder(p, params); },
+  'order:step'(ctx, p) { return soc(ctx).courierStep(p); },
+  'order:list'(ctx, p) {
+    const S = ctx.world.society;
+    return { ok: true, quiet: true, jobs: S.orders.filter((o) => o.status === 'waiting' && o.buyerId !== p.id).map((o) => soc(ctx).orderPublic(o)) };
+  },
+  'outfit:buy'(ctx, p, params) { return soc(ctx).buyOutfit(p, params); },
+  'outfit:wear'(ctx, p, params) { return soc(ctx).wear(p, params); },
+  'car:buy'(ctx, p, params) { return soc(ctx).buyCar(p, params); },
+  'car:drive'(ctx, p, params) { return soc(ctx).drive(p, params); },
+  'car:park'(ctx, p) { return soc(ctx).park(p); },
+  'market:listings'(ctx) {
+    const { world } = ctx;
+    const items = [...world.buildings.values()].filter((b) => b.forSale && b.operational !== false).slice(0, 80).map((b) => ({ id: b.id, name: b.name, type: b.type, price: b.salePrice, x: b.x, z: b.z, rent: b.rentPerResident || 0 }));
+    const rentals = [...world.buildings.values()].filter((b) => b.category === 'residential' && b.rentPerResident > 0).slice(0, 30).map((b) => ({ id: b.id, name: b.name, rent: b.rentPerResident, free: Math.max(0, (b.capacity ?? 0) - b.residentIds.length) }));
+    const shops = [...world.buildings.values()].filter((b) => b.operational && world.isOpen(b) && (['market', 'cafe', 'restaurant'].includes(b.type) || b.type === 'clothing'))
+      .map((b) => ({ id: b.id, name: b.name, type: b.type, stock: Object.fromEntries(Object.entries(b.stock).filter(([, s]) => s.sell).map(([k, s]) => [k, { price: s.price, qty: Math.floor(s.qty) }])) }));
+    return { ok: true, quiet: true, items, rentals, shops, mul: ctx.world.society?.econ.mul ?? 1 };
+  },
+
   // ---------------- SUÇ ----------------
   'crime:rob'(ctx, p, { buildingId }) {
     const { world, rng, bus, config, engine } = ctx;
@@ -331,6 +369,7 @@ export const ACTIONS = {
     b.balance -= steal;
     p.balance += steal;
     p.wanted = Math.min(5, p.wanted + 2);
+    world.logCrime?.(p, `Silahlı soygun: ${b.name}`);
     b.crimeHeat += 2;
     world.touchPlayer(p);
     bus.news('crime', `🚨 ${b.name} silahlı soyguna uğradı! Şüpheli: ${p.name}`);

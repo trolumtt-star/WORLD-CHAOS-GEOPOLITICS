@@ -51,6 +51,7 @@ export function serializeRoom(room) {
       ids: world.ids,
       hazards: world.hazards,
       casualties: world.casualties ?? {},
+      society: world.society ? { ...world.society, posts: (world.society.posts ?? []).slice(0, 12), messages: (world.society.messages ?? []).slice(-120) } : null,
       wars: world.wars,
       justifications: world.justifications,
       tiles: world.tiles,
@@ -81,6 +82,7 @@ export function restoreWorld(world, s) {
   world.ids = w.ids;
   world.hazards = w.hazards ?? [];
   world.casualties = w.casualties ?? {};
+  if (w.society) world.society = w.society;
   world.wars = w.wars instanceof Map ? w.wars : new Map();
   world.justifications = w.justifications instanceof Map ? w.justifications : new Map();
   world.tiles = w.tiles.map((t) => ({ ...t, exploredBy: t.exploredBy instanceof Set ? t.exploredBy : new Set() }));
@@ -110,6 +112,9 @@ export function restoreWorld(world, s) {
     p.dead = false;
     p.shift = null;
     p.tv = false;
+    p.callWith = null;
+    p.callPending = null;
+    if (p.driving) { p.driving = null; p.maxSpeed = world.config.player.speed * world.config.player.sprintMultiplier; }
   }
   world.dirtyBuildings.clear();
   world.dirtyPlayers.clear();

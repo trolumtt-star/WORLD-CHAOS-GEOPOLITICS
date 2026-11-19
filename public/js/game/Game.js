@@ -15,6 +15,8 @@ import { LifeUI } from '../ui/LifeUI.js';
 import { VoiceChat } from '../net/VoiceChat.js';
 import { setWeapon } from '../entities/EntityManager.js';
 import { WEAPONS, canFoundAtTiles } from '../../shared/interiors.js';
+import { PhoneUI } from '../ui/PhoneUI.js';
+import { OUTFITS, CARS, CLUBS, priceOf } from '../../shared/catalogs.js';
 
 /** Bir oyun oturumu: sahne + ağ olayları + arayüz + döngü. */
 export class Game {
@@ -82,6 +84,8 @@ export class Game {
         if (code === 'KeyQ') this.cycleWeapon();
         if (code === 'KeyV') this.toggleMic();
         if (code === 'KeyI') this.life.openBag();
+        if (code === 'KeyP') this.phone.toggle();
+        if (code === 'KeyG') this.toggleCar();
         if (code === 'Equal' || code === 'NumpadAdd') this.rig.zoomBy(0.8);
         if (code === 'Minus' || code === 'NumpadSubtract') this.rig.zoomBy(1.25);
       },
@@ -92,6 +96,7 @@ export class Game {
       controls: this.controls,
       getColliders: () => (this.interior.active ? this.interior.colliders : this.city.colliders),
       getAnim: () => this.selfAnim(),
+      getDrive: () => (this.ui.self.driving ? CARS[this.ui.self.driving]?.speed ?? 0 : 0),
       onInputWhilePosed: () => this.standUp(),
       bounds: init.world.half + init.world.roadWidth,
       speed: init.config.playerSpeed,
@@ -121,6 +126,7 @@ export class Game {
         nameOf: (id) => this.roster.get(id)?.countryName ?? this.roster.get(id)?.name ?? id,
         myUnitCount: () => this.myUnits().length,
         onSheetClosed: () => { this.inspecting = null; },
+        onPhone: () => this.phone.toggle(),
       },
     });
     this.life = new LifeUI(this.ui, {
@@ -135,7 +141,33 @@ export class Game {
       onStand: () => this.standUp(true),
       onConsume: (item) => this.runAction({ type: 'life:consume', params: { item } }),
       onEquip: (weapon) => this.runAction({ type: 'combat:equip', params: { weapon } }),
+      onCar: () => this.toggleCar(),
+      onShoot: () => this.runAction({ type: 'match:shoot', params: {} }),
     });
+    this.match = init.match ?? null;
+    this.phone = new PhoneUI(app.ui, {
+      ui: this.ui,
+      sfx: (n) => this.audio.play(n),
+      action: (type, params) => this.runAction({ type, params }),
+      runAction: (a) => this.runAction(a),
+      roster: () => [...this.roster.values()],
+      selfId: () => this.selfId,
+      toast: (t, k) => this.ui.toast(t, k),
+      confirm: (t) => this.ui.confirm(t),
+      setBadge: (n) => this.ui.setPhoneBadge(n),
+      onProperties: () => this.openProperties(),
+      onBag: () => this.life.openBag(),
+      onMenu: () => this.openMenu(),
+      showOnMap: (pos) => this.showOnMap(pos),
+      showBuildingType: (t) => this.showBuildingType(t),
+      ensureMic: () => { if (!this.voice.enabled) this.toggleMic(); },
+      takePhoto: () => this.takePhoto(),
+      flash: () => { const f = el('div', { class: 'photo-flash' }); document.body.append(f); setTimeout(() => f.remove(), 400); },
+      myShops: () => [...this.city.entries.values()].map((e) => e.data).filter((b) => b.ownerId === this.selfId && this.init.catalog.buildings[b.type]?.category === 'commercial'),
+      icon: (t) => this.init.catalog.buildings[t]?.icon ?? '🏠',
+      hourNow: () => (this.clockBase.day - 1) * 24 + this.clockBase.hour,
+    });
+    this.phone.setMatch(this.match);
     this.voice = new VoiceChat({
       audio: this.audio,
       range: init.config.voiceRange ?? 45,
@@ -223,6 +255,25 @@ export class Game {
       this.controller.applyCorrection(x, z, teleport ? rotY : undefined);
       if (teleport) this.rig.snap(this.self.g.position);
     });
+    this.on('match:update', (m) => {
+      this.match = m;
+      this.phone.setMatch(m);
+      this.interior.setMatch?.(m);
+      this.refreshShootBtn();
+    });
+    this.on('social:new', (p) => {
+      this.lastAd = p.boost ? p : this.lastAd;
+      this.socialFeed = [p, ...(this.socialFeed ?? [])].slice(0, 10);
+      if (p.authorId !== this.selfId) this.ui.toast(`📸 ${p.author} paylaştı${p.boost ? ' (sponsorlu)' : ''}: ${p.caption.slice(0, 40)}`, 'info');
+    });
+    this.on('player:look', ({ id, outfit }) => this.entities.setOutfit(id, outfit));
+    this.on('phone:msg', (m) => this.phone.onMessage(m));
+    this.on('phone:ring', (r) => this.phone.incoming(r));
+    this.on('phone:call', (c) => {
+      if (c.state === 'on') { this.ui.toast(`📞 ${c.name} açtı! Konuşabilirsiniz 🎙️`, 'ok'); if (!this.voice.enabled) this.toggleMic(); }
+      else if (c.state === 'declined') this.ui.toast(`📵 ${c.name} meşgule attı.`, 'warn');
+      else this.ui.toast(`📵 ${c.name} görüşmeyi kapattı.`, 'info');
+    });
     this.on('voice:in', (m) => {
       const e = this.entities.getPlayer(m.id);
       this.voice.receive(m, e?.g.position);
@@ -275,6 +326,8 @@ export class Game {
         else if (f.t === 'built') this.effects.built(f.x, f.z);
         else if (f.t === 'punch' || f.t === 'gun') this.combatFx(f);
         else if (f.t === 'robber') this.entities.setRobber(f.id, !!f.on);
+        else if (f.t === 'goal') { this.interior.goalFx?.(f.side); if (this.interior.pitch) { this.audio.play('success', { important: true }); this.effects.built(this.self.g.position.x, this.self.g.position.z); } }
+        else if (f.t === 'kick') { const e = this.entities.getPlayer(f.by); if (e) e.attackT = 0.3; }
       }
     });
     this.on(E.MISSILE, (m) => {
@@ -509,6 +562,159 @@ export class Game {
     if (s.incident && !before.incident) this.audio.play('siren');
     if (s.tv && !before.tv) this.interior.setTv(['📺 HABERLER', this.ui.newsLog[0]?.text?.slice(0, 30) ?? 'Şehirde bugün']);
     this.incidentNpc = s.incident?.npcId ?? null;
+    this.phone.setSelf({ ...this.ui.self });
+    const me = this.entities.getPlayer(this.selfId);
+    if (me) this.entities.setCar(me, s.driving ?? '');
+    if (s.tv && !before.tv) this.enterTv();
+    if (!s.tv && before.tv) { this.rig.setFirstPerson(null); this.self.g.visible = true; }
+    if (s.outfit && JSON.stringify(s.outfit) !== JSON.stringify(before.outfit ?? {}) && before.outfit !== undefined) this.entities.setOutfit(this.selfId, s.outfit);
+    this.refreshShootBtn();
+  }
+
+  refreshShootBtn() {
+    const M = this.match, s = this.ui.self;
+    const on = M?.status === 'live' && (M.roster.h.includes(this.selfId) || M.roster.a.includes(this.selfId)) && this.city.get(s.inside)?.type === 'stadium';
+    this.life?.shootBtn.classList.toggle('hidden', !on);
+  }
+
+  toggleCar() {
+    const s = this.ui.self;
+    if (s.driving) return this.runAction({ type: 'car:park', params: {} });
+    const car = s.cars?.[0];
+    if (!car) return this.ui.toast('🚗 Araban yok. Araba bayisinden al ya da kirala (Telefon › Sahibinden › Vasıta).', 'info');
+    return this.runAction({ type: 'car:drive', params: { model: car.model } });
+  }
+
+  showOnMap(pos) {
+    if (!pos) return;
+    this.marker.position.set(pos.x, 0.6, pos.z);
+    this.marker.scale.setScalar(3);
+    this.marker.visible = true;
+    clearTimeout(this._hintT);
+    this._hintT = setTimeout(() => { if (!this.targeting) this.marker.visible = false; }, 60000);
+    const p = this.self.g.position;
+    const d = Math.round(Math.hypot(pos.x - p.x, pos.z - p.z));
+    const dir = Math.atan2(pos.x - p.x, pos.z - p.z);
+    const names = ['güney', 'güneydoğu', 'doğu', 'kuzeydoğu', 'kuzey', 'kuzeybatı', 'batı', 'güneybatı'];
+    this.ui.toast(`📍 Hedef işaretlendi: ${names[((Math.round(dir / (Math.PI / 4)) % 8) + 8) % 8]} yönünde ~${d} m (kırmızı halka)`, 'info');
+  }
+
+  showBuildingType(type) {
+    const p = this.self.g.position;
+    let best = null, bd = Infinity;
+    for (const { data: b } of this.city.entries.values()) {
+      if (b.type !== type) continue;
+      const d = Math.hypot(b.x - p.x, b.z - p.z);
+      if (d < bd) { bd = d; best = b; }
+    }
+    if (best) this.showOnMap(best.door); else this.ui.toast('Bu dünyada öyle bir yer yok.', 'warn');
+  }
+
+  takePhoto() {
+    try {
+      this.app.renderer.render(this.kit.scene, this.kit.camera);
+      const src = this.app.renderer.domElement;
+      const c = document.createElement('canvas');
+      c.width = 400; c.height = 225;
+      const x = c.getContext('2d');
+      const sw = src.width, sh = src.height, r = 16 / 9;
+      const cw = sw / sh > r ? sh * r : sw, ch = sw / sh > r ? sh : sw / r;
+      x.drawImage(src, (sw - cw) / 2, (sh - ch) / 2, cw, ch, 0, 0, 400, 225);
+      return c.toDataURL('image/jpeg', 0.72);
+    } catch (e) {
+      console.warn(e);
+      this.ui.toast('Fotoğraf çekilemedi.', 'err');
+      return null;
+    }
+  }
+
+  // ---- TV: koltuktan ekrana birinci şahıs bakış, ekranda canlı yayın
+  enterTv() {
+    const tv = this.interior.tvPos;
+    if (!tv) return;
+    const p = this.self.g.position;
+    this.rig.setFirstPerson({ x: p.x, y: 3.1, z: p.z }, { x: tv.x, y: 2.4, z: tv.z });
+    this.self.g.visible = false;
+    this.tvSlide = 0;
+    this.tvTimer = 0;
+    this.drawTv();
+  }
+
+  drawTv() {
+    const scr = this.interior.tvScreen;
+    if (!scr) return;
+    if (!this.tvCanvas) { this.tvCanvas = document.createElement('canvas'); this.tvCanvas.width = 512; this.tvCanvas.height = 288; this.tvTex = null; }
+    const c = this.tvCanvas, x = c.getContext('2d');
+    const slide = this.tvSlide % 4;
+    const bg = ['#0b2a4a', '#0b3b2a', '#3a0b2a', '#1a1a2a'][slide];
+    x.fillStyle = bg; x.fillRect(0, 0, 512, 288);
+    x.fillStyle = '#c0392b'; x.fillRect(0, 0, 512, 34);
+    x.fillStyle = '#fff'; x.font = 'bold 20px sans-serif'; x.textAlign = 'left';
+    x.fillText(['📺 WORLD CHAOS HABER', '📈 EKONOMİ', '📸 REKLAM', '⚽ SPOR'][slide], 12, 24);
+    const wrap = (text, y0, size = 20, max = 4) => {
+      x.font = `${size}px sans-serif`;
+      const words = String(text).split(' ');
+      let line = '', y = y0, n = 0;
+      for (const w of words) {
+        if (x.measureText(line + w).width > 480) { x.fillText(line, 16, y); line = ''; y += size + 6; if (++n >= max) return; }
+        line += w + ' ';
+      }
+      x.fillText(line, 16, y);
+    };
+    x.fillStyle = '#fff';
+    if (slide === 0) {
+      const items = this.ui.newsLog.slice(0, 3);
+      items.forEach((n, i) => { x.fillStyle = i ? '#cfd8e3' : '#ffd34d'; wrap(n.text, 70 + i * 74, i ? 16 : 20, 2); });
+      if (!items.length) wrap('Şehirde bugün sakin bir gün.', 90);
+    } else if (slide === 1) {
+      const e = this.ui.self.econ ?? { mul: 1, history: [] };
+      const last = e.history[e.history.length - 1];
+      x.font = 'bold 44px sans-serif'; x.fillStyle = '#3ddc84'; x.fillText(`Endeks ${(e.mul * 100).toFixed(1)}`, 16, 100);
+      x.fillStyle = '#fff'; wrap(last ? `Son zam: ${last.day}. gün maaşlar ve fiyatlar %${(last.rate * 100).toFixed(1)} arttı.` : 'Fiyatlar sabit. İlk zam 3. günde bekleniyor.', 150, 20);
+      wrap(`Kasandaki para: ${tl(this.ui.self.balance ?? 0)}`, 240, 18);
+    } else if (slide === 2) {
+      const ad = this.lastAd ?? this.socialFeed?.[0];
+      if (ad?.img) {
+        if (!this._adImg || this._adImg.dataset.id !== ad.id) { this._adImg = new Image(); this._adImg.dataset.id = ad.id; this._adImg.onload = () => this.drawTv(); this._adImg.src = ad.img; }
+        if (this._adImg.complete) x.drawImage(this._adImg, 0, 34, 512, 200);
+        x.fillStyle = 'rgba(0,0,0,0.65)'; x.fillRect(0, 234, 512, 54);
+        x.fillStyle = '#fff'; wrap(`${ad.author}: ${ad.caption} ${ad.tags}`, 262, 18, 2);
+      } else wrap('Reklam vermek ister misin? Telefon › ChaosGram › Paylaş › Reklam bütçesi', 100);
+    } else {
+      const M = this.match;
+      if (M) {
+        x.font = 'bold 30px sans-serif'; x.textAlign = 'center';
+        x.fillText(`${CLUBS[M.home].name}  ${M.score[0]} - ${M.score[1]}  ${CLUBS[M.away].name}`, 256, 130);
+        x.font = '20px sans-serif'; x.fillStyle = '#ffd34d';
+        x.fillText(M.status === 'live' ? 'CANLI YAYIN 🔴' : M.status === 'done' ? 'MAÇ SONU' : `Bugün 14:00 · Oranlar 1:${M.odds.h} X:${M.odds.d} 2:${M.odds.a}`, 256, 180);
+        x.textAlign = 'left';
+      } else wrap('Bugün maç yok.', 120);
+    }
+    x.fillStyle = '#111'; x.fillRect(0, 268, 512, 20);
+    x.fillStyle = '#ffd34d'; x.font = '13px sans-serif'; x.fillText((this.ui.newsLog[0]?.text ?? 'WORLD CHAOS TV').slice(0, 70), 8, 283);
+    if (!this.tvTex || scr.material.map !== this.tvTex) { this.tvTex = new THREE.CanvasTexture(c); this.tvTex.colorSpace = THREE.SRGBColorSpace; scr.material.map = this.tvTex; scr.material.needsUpdate = true; }
+    this.tvTex.needsUpdate = true;
+  }
+
+  openOutfitShop(b) {
+    const s = this.ui.self;
+    const mul = s.econ?.mul ?? 1;
+    const owned = new Set(s.wardrobe ?? []);
+    const rows = Object.entries(OUTFITS).map(([id, o]) => el('div', { class: 'shop-item' },
+      el('span', { class: 'sw', style: { background: `#${o.color.toString(16).padStart(6, '0')}`, width: '22px', height: '22px', borderRadius: '6px', display: 'inline-block' } }),
+      el('span', { class: 'nm' }, o.label, el('small', { class: 'muted' }, ` · ${{ top: 'üst', bottom: 'alt', hat: 'şapka', acc: 'aksesuar' }[o.slot]}`)),
+      owned.has(id) ? el('span', { class: 'muted' }, s.outfit?.[o.slot] === id ? '✔ giyili' : '✔ sende') : el('span', { class: 'pr' }, tl(priceOf(o.price, mul))),
+      el('button', { class: 'btn mini primary', onClick: () => this.runAction({ type: 'outfit:buy', params: { id } }).then(() => setTimeout(() => this.openOutfitShop(b), 250)) }, owned.has(id) ? 'Giy' : 'Satın Al')));
+    this.ui.openSheet('shop', { icon: '👕', title: b.name, subtitle: `${Object.keys(OUTFITS).length} ürün · aldığın an üstüne giyersin` }, el('div', { class: 'col' }, ...rows));
+  }
+
+  openCarShop(b) {
+    const mul = this.ui.self.econ?.mul ?? 1;
+    const rows = Object.entries(CARS).map(([id, c]) => el('div', { class: 'shop-item' }, el('span', {}, '🚗'),
+      el('span', { class: 'nm' }, c.label, el('small', { class: 'muted' }, ` · ${c.speed * 4} km/s`)),
+      el('button', { class: 'btn mini primary', onClick: () => this.runAction({ type: 'car:buy', params: { model: id }, confirm: `${c.label} · ${tl(priceOf(c.price, mul))} ödensin mi?` }) }, `Al ${tl(priceOf(c.price, mul))}`),
+      el('button', { class: 'btn mini', onClick: () => this.runAction({ type: 'car:buy', params: { model: id, rent: true } }) }, `Kirala ${tl(priceOf(c.rent, mul))}/gün`)));
+    this.ui.openSheet('shop', { icon: '🚗', title: b.name, subtitle: 'Satın al ya da 24 saatliğine kirala · dışarıda 🚗 butonuyla bin' }, el('div', { class: 'col' }, ...rows));
   }
 
   enterInterior(id) {
@@ -516,6 +722,7 @@ export class Game {
     if (!b) return;
     this.interior.build(b, { accent: b.ownerId ? this.city.playerColors.get(b.ownerId) : undefined });
     this.interior.setTask(this.ui.self.shift?.task?.spotId ?? null);
+    this.interior.setMatch?.(this.match);
     this.city.root.visible = false;
     this.entities.setOutdoorVisible(false);
     this.kit.setInterior(true);
@@ -641,11 +848,18 @@ export class Game {
         return open(act('😴 Uyu', 'primary', 'sleep'), el('p', { class: 'muted' }, `⚡ Enerji %${Math.round(s.energy)}. Uyurken enerji hızla dolar; hareket edersen uyanırsın.`));
       case 'counter':
         if (b.type === 'gun_shop') return this.openGunShop(b);
-        if (b.type === 'bank') break;
+        if (b.type === 'clothing') return this.openOutfitShop(b);
+        if (b.type === 'car_dealer') return this.openCarShop(b);
+        if (b.type === 'stadium') return this.phone.open('match');
+        if (b.type === 'bank') return this.phone.open('bank');
         return this.openShop(b, !!(b.type === 'cafe' || b.type === 'restaurant' || b.type === 'bar'), spot);
+      case 'bench': return this.phone.open('court');
+      case 'mirror': return this.phone.open('wardrobe');
+      case 'pitch': return this.match?.status === 'live' ? this.ui.toast('⚽ Kadrodaysan ekrandaki ⚽ Şut butonuna bas!', 'info') : this.phone.open('match');
       case 'reception':
         return open(act(`🩺 Tedavi Ol · ₺250`, 'primary', 'heal'), el('p', { class: 'muted' }, `❤️ Can %${Math.round(s.health)}`));
       case 'desk':
+        if (b.type === 'bank') return this.phone.open('bank');
         if (b.type === 'town_hall') return open(
           el('button', { class: 'btn primary', onClick: () => this.ui.openTech() }, '🔬 Teknoloji'),
           el('button', { class: 'btn danger', onClick: () => this.ui.openMilitary(this.myUnits().length) }, '⚔️ Ordu'),
@@ -797,6 +1011,8 @@ export class Game {
     this.entities.camZ = this.self.g.position.z;
     setWeapon(this.self.g, this.ui.self.weapon ?? 'fist');
     this.interior.update(dt, kit.night ?? 0);
+    if (this.ui.self.tv) { this.tvTimer = (this.tvTimer ?? 0) + dt; if (this.tvTimer > 4.5) { this.tvTimer = 0; this.tvSlide = (this.tvSlide ?? 0) + 1; this.drawTv(); } }
+    if (this.interior.scoreboard) { this._sbT = (this._sbT ?? 0) + dt; if (this._sbT > 1) { this._sbT = 0; this.interior.drawScoreboard(this.match, (i) => CLUBS[i].name); } }
     const shake = this.effects.update(dt);
     this.rig.update(dt, this.self.g.position, shake);
     this.entities.update(dt, this.self.g);
@@ -854,6 +1070,8 @@ export class Game {
 
   destroy() {
     this.running = false;
+    this.phone?.close();
+    this.phone?.node.remove(); this.phone?.backdrop.remove(); this.phone?.ring.remove();
     this.voice.dispose();
     this.interior.clear();
     document.removeEventListener('pointerlockchange', this.onLockChange);

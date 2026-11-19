@@ -63,17 +63,16 @@ export class GameUI {
       el('div', { class: 'map-hint' }, '🗺️ Bir parsele dokun: kaşif gönder, sınırını ör ya da kime ait olduğunu gör'));
     const topRight = el('div', { class: 'top-right' },
       el('div', { class: 'icon-row' },
-        btn('🗺️', 'icon', () => this.openMap(), 'Harita'),
-        (this.phoneBtn = btn('📱', 'icon hidden', () => this.openPhone(), 'Telefon')),
-        btn('📰', 'icon', () => this.openNews(), 'Haberler'),
-        btn('🏆', 'icon', () => this.openCity('rank'), 'Sıralama'),
         btn('⚙️', 'icon', () => this.h.onMenu(), 'Menü')),
       this.canvasMini);
 
     this.ticker = el('div', { class: 'ticker' });
     this.hint = el('div', { class: 'interact-hint clickable hidden', onClick: (e) => { e.stopPropagation(); this.h.onInteract(); } });
 
-    const actions = el('div', { class: 'actions' },
+    this.phoneBadge = el('i', { class: 'dock-badge hidden' });
+    this.phoneBtn = el('button', { class: 'dock-phone', title: 'Telefon (P)', onClick: (e) => { e.stopPropagation(); this.sfx('click'); this.h.onPhone(); } }, '📱', this.phoneBadge);
+    const dock = el('div', { class: 'dock' }, this.phoneBtn);
+    const actions = el('div', { class: 'actions hidden' },
       btn(el('span', {}, '🔍', el('small', {}, 'İncele')), 'big primary', () => this.h.onInteract()),
       btn(el('span', {}, '🏠', el('small', {}, 'Mülklerim')), 'big', () => this.h.onProperties()),
       btn(el('span', {}, '🔬', el('small', {}, 'Teknoloji')), 'big tech', () => this.openTech()),
@@ -106,7 +105,7 @@ export class GameUI {
       this.mapBackdrop,
       this.foundBtn,
       el('div', { class: 'hud-top' }, status, roomChip, topRight),
-      this.ticker, this.hint, actions, this.sprintBtn,
+      this.ticker, this.hint, actions, dock, this.sprintBtn,
       this.sheet, this.targetBar, this.jail, this.nukeOverlay, this.alertLayer, this.modalLayer, this.reconnect);
     this.root.append(this.hud);
 
@@ -150,7 +149,6 @@ export class GameUI {
     this.elWar.classList.toggle('hidden', !wars.length);
     const era = this.catalog.eras?.[s.era ?? 1];
     if (era) this.elEra.textContent = `${era.icon} ${era.label}${s.research ? ` · 🔬 ${s.research.hoursLeft}sa` : ''}`;
-    this.phoneBtn.classList.toggle('hidden', !hasFeature(this.catalog, s.techs, 'phone'));
     if (prev.era && s.era > prev.era) this.sfx('success');
     this.setJail(s.jailed);
     if (this.sheetKind === 'tech') this.openTech();
@@ -431,6 +429,8 @@ export class GameUI {
         el('div', { class: 'bc-icon' }, '🔒'), el('div', { class: 'bc-name' }, a.label), el('div', { class: 'bc-time' }, requiredTechLabel(c, 'ads', k))));
     this.openSheet('ads', { icon: '📣', title: 'Reklam Ver', subtitle: `Başarı şansı %${chance} · %${100 - chance} ihtimalle tutmaz` }, el('div', { class: 'card-grid' }, ...cards));
   }
+
+  setPhoneBadge(n) { this.phoneBadge.textContent = n ? String(n) : ''; this.phoneBadge.classList.toggle('hidden', !n); }
 
   openPhone() {
     const items = [

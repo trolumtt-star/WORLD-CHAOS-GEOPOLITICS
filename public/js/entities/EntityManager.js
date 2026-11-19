@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { textSprite, glowTexture } from '../render/geometry.js';
 import { POSES, WEAPON_CODES } from '../../shared/interiors.js';
+import { OUTFITS, CARS, CAR_CODES } from '../../shared/catalogs.js';
 
 const JOB_COLORS = {
   worker: 0xe67e22, clerk: 0x3498db, waiter: 0xf4f4f4, bartender: 0x8e44ad, civil_servant: 0x5d6d7e,
@@ -30,13 +31,14 @@ const M = (c, r = 0.75, m = 0) => {
  * İnsan modeli (~3 birim boy): kafa + yüz + saç, boyun, gövde, kemer, eklemli kollar (dirsek) ve bacaklar, eller, ayakkabılar.
  * Pozlar: yürüme, koşma, oturma, uyuma, ölü, çalışma, yumruk/ateş.
  */
-export function makeCharacter(shirt, { scale = 1, pants, skin = 0xf1c27d, hair, seed = Math.random() * 1e6 } = {}) {
+export function makeCharacter(shirt, { scale = 1, pants, skin = 0xf1c27d, hair, seed = Math.random() * 1e6, outfit } = {}) {
   const g = new THREE.Group();
   const rig = new THREE.Group();
   g.add(rig);
   const h = Math.abs(Math.floor(seed));
-  const shirtMat = new THREE.MeshStandardMaterial({ color: shirt, roughness: 0.7 });
-  const pantsMat = M(pants ?? PANTS[h % PANTS.length], 0.85);
+  const O = { top: OUTFITS[outfit?.top], bottom: OUTFITS[outfit?.bottom], hat: OUTFITS[outfit?.hat], acc: OUTFITS[outfit?.acc] };
+  const shirtMat = new THREE.MeshStandardMaterial({ color: O.top?.color ?? shirt, roughness: O.top?.style === 'suit' || O.top?.style === 'jacket' ? 0.45 : 0.7 });
+  const pantsMat = M(O.bottom?.color ?? pants ?? PANTS[h % PANTS.length], 0.85);
   const skinMat = M(skin, 0.6);
   const hairMat = M(hair ?? HAIR[(h >> 3) % HAIR.length], 0.9);
   const dark = M(0x161616, 0.6);
@@ -87,17 +89,100 @@ export function makeCharacter(shirt, { scale = 1, pants, skin = 0xf1c27d, hair, 
     const knee = new THREE.Group();
     knee.position.set(0, -0.7, 0);
     hip.add(knee);
-    add(knee, new THREE.CylinderGeometry(0.135, 0.11, 0.6, 8), pantsMat, 0, -0.3, 0);
+    const bare = O.bottom?.style === 'shorts' || O.bottom?.style === 'skirt' || O.top?.style === 'dress';
+    add(knee, new THREE.CylinderGeometry(0.135, 0.11, 0.6, 8), bare ? skinMat : pantsMat, 0, -0.3, 0);
     add(knee, new THREE.BoxGeometry(0.24, 0.14, 0.42), dark, 0, -0.63, 0.07);
     return { hip, knee };
   };
   const aL = arm(-1), aR = arm(1), lL = leg(-1), lR = leg(1);
+  dressUp(rig, head, O, { shirtMat, pantsMat, add });
   const weapon = new THREE.Group();
   aR.hand.add(weapon);
   g.scale.setScalar(scale);
   g.userData.limbs = { aL, aR, lL, lR, rig, head, weapon };
   g.userData.phase = Math.random() * 10;
   g.userData.weaponKey = 'fist';
+  return g;
+}
+
+/** Kıyafet aksesuarları: kapşon, ceket yakası, kravat, forma çizgisi, elbise/etek, şapkalar, gözlük, kolye, çanta */
+function dressUp(rig, head, O, { shirtMat, add }) {
+  const t = O.top, b = O.bottom, hat = O.hat, acc = O.acc;
+  if (t?.style === 'hoodie') {
+    add(rig, new THREE.SphereGeometry(0.34, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.8, 0.9), shirtMat, 0, 2.6, -0.28).rotation.x = -0.6;
+    add(rig, new THREE.BoxGeometry(0.5, 0.25, 0.05), M(new THREE.Color(t.color).offsetHSL(0, 0, -0.08).getHex()), 0, 1.85, 0.3);
+  }
+  if (t?.style === 'jacket' || t?.style === 'suit') {
+    add(rig, new THREE.BoxGeometry(0.26, 0.9, 0.04), M(t.style === 'suit' ? 0xffffff : 0xdedede), 0, 2.08, 0.295);
+    add(rig, new THREE.CylinderGeometry(0.47, 0.47, 0.35, 10, 1, true).scale(1, 1, 0.64), shirtMat, 0, 1.55, 0);
+    if (t.style === 'suit') add(rig, new THREE.BoxGeometry(0.09, 0.62, 0.03), M(0xb71c1c), 0, 2.1, 0.32);
+  }
+  if (t?.style === 'jersey') for (const y of [1.85, 2.15]) add(rig, new THREE.CylinderGeometry(0.455, 0.42, 0.1, 10).scale(1, 1, 0.63), M(t.color2 ?? 0xffffff), 0, y, 0);
+  if (t?.style === 'dress' || b?.style === 'skirt') add(rig, new THREE.CylinderGeometry(0.42, 0.72, 0.95, 12), t?.style === 'dress' ? shirtMat : M(b.color), 0, 1.15, 0);
+  if (b?.color2) for (const x of [-0.37, 0.37]) add(rig, new THREE.BoxGeometry(0.03, 0.6, 0.05), M(b.color2), x, 1.1, 0.12);
+  if (hat) {
+    const hm = M(hat.color, hat.style === 'crown' ? 0.25 : 0.8, hat.style === 'crown' ? 0.9 : 0);
+    if (hat.style === 'cap') { add(head, new THREE.SphereGeometry(0.4, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), hm, 0, 0.06, 0); add(head, new THREE.BoxGeometry(0.42, 0.04, 0.32), hm, 0, 0.08, 0.42); }
+    if (hat.style === 'beanie') add(head, new THREE.SphereGeometry(0.41, 12, 8, 0, Math.PI * 2, 0, Math.PI / 1.8).scale(1, 1.15, 1), hm, 0, 0.04, 0);
+    if (hat.style === 'fedora' || hat.style === 'cowboy') {
+      add(head, new THREE.CylinderGeometry(hat.style === 'cowboy' ? 0.72 : 0.6, hat.style === 'cowboy' ? 0.72 : 0.6, 0.05, 16), hm, 0, 0.28, 0);
+      add(head, new THREE.CylinderGeometry(0.3, 0.36, 0.36, 12), hm, 0, 0.46, 0);
+      add(head, new THREE.CylinderGeometry(0.365, 0.365, 0.07, 12), M(0x111111), 0, 0.33, 0);
+    }
+    if (hat.style === 'crown') {
+      add(head, new THREE.CylinderGeometry(0.36, 0.33, 0.24, 12, 1, true), hm, 0, 0.42, 0);
+      for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; add(head, new THREE.ConeGeometry(0.07, 0.2, 4), hm, Math.sin(a) * 0.33, 0.62, Math.cos(a) * 0.33); }
+      add(head, new THREE.SphereGeometry(0.05, 6, 6), M(0xd50000, 0.2, 0.3), 0, 0.42, 0.36);
+    }
+  }
+  if (acc?.style === 'glasses' || acc?.style === 'sunglasses') {
+    const gm = M(acc.color, 0.3, 0.4);
+    for (const x of [-0.13, 0.13]) add(head, acc.style === 'sunglasses' ? new THREE.BoxGeometry(0.17, 0.1, 0.03) : new THREE.TorusGeometry(0.07, 0.015, 6, 12), gm, x, 0.05, 0.345);
+    add(head, new THREE.BoxGeometry(0.1, 0.02, 0.02), gm, 0, 0.07, 0.35);
+  }
+  if (acc?.style === 'chain') add(rig, new THREE.TorusGeometry(0.2, 0.025, 6, 16), M(acc.color, 0.2, 0.9), 0, 2.45, 0.12).rotation.x = Math.PI / 2.4;
+  if (acc?.style === 'backpack') add(rig, new THREE.BoxGeometry(0.62, 0.75, 0.3), M(acc.color), 0, 2.05, -0.42);
+}
+
+/** Arabalar: sedan, spor, SUV, pikap, minivan */
+export function makeCar(modelId) {
+  const c = CARS[modelId] ?? CARS.sahin;
+  const g = new THREE.Group();
+  const body = M(c.color, 0.3, 0.6);
+  const glass = new THREE.MeshStandardMaterial({ color: 0x1b2a3a, roughness: 0.1, metalness: 0.6, transparent: true, opacity: 0.45 });
+  const dark = M(0x111111, 0.7);
+  const box = (w, h, d, m, x, y, z) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); o.castShadow = true; g.add(o); return o; };
+  const L = { sedan: [7.4, 3.3, 1.0], sport: [7.6, 3.6, 0.75], suv: [7.2, 3.5, 1.5], pickup: [8.2, 3.5, 1.3], van: [7.6, 3.4, 1.7] }[c.model] ?? [7.4, 3.3, 1];
+  const [len, wid, hh] = L;
+  box(wid, hh, len, body, 0, 0.55 + hh / 2, 0);
+  if (c.model === 'pickup') { box(wid, 1.2, len * 0.42, body, 0, 0.55 + hh + 0.6, len * 0.1); box(wid - 0.4, 0.1, len * 0.4, dark, 0, 0.56 + hh, -len * 0.28); }
+  else if (c.model === 'sport') { box(wid * 0.82, 0.85, len * 0.38, glass, 0, 0.55 + hh + 0.42, -len * 0.05); box(wid, 0.12, 0.6, dark, 0, 0.55 + hh + 0.5, -len / 2 + 0.3); for (const x of [-1, 1]) box(0.15, 0.5, 0.15, dark, x * (wid / 2 - 0.4), 0.55 + hh + 0.25, -len / 2 + 0.3); }
+  else box(wid * 0.9, c.model === 'van' || c.model === 'suv' ? 1.4 : 1.15, len * (c.model === 'van' ? 0.7 : 0.5), glass, 0, 0.55 + hh + (c.model === 'van' || c.model === 'suv' ? 0.7 : 0.57), c.model === 'van' ? -len * 0.08 : -len * 0.04);
+  for (const [x, z] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) {
+    const w = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.5, 14).rotateZ(Math.PI / 2), dark);
+    w.position.set(x * (wid / 2), 0.62, z * (len / 2 - 1.3));
+    g.add(w);
+  }
+  const lamp = new THREE.MeshBasicMaterial({ color: 0xfff6c8 });
+  const tail = new THREE.MeshBasicMaterial({ color: 0xff2020 });
+  for (const x of [-1, 1]) {
+    const h1 = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.3, 0.1), lamp); h1.position.set(x * (wid / 2 - 0.55), 0.55 + hh * 0.6, len / 2 + 0.02); g.add(h1);
+    const t1 = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.3, 0.1), tail); t1.position.set(x * (wid / 2 - 0.55), 0.55 + hh * 0.6, -len / 2 - 0.02); g.add(t1);
+  }
+  g.userData.isCar = true;
+  return g;
+}
+
+function makeMoped() {
+  const g = new THREE.Group();
+  const red = M(0xe53935, 0.4, 0.3);
+  const b = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 2.6), red); b.position.y = 1.1; g.add(b);
+  const box = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.2, 1.2), M(0xff7043)); box.position.set(0, 2.1, -0.8); g.add(box);
+  for (const z of [-1, 1]) { const w = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.25, 12).rotateZ(Math.PI / 2), M(0x111111)); w.position.set(0, 0.45, z); g.add(w); }
+  const rider = makeCharacter(0xff7043, { scale: 0.8, seed: 7 });
+  rider.position.set(0, 0.6, 0.2);
+  rider.userData.limbs.lL.hip.rotation.x = rider.userData.limbs.lR.hip.rotation.x = -1.2;
+  g.add(rider);
   return g;
 }
 
@@ -131,8 +216,9 @@ function animateWalk(g, speed, dt, st = {}) {
   for (const a of [L.aL, L.aR]) { a.sh.rotation.set(0, 0, 0); a.el.rotation.set(0, 0, 0); }
   for (const l of [L.lL, L.lR]) { l.hip.rotation.set(0, 0, 0); l.knee.rotation.set(0, 0, 0); }
 
-  if (pose === 'sit') {
-    rig.position.y = -0.28;
+  if (pose === 'sit' || pose === 'drive') {
+    rig.position.y = pose === 'drive' ? 0.35 : -0.28;
+    if (pose === 'drive') { rig.position.x = -0.6; rig.position.z = -0.4; for (const l of [L.lL, L.lR]) { l.hip.rotation.x = -1.4; l.knee.rotation.x = 1.3; } L.aL.sh.rotation.x = L.aR.sh.rotation.x = -1.1; return; }
     for (const l of [L.lL, L.lR]) { l.hip.rotation.x = -1.5; l.knee.rotation.x = 1.5; }
     L.aL.sh.rotation.x = -0.35; L.aR.sh.rotation.x = -0.35; L.aL.el.rotation.x = -0.5; L.aR.el.rotation.x = -0.5;
     L.head.rotation.y = Math.sin(t * 0.3) * 0.25; // sohbet ederken etrafa bakar
@@ -498,7 +584,7 @@ export class EntityManager {
   addPlayer(p) {
     if (this.players.has(p.id)) return this.players.get(p.id);
     const h = Math.abs(hash(p.id + p.name));
-    const g = makeCharacter(new THREE.Color(p.color), { skin: SKIN[h % SKIN.length], seed: h });
+    const g = makeCharacter(new THREE.Color(p.color), { skin: SKIN[h % SKIN.length], seed: h, outfit: p.outfit });
     const label = textSprite(p.name + (p.countryName ? ` · 🏳️ ${p.countryName}` : ''), { color: p.color, border: p.color, scale: 0.75 });
     label.position.y = 4.0;
     const talk = textSprite('🔊', { color: '#3ddc84', border: '#3ddc84', scale: 0.6 });
@@ -513,9 +599,38 @@ export class EntityManager {
     g.rotation.y = p.rotY ?? 0;
     this.markPick(g, 'player', p.id);
     this.scene.add(g);
-    const e = { id: p.id, g, label, talk, target: { x: p.x, z: p.z, rotY: p.rotY ?? 0 }, last: { x: p.x, z: p.z }, speed: 0, pose: '', weapon: 'fist', inside: 0, attackT: 0, talkUntil: 0 };
+    const e = { id: p.id, data: p, g, label, talk, car: '', target: { x: p.x, z: p.z, rotY: p.rotY ?? 0 }, last: { x: p.x, z: p.z }, speed: 0, pose: '', weapon: 'fist', inside: 0, attackT: 0, talkUntil: 0 };
     this.players.set(p.id, e);
     return e;
+  }
+
+  /** Kıyafet değişince karakteri yeniden giydir (konum/etiket korunur) */
+  setOutfit(id, outfit) {
+    const e = this.players.get(id);
+    if (!e) return;
+    e.data = { ...e.data, outfit };
+    const h = Math.abs(hash(e.data.id + e.data.name));
+    const ng = makeCharacter(new THREE.Color(e.data.color), { skin: SKIN[h % SKIN.length], seed: h, outfit });
+    ng.position.copy(e.g.position);
+    ng.rotation.y = e.g.rotation.y;
+    ng.visible = e.g.visible;
+    ng.add(e.label, e.talk);
+    if (e.carMesh) ng.add(e.carMesh);
+    this.scene.remove(e.g);
+    this.unpick(id);
+    // e.g nesnesini yerinde değiştir: oyuncu kontrolcüsü aynı nesneyi tutar
+    e.g.clear();
+    for (const c of [...ng.children]) e.g.add(c);
+    e.g.userData = ng.userData;
+    this.markPick(e.g, 'player', id);
+    this.scene.add(e.g);
+  }
+
+  setCar(e, model) {
+    if ((e.car ?? '') === (model ?? '')) return;
+    e.car = model ?? '';
+    if (e.carMesh) { e.g.remove(e.carMesh); e.carMesh = null; }
+    if (model) { e.carMesh = makeCar(model); e.carMesh.position.set(-0.6, 0, -0.4); e.g.add(e.carMesh); }
   }
 
   removePlayer(id) {
@@ -530,7 +645,7 @@ export class EntityManager {
 
   applyPlayers(list) {
     const seen = new Set();
-    for (const [id, x, z, rotY, pose, weapon, inside] of list) {
+    for (const [id, x, z, rotY, pose, weapon, inside, car] of list) {
       seen.add(id);
       if (id === this.selfId) continue;
       const e = this.players.get(id);
@@ -538,6 +653,7 @@ export class EntityManager {
       Object.assign(e.target, { x, z, rotY });
       e.pose = POSES[pose] ?? '';
       e.weapon = WEAPON_CODES[weapon] ?? 'fist';
+      this.setCar(e, CAR_CODES[car] ?? '');
       if ((inside || 0) !== e.inside) { e.inside = inside || 0; e.g.position.set(x, 0, z); }
     }
   }
@@ -657,7 +773,7 @@ export class EntityManager {
   // ---------- Araçlar ----------
   addVehicle(v) {
     if (this.vehicles.has(v.id)) return;
-    const g = (v.era ?? 4) < 3 ? makeCart(v.product) : makeTruck(v.product);
+    const g = v.kind === 'courier' ? makeMoped() : (v.era ?? 4) < 3 ? makeCart(v.product) : makeTruck(v.product);
     g.position.set(v.x, 0, v.z);
     this.scene.add(g);
     this.vehicles.set(v.id, { ...v, g, target: { x: v.x, z: v.z, rot: 0 } });
@@ -712,7 +828,7 @@ export class EntityManager {
       e.g.rotation.y = lerpAngle(e.g.rotation.y, e.target.rotY, k);
       e.speed = Math.hypot(p.x - ox, p.z - oz) / Math.max(dt, 0.001);
       setWeapon(e.g, e.weapon);
-      animateWalk(e.g, e.pose ? 0 : e.speed, dt, { pose: e.pose, attackT: e.attackT, gun: e.weapon === 'pistol' || e.weapon === 'rifle' ? e.weapon : null });
+      animateWalk(e.g, e.pose ? 0 : e.speed, dt, { pose: e.car ? 'drive' : e.pose, attackT: e.attackT, gun: !e.car && (e.weapon === 'pistol' || e.weapon === 'rifle') ? e.weapon : null });
     }
 
     if (selfGroup) {

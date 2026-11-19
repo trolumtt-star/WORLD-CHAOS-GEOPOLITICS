@@ -21,6 +21,9 @@ export const BUILDING_TYPES = {
   gun_shop:   { label: 'Silah Dükkanı',     icon: '🔫', category: 'commercial', footprint: [14, 18], height: [5, 7],  value: [7000, 12000], startBalance: [2000, 5000], open: [10, 20], sells: { weapons: [1.5, 2.0] }, restockTo: 6, staff: { job: 'clerk', count: 1 }, buildCost: 10000, buildHours: 8 },
   bar:        { label: 'Bar',               icon: '🍺', category: 'commercial', footprint: [14, 20], height: [5, 7],  value: [4000, 8000],  startBalance: [1000, 3000], open: [18, 3],  sells: { drink: [3.0, 4.5] }, served: true, restockTo: 60, staff: { job: 'bartender', count: 2 }, buildCost: 5000, buildHours: 6 },
 
+  clothing:   { label: 'Giyim Mağazası',    icon: '👕', category: 'commercial', footprint: [16, 22], height: [6, 9],  value: [8000, 14000], startBalance: [2000, 4000], open: [9, 22],  staff: { job: 'clerk', count: 1 }, buildCost: 9000, buildHours: 8 },
+  car_dealer: { label: 'Araba Bayisi',      icon: '🚗', category: 'commercial', footprint: [26, 30], height: [7, 9],  value: [30000, 45000], startBalance: [5000, 9000], open: [9, 20], staff: { job: 'clerk', count: 2 }, buildCost: 30000, buildHours: 14 },
+
   // ---------- SANAYİ ----------
   factory:    { label: 'Fabrika', icon: '🏭', category: 'industrial', footprint: [28, 32], height: [10, 16], value: [20000, 40000], startBalance: [5000, 10000], staff: { job: 'worker', count: 5 }, buildCost: 12000, buildHours: 20 },
 
@@ -29,6 +32,8 @@ export const BUILDING_TYPES = {
   police:     { label: 'Emniyet Müdürlüğü', icon: '🚓', category: 'civic', footprint: [22, 26], height: [10, 12], value: [60000, 60000],  staff: { job: 'police', count: 5 } },
   bank:       { label: 'Merkez Bankası',    icon: '🏦', category: 'civic', footprint: [24, 26], height: [14, 16], value: [90000, 90000],  staff: { job: 'banker', count: 3 } },
   hospital:   { label: 'Devlet Hastanesi',  icon: '🏥', category: 'civic', footprint: [26, 30], height: [16, 20], value: [80000, 80000],  staff: { job: 'doctor', count: 4 } },
+  court:      { label: 'Adliye',             icon: '⚖️', category: 'civic', footprint: [26, 28], height: [14, 16], value: [70000, 70000],  staff: { job: 'judge', count: 2 } },
+  stadium:    { label: 'Stadyum',            icon: '🏟️', category: 'civic', footprint: [34, 34], height: [12, 12], value: [120000, 120000] },
   town_hall:  { label: 'Ülke Sarayı',        icon: '🏰', category: 'civic', footprint: [24, 28], height: [12, 12], value: [5000, 5000] },
   prison:     { label: 'Cezaevi',           icon: '⛓️', category: 'civic', footprint: [30, 32], height: [8, 8],   value: [50000, 50000],  staff: { job: 'guard', count: 3 } },
 

@@ -372,6 +372,72 @@ const BUILDERS = {
     for (let i = 0; i < 3; i++) pb.box(w * 0.6, 0.4, 1, 0, 0.2 + i * 0.4, d * 0.35 + 2.6 - i * 0.9, 0xd8d0bc);
   },
 
+  court({ pb, win, glow, w, d, h, lotSize, extras }) {
+    lotBase(pb, lotSize, C.plaza);
+    pb.box(w, h, d * 0.7, 0, h / 2, -d * 0.12, 0xd9cfbd);
+    for (let i = 0; i < 6; i++) pb.cyl(0.7, 0.8, h * 0.7, 12, -w * 0.38 + i * (w * 0.76 / 5), h * 0.35, -d * 0.12 + d * 0.35 + 1.4, 0xf4efe4);
+    pb.box(w * 0.92, 1.2, 3.2, 0, h * 0.7 + 0.6, -d * 0.12 + d * 0.35 + 1.4, 0xe6dcc8);
+    pb.add(new THREE.CylinderGeometry(0.01, 1, 1, 3), 0xe6dcc8, 0, h * 0.7 + 2.6, -d * 0.12 + d * 0.35 + 1.4, { rz: Math.PI / 2, ry: Math.PI / 2, sx: 3.2, sy: w * 0.92, sz: 2.8 });
+    // Adalet terazisi
+    pb.box(0.3, 3, 0.3, 0, h + 1.5, -d * 0.12, 0xc9a227);
+    pb.box(4, 0.2, 0.2, 0, h + 3, -d * 0.12, 0xc9a227);
+    for (const x of [-1.8, 1.8]) pb.cyl(0.7, 0.4, 0.3, 10, x, h + 2.1, -d * 0.12, 0xc9a227);
+    glow.box(w * 0.4, 0.8, 0.2, 0, h * 0.7 + 0.6, -d * 0.12 + d * 0.35 + 3.05, 0xffe9b0);
+    addWindows(win, w, h * 0.7, d * 0.7, { faces: 'bs', floorH: 4, spacing: 3.4 });
+    for (let i = 0; i < 4; i++) pb.box(w * 0.7, 0.4, 1, 0, 0.2 + i * 0.4, d * 0.35 + 2.8 - i * 0.9, 0xd8d0bc);
+    extras.signY = h + 5;
+  },
+
+  clothing({ pb, win, glow, w, d, h, v, lotSize, extras }) {
+    lotBase(pb, lotSize, C.plaza);
+    const md = d * 0.75;
+    pb.box(w, h, md, 0, h / 2, -d * 0.12, v % 2 ? 0xf3e5f5 : 0xfff3e0);
+    pb.box(w + 0.6, 0.8, 2.4, 0, h * 0.55, -d * 0.12 + md / 2 + 1, v % 2 ? 0xb03a7a : 0x111111);
+    win.quad(w * 0.85, h * 0.5, 0, h * 0.27, -d * 0.12 + md / 2 + 0.06, new THREE.Color(1, 0.95, 0.9), 0);
+    glow.box(w * 0.6, 1.1, 0.2, 0, h - 0.8, -d * 0.12 + md / 2 + 0.15, v % 2 ? 0xff6ec7 : 0xffd34d);
+    for (let i = 0; i < 3; i++) { const x = -w * 0.3 + i * w * 0.3; pb.cyl(0.35, 0.35, 2.6, 8, x, 1.3, -d * 0.12 + md / 2 - 1.2, [0xd62828, 0x1e88e5, 0xffd23f][i]); pb.sphere(0.3, x, 2.9, -d * 0.12 + md / 2 - 1.2, 0xf1c27d); }
+    door(pb, md - d * 0.24, 0xe0c0d8, 3.2, 3);
+    extras.signY = h + 2;
+  },
+
+  car_dealer({ pb, win, glow, w, d, h, lotSize, extras }) {
+    lotBase(pb, lotSize, C.asphalt);
+    pb.box(w, h, d * 0.55, 0, h / 2, -d * 0.2, 0xeef2f5);
+    win.quad(w * 0.92, h * 0.75, 0, h * 0.42, -d * 0.2 + d * 0.275 + 0.06, new THREE.Color(0.85, 0.95, 1), 0);
+    pb.box(w + 0.4, 0.8, d * 0.55 + 0.4, 0, h + 0.4, -d * 0.2, 0xc0392b);
+    glow.box(w * 0.55, 1.2, 0.2, 0, h + 0.4, -d * 0.2 + d * 0.275 + 0.35, 0xff5a5a);
+    // Dış sergi: renkli arabalar
+    const cols = [0xd10000, 0xf5c400, 0x111111, 0x1f3a93];
+    for (let i = 0; i < 4; i++) {
+      const x = -w * 0.36 + i * (w * 0.24);
+      pb.box(3, 1.4, 6, x, 1.2, d * 0.28, cols[i]);
+      pb.box(2.6, 1, 3, x, 2.4, d * 0.27, 0x1b2a3a);
+      for (const [dx, dz] of [[-1.5, -2], [1.5, -2], [-1.5, 2], [1.5, 2]]) pb.cyl(0.55, 0.55, 0.4, 10, x + dx, 0.55, d * 0.28 + dz, 0x111111, { rz: Math.PI / 2 });
+    }
+    for (let i = 0; i < 6; i++) pb.box(0.2, 6, 0.2, -w / 2 + 1 + i * (w - 2) / 5, 3, d / 2 - 1, 0xdddddd);
+    extras.signY = h + 3;
+  },
+
+  stadium({ pb, win, glow, w, d, h, lotSize, extras }) {
+    lotBase(pb, lotSize, C.concrete);
+    const R = Math.min(w, d) / 2;
+    // Tribün halkası
+    for (let i = 0; i < 24; i++) {
+      const a = (i / 24) * Math.PI * 2;
+      const x = Math.cos(a) * R * 0.85, z = Math.sin(a) * R * 0.85;
+      pb.box(R * 0.27, h, 4, x, h / 2, z, i % 2 ? 0xe0e0e0 : 0xcfcfcf, { ry: -a + Math.PI / 2 });
+      pb.box(R * 0.27, 0.6, 4.4, x, h + 0.3, z, i % 3 ? 0x1e88e5 : 0xd62828, { ry: -a + Math.PI / 2 });
+    }
+    pb.plane(R * 1.2, R * 0.8, 0, 0.12, 0, 0x2e8b3a);
+    pb.plane(0.3, R * 0.8, 0, 0.14, 0, 0xffffff);
+    // Projektörler
+    for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      pb.box(0.6, h + 8, 0.6, x * R * 0.95, (h + 8) / 2, z * R * 0.95, 0x777777);
+      glow.box(3, 1.6, 0.6, x * R * 0.95, h + 8, z * R * 0.95, 0xffffee);
+    }
+    extras.signY = h + 10;
+  },
+
   hospital({ pb, win, glow, w, d, h, lotSize }) {
     lotBase(pb, lotSize, C.concrete);
     pb.box(w, h, d * 0.75, 0, h / 2, -d * 0.12, 0xf7f9fb);

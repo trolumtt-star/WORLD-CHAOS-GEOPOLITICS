@@ -28,15 +28,15 @@ export class LifeUI {
     this.weaponBtn = btn('👊', 'icon weapon', () => this.h.onCycleWeapon(), 'Silah değiştir (Q)');
     this.attackBtn = el('button', { class: 'attack-btn', onPointerdown: (e) => { e.stopPropagation(); this.h.onAttack(); this._hold = setInterval(() => this.h.onAttack(), 230); }, onPointerup: () => clearInterval(this._hold), onPointerleave: () => clearInterval(this._hold), onPointercancel: () => clearInterval(this._hold) }, '👊');
     this.ammo = el('div', { class: 'ammo hidden' });
-    hud.append(el('div', { class: 'combat' },
-      el('div', { class: 'zoom' }, btn('➕', 'icon', () => this.h.onZoom(0.75), 'Yakınlaş'), btn('➖', 'icon', () => this.h.onZoom(1.33), 'Uzaklaş')),
-      this.weaponBtn, this.ammo, this.attackBtn));
+    this.carBtn = btn('🚗', 'icon car hidden', () => this.h.onCar(), 'Araba (G)');
+    this.shootBtn = el('button', { class: 'shoot-btn hidden', onClick: (e) => { e.stopPropagation(); this.h.onShoot(); } }, '⚽');
+    hud.append(el('div', { class: 'zoom-pill' }, btn('＋', 'icon', () => this.h.onZoom(0.75), 'Yakınlaş'), btn('－', 'icon', () => this.h.onZoom(1.33), 'Uzaklaş')),
+      el('div', { class: 'combat' }, this.carBtn, this.weaponBtn, this.ammo, this.shootBtn, this.attackBtn));
 
     // Üst ikonlar: mikrofon + çanta
     const row = hud.querySelector('.icon-row');
     this.micBtn = btn('🎙️', 'icon mic', () => this.h.onMic(), 'Sesli sohbet (V)');
-    this.bagBtn = btn('🎒', 'icon', () => this.openBag(), 'Çanta (I)');
-    row?.prepend(this.micBtn, this.bagBtn);
+    row?.prepend(this.micBtn);
 
     // Bina içi çubuğu + mesai
     this.insideName = el('b');
@@ -53,9 +53,9 @@ export class LifeUI {
     // Tam ekran katmanlar
     this.sleep = el('div', { class: 'sleep-ov hidden' }, el('div', { class: 'zzz' }, '😴 Zzz…'), (this.sleepE = el('div', { class: 'sleep-e' })), btn('☀️ Uyan', 'primary', () => this.h.onStand()));
     this.death = el('div', { class: 'death-ov hidden' }, el('h1', {}, '💀 ÖLDÜN'), (this.deathT = el('p')));
-    this.tv = el('div', { class: 'tv-ov hidden' },
-      el('div', { class: 'tv-frame' }, el('div', { class: 'tv-head' }, '📺 WORLD CHAOS TV · CANLI'), (this.tvBody = el('div', { class: 'tv-body' })), el('div', { class: 'tv-ticker' }, (this.tvTick = el('span')))),
-      btn('Kapat', 'mini', () => this.h.onStand()));
+    this.tv = el('div', { class: 'tv-ov hidden' }, el('span', {}, '📺 TV izliyorsun · etrafa bakmak için ekranı sürükle'), btn('✕ Kalk', 'mini', () => this.h.onStand()));
+    this.tvBody = el('div');
+    this.tvTick = el('span');
     hud.append(this.sleep, this.death, this.tv);
   }
 
@@ -83,7 +83,9 @@ export class LifeUI {
     this.death.classList.toggle('hidden', !s.dead);
     if (s.dead && !prev.dead) this.deathTimer(s.respawnAt);
     this.tv.classList.toggle('hidden', !s.tv);
-    if (s.tv && !prev.tv) this.refreshTv();
+    this.carBtn.classList.toggle('hidden', !(s.cars?.length) || !!s.inside);
+    this.carBtn.classList.toggle('on', !!s.driving);
+    this.carBtn.textContent = s.driving ? '🅿️' : '🚗';
     // mesai
     const task = s.shift?.task;
     this.taskCard.classList.toggle('hidden', !task);
