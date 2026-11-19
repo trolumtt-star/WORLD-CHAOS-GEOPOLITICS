@@ -89,10 +89,10 @@ export class PhoneUI {
 
   setSelf(s) {
     this.self = { ...this.self, ...s };
-    if (!this.isOpen || !['bank', 'garage', 'wardrobe', 'court', 'order', 'org'].includes(this.view) || this._typing) return;
+    if (!this.isOpen || !['bank', 'garage', 'wardrobe', 'court', 'order', 'org', 'call'].includes(this.view) || this._typing) return;
     // Sadece o uygulamayı ilgilendiren bir şey değiştiyse yenile
     const S = this.self;
-    const sig = JSON.stringify([this.view, Math.round(S.balance), S.loan, S.cars, S.car, S.outfit, S.owned, S.pendingCase, S.org]);
+    const sig = JSON.stringify([this.view, Math.round(S.balance), S.loan, S.cars, S.car, S.outfit, S.owned, S.pendingCase, S.org, S.call]);
     if (sig === this._sig) return;
     if ((this._busyUntil ?? 0) > performance.now() || ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName)) { clearTimeout(this._later); this._later = setTimeout(() => this.setSelf({}), 1200); return; }
     this._sig = sig;
@@ -271,10 +271,24 @@ export class PhoneUI {
   // ------------------------------------------------------------------ arama
   appCall() {
     const body = this.page('Telefon');
-    if (this.self.callWith) {
-      const r = this.h.roster().find((x) => x.id === this.self.callWith);
-      body.append(el('div', { class: 'ph-callscreen' }, el('div', { class: 'ph-avatar big' }, (r?.name ?? '?')[0]), el('h3', {}, r?.name ?? ''), el('p', { class: 'ph-muted' }, '🔊 Görüşme sürüyor · mikrofonun açık olmalı'),
-        this.btn('📵 Kapat', 'danger round', () => this.act('phone:hangup', {}).then(() => this.appCall()))));
+    const C = this.self.call;
+    if (C) {
+      // Grup görüşmesi: katılımcılar, aranıyor olanlar, kişi ekle
+      const all = [...C.members.map((m) => ({ ...m, on: true })), ...C.invited.map((m) => ({ ...m, on: false }))];
+      body.append(el('div', { class: 'ph-callscreen' },
+        el('div', { class: 'ph-call-grid' }, el('div', { class: 'ph-call-p' }, el('div', { class: 'ph-avatar big', style: { background: '#2ecc71' } }, '🙂'), el('small', {}, 'Sen')),
+          ...all.map((m) => el('div', { class: `ph-call-p ${m.on ? '' : 'ringing'}` }, el('div', { class: 'ph-avatar big' }, m.name[0]), el('small', {}, m.on ? m.name : `${m.name} · aranıyor`)))),
+        el('h3', {}, C.members.length ? (C.members.length > 1 ? `👥 Grup görüşmesi · ${C.members.length + 1} kişi` : `📞 ${C.members[0].name}`) : '📞 Aranıyor...'),
+        el('p', { class: 'ph-muted' }, '🔊 Herkes herkesi duyar · mikrofonun açık olmalı'),
+        el('div', { class: 'ph-row-actions' }, this.btn('➕ Kişi Ekle', 'primary', () => { this._addPick = !this._addPick; this.appCall(); }), this.btn('📵 Ayrıl', 'danger', () => this.act('phone:hangup', {}).then(() => { this._addPick = false; setTimeout(() => this.appCall(), 200); })))));
+      if (this._addPick) {
+        const inCall = new Set(all.map((m) => m.id));
+        const add = this.contacts().filter((r) => r.online && !inCall.has(r.id));
+        body.append(el('h4', {}, '➕ Görüşmeye ekle'));
+        if (!add.length) body.append(el('p', { class: 'ph-muted' }, 'Eklenebilecek çevrimiçi kimse yok.'));
+        for (const r of add) body.append(el('div', { class: 'ph-row' }, el('span', { class: 'ph-avatar', style: { background: r.color } }, r.name[0]), el('div', { class: 'ph-rt' }, el('b', {}, r.name), el('small', {}, '🟢 Çevrimiçi')),
+          this.btn('➕📞', 'icon green', () => this.startCall(r.id))));
+      }
       return;
     }
     const people = this.contacts();
@@ -285,15 +299,16 @@ export class PhoneUI {
 
   async startCall(id) {
     const res = await this.act('phone:call', { to: id });
-    if (res?.ok) { this.h.toast(res.message ?? '📞 Aranıyor...', 'info'); this.h.ensureMic(); }
+    if (res?.ok) { this.h.toast(res.message ?? '📞 Aranıyor...', 'info'); this.h.ensureMic(); setTimeout(() => this.isOpen && this.view === 'call' && this.appCall(), 300); }
   }
 
-  incoming({ from, name }) {
+  incoming({ from, name, callId, group }) {
     this.h.sfx?.('notify');
-    clear(this.ring).append(el('div', { class: 'ph-ring-card' }, el('div', { class: 'ph-avatar big' }, name[0]), el('b', {}, name), el('small', {}, '📞 Seni arıyor...'),
+    const g = group?.length ? `👥 Grup görüşmesi: ${[name, ...group].join(', ')}` : '📞 Seni arıyor...';
+    clear(this.ring).append(el('div', { class: 'ph-ring-card' }, el('div', { class: 'ph-avatar big' }, name[0]), el('b', {}, name), el('small', {}, g),
       el('div', { class: 'ph-ring-btns' },
-        this.btn('📵', 'danger round', async () => { await this.act('phone:answer', { from, accept: false }); this.ring.classList.add('hidden'); }),
-        this.btn('📞', 'green round', async () => { const r = await this.act('phone:answer', { from, accept: true }); this.ring.classList.add('hidden'); if (r?.ok) { this.h.ensureMic(); this.h.toast(`📞 ${name} ile görüşüyorsun`, 'ok'); } }))));
+        this.btn('📵', 'danger round', async () => { await this.act('phone:answer', { from, callId, accept: false }); this.ring.classList.add('hidden'); }),
+        this.btn('📞', 'green round', async () => { const r = await this.act('phone:answer', { from, callId, accept: true }); this.ring.classList.add('hidden'); if (r?.ok) { this.h.ensureMic(); this.h.toast(r.call?.names?.length > 1 ? `👥 Grup görüşmesine katıldın: ${r.call.names.join(', ')}` : `📞 ${name} ile görüşüyorsun`, 'ok'); } }))));
     this.ring.classList.remove('hidden');
     clearTimeout(this._ringT);
     this._ringT = setTimeout(() => this.ring.classList.add('hidden'), 25000);

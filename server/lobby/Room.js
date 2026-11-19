@@ -231,6 +231,7 @@ export class Room {
     if (!player || player.socketId !== socket.id) return;
     player.online = false;
     player.socketId = null;
+    if (player.callId) this.engine.getSystem('society')?.hangup(player);
     if (this.onlineCount === 0) this.emptySince = Date.now();
     this.io.to(this.code).emit(EVENTS.PLAYER_LEFT, { id: player.id });
     this.bus.news('player', `💤 ${player.name} çevrimdışı oldu (mülkleri korunuyor).`);
@@ -308,10 +309,10 @@ export class Room {
     if (++player._voiceN > 25) return;
     const range = this.config.life.voiceRange;
     // Telefonla konuşuyorsa karşı taraf her yerden duyar
-    const callee = player.callWith && this.world.players.get(player.callWith);
-    if (callee?.online && callee.socketId) this.io.to(callee.socketId).emit('voice:in', { id: player.id, d: 4, a: data, call: 1 });
+    const peers = new Set(this.engine.getSystem('society')?.callPeers(player) ?? []);
+    for (const id of peers) { const c = this.world.players.get(id); if (c?.online && c.socketId) this.io.to(c.socketId).emit('voice:in', { id: player.id, d: 4, a: data, call: 1 }); }
     for (const o of this.world.players.values()) {
-      if (o === player || o === callee || !o.online || !o.socketId || o.inside !== player.inside) continue;
+      if (o === player || peers.has(o.id) || !o.online || !o.socketId || o.inside !== player.inside) continue;
       // Aynı arabadakiler birbirini net duyar
       const d = Math.hypot(o.x - player.x, o.z - player.z);
       if (d > range) continue;

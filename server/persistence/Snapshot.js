@@ -119,6 +119,7 @@ export function restoreWorld(world, s) {
     p.tv = false;
     p.callWith = null;
     p.callPending = null;
+    p.callId = null;
     p.rideWith = null;
     p.seat = 0;
     if (p.driving) { p.driving = null; p.maxSpeed = world.config.player.speed * world.config.player.sprintMultiplier; }

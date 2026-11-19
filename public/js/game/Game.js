@@ -329,9 +329,11 @@ export class Game {
     this.on('phone:msg', (m) => this.phone.onMessage(m));
     this.on('phone:ring', (r) => this.phone.incoming(r));
     this.on('phone:call', (c) => {
-      if (c.state === 'on') { this.ui.toast(`📞 ${c.name} açtı! Konuşabilirsiniz 🎙️`, 'ok'); if (!this.voice.enabled) this.toggleMic(); }
+      if (c.state === 'on' || c.state === 'join') { this.ui.toast(`📞 ${c.name} görüşmeye katıldı! 🎙️`, 'ok'); if (!this.voice.enabled) this.toggleMic(); }
       else if (c.state === 'declined') this.ui.toast(`📵 ${c.name} meşgule attı.`, 'warn');
-      else this.ui.toast(`📵 ${c.name} görüşmeyi kapattı.`, 'info');
+      else if (c.state === 'noanswer') this.ui.toast(`📵 ${c.name} açmadı.`, 'warn');
+      else if (c.state === 'left') this.ui.toast(`👋 ${c.name} görüşmeden ayrıldı.`, 'info');
+      else this.ui.toast('📵 Görüşme bitti.', 'info');
     });
     this.on('voice:in', (m) => {
       const e = this.entities.getPlayer(m.id);

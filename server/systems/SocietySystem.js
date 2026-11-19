@@ -68,7 +68,7 @@ export class SocietySystem {
     const S = this.S;
     const out = {
       outfit: p.outfit ?? {}, wardrobe: p.wardrobe ?? [], cars: p.cars ?? [], driving: p.driving ?? null,
-      loan: p.loan ?? null, loanLimit: this.loanLimit(p), callWith: p.callWith ?? null,
+      loan: p.loan ?? null, loanLimit: this.loanLimit(p), callWith: p.callId ?? null, call: this.callInfo(p),
       econ: { mul: Math.round(S.econ.mul * 1000) / 1000, history: S.econ.history.slice(-6) },
       rideWith: p.rideWith ?? null, seat: p.seat ?? 0,
       myCase: S.cases.find((c) => c.defendantId === p.id && c.status === 'open') ?? null,
@@ -741,36 +741,85 @@ export class SocietySystem {
     return { ok: true, quiet: true, messages: this.S.messages.filter((m) => m.from === p.id || m.to === p.id).slice(-150) };
   }
 
-  call(p, { to }) {
-    const t = this.ctx.world.players.get(to);
-    if (!t || !t.online || t.isAI) return fail('📵 Ulaşılamıyor.');
-    if (t.callWith || p.callWith) return fail('📵 Hat meşgul.');
-    p.callPending = t.id;
-    this.to(t.id, 'phone:ring', { from: p.id, name: p.name });
-    return { ok: true, quiet: true, message: `📞 ${t.name} aranıyor...` };
+  // ------------------------------------------------------------------ GRUP ARAMASI
+  // Arama bir odadır: görüşme sırasında başka kişiler de eklenebilir, herkes herkesi duyar.
+  get calls() { return (this._calls = this._calls ?? new Map()); }
+
+  callOf(p) { return p?.callId ? this.calls.get(p.callId) ?? null : null; }
+
+  callInfo(p) {
+    const c = this.callOf(p);
+    if (!c) return null;
+    const W = this.ctx.world;
+    return { id: c.id, members: [...c.members].filter((id) => id !== p.id).map((id) => ({ id, name: W.players.get(id)?.name ?? '?' })), invited: [...c.invited].map((id) => ({ id, name: W.players.get(id)?.name ?? '?' })) };
   }
 
-  answer(p, { from, accept }) {
+  touchCall(c) { for (const id of [...c.members, ...c.invited]) { const x = this.ctx.world.players.get(id); if (x) this.ctx.world.touchPlayer(x); } }
+
+  call(p, { to }) {
     const { world } = this.ctx;
-    const c = world.players.get(from);
-    if (!c || c.callPending !== p.id) return fail('Arama sonlandı.');
-    c.callPending = null;
-    if (!accept) { this.to(c.id, 'phone:call', { state: 'declined', name: p.name }); return { ok: true, quiet: true }; }
-    p.callWith = c.id;
-    c.callWith = p.id;
-    this.to(c.id, 'phone:call', { state: 'on', with: p.id, name: p.name });
-    world.touchPlayer(p); world.touchPlayer(c);
-    return { ok: true, quiet: true, call: { with: c.id, name: c.name } };
+    const t = world.players.get(to);
+    if (!t || !t.online || t.isAI || t === p) return fail('📵 Ulaşılamıyor.');
+    let c = this.callOf(p);
+    if (c?.members.has(t.id)) return fail(`${t.name} zaten görüşmede.`);
+    if (c && c.members.size + c.invited.size >= 8) return fail('📵 Grup aramasına en fazla 8 kişi.');
+    if (t.callId && t.callId !== c?.id) return fail(`📵 ${t.name} başka bir görüşmede.`);
+    if (!c) {
+      c = { id: `call${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, members: new Set([p.id]), invited: new Set() };
+      this.calls.set(c.id, c);
+      p.callId = c.id;
+    }
+    c.invited.add(t.id);
+    const others = [...c.members].filter((id) => id !== p.id).map((id) => world.players.get(id)?.name).filter(Boolean);
+    this.to(t.id, 'phone:ring', { from: p.id, name: p.name, callId: c.id, group: others });
+    this.touchCall(c);
+    setTimeout(() => { if (c.invited.delete(t.id)) { this.to(p.id, 'phone:call', { state: 'noanswer', name: t.name }); this.cleanupCall(c); } }, 30000);
+    return { ok: true, quiet: true, message: c.members.size > 1 ? `📞 ${t.name} görüşmeye ekleniyor...` : `📞 ${t.name} aranıyor...` };
+  }
+
+  answer(p, { from, accept, callId }) {
+    const { world } = this.ctx;
+    const c = this.calls.get(callId) ?? this.callOf(world.players.get(from));
+    if (!c || !c.invited.has(p.id)) return fail('Arama sonlandı.');
+    c.invited.delete(p.id);
+    if (!accept) {
+      for (const id of c.members) this.to(id, 'phone:call', { state: 'declined', name: p.name });
+      this.cleanupCall(c);
+      return { ok: true, quiet: true };
+    }
+    if (p.callId && p.callId !== c.id) this.hangup(p);
+    for (const id of c.members) this.to(id, 'phone:call', { state: 'join', name: p.name });
+    c.members.add(p.id);
+    p.callId = c.id;
+    this.touchCall(c);
+    const names = [...c.members].filter((id) => id !== p.id).map((id) => world.players.get(id)?.name).filter(Boolean);
+    return { ok: true, quiet: true, call: { id: c.id, names } };
   }
 
   hangup(p) {
-    const { world } = this.ctx;
-    const o = world.players.get(p.callWith ?? p.callPending);
-    if (o) { o.callWith = null; o.callPending = null; this.to(o.id, 'phone:call', { state: 'off', name: p.name }); world.touchPlayer(o); }
-    p.callWith = null;
-    p.callPending = null;
-    world.touchPlayer(p);
+    const c = this.callOf(p);
+    p.callId = null;
+    p.callWith = null; p.callPending = null;
+    this.ctx.world.touchPlayer(p);
+    if (!c) return { ok: true, quiet: true };
+    c.members.delete(p.id);
+    for (const id of c.members) this.to(id, 'phone:call', { state: 'left', name: p.name });
+    this.cleanupCall(c);
+    this.touchCall(c);
     return { ok: true, quiet: true };
+  }
+
+  /** Tek kişi kaldıysa ve bekleyen davet yoksa görüşme biter */
+  cleanupCall(c) {
+    if (c.members.size > 1 || c.invited.size > 0) return;
+    for (const id of c.members) { const x = this.ctx.world.players.get(id); if (x) { x.callId = null; this.to(id, 'phone:call', { state: 'off' }); this.ctx.world.touchPlayer(x); } }
+    this.calls.delete(c.id);
+  }
+
+  /** Bu oyuncunun sesini duyacak görüşme arkadaşları */
+  callPeers(p) {
+    const c = this.callOf(p);
+    return c ? [...c.members].filter((id) => id !== p.id) : [];
   }
 
   // ================================================================== SOSYAL MEDYA
