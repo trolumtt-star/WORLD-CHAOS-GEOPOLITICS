@@ -14,7 +14,7 @@ const tl = (n) => `₺${Math.round(n).toLocaleString('tr-TR')}`;
 const clamp = (v) => Math.max(0, Math.min(100, v));
 const fail = (error) => ({ ok: false, error });
 
-const ENTERABLE_CIVIC = new Set(['police', 'bank', 'hospital', 'palace', 'town_hall']);
+const ENTERABLE_CIVIC = new Set(['police', 'bank', 'hospital', 'palace', 'town_hall', 'court', 'stadium']);
 
 export class LifeSystem {
   name = 'life';
@@ -287,6 +287,7 @@ export class LifeSystem {
         }
         return { ok: true, message: `${coffee ? '☕ Kahve' : '🍵 Çay'} demlendi${guests.length ? `, ${guests.length} misafirine de ikram ettin` : ''}!`, sfx: 'drink' };
       }
+      case 'tribune:sit':
       case 'sofa:sit':
       case 'table:sit':
       case 'counter:sit': {

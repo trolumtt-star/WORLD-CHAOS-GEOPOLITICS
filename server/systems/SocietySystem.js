@@ -399,7 +399,8 @@ export class SocietySystem {
     this.pushMatch();
   }
 
-  matchMinute(M) { return Math.min(90, Math.floor((Date.now() - M.startedAt) / 1000)); }
+  // Maç gerçek zamanda 2 dakika = 90 dakika
+  matchMinute(M) { return Math.min(90, Math.floor(((Date.now() - M.startedAt) / 120000) * 90)); }
 
   tickMatch({ world, rng, bus }) {
     const M = this.S.match;

@@ -17,6 +17,7 @@ import { setWeapon } from '../entities/EntityManager.js';
 import { WEAPONS, canFoundAtTiles } from '../../shared/interiors.js';
 import { PhoneUI } from '../ui/PhoneUI.js';
 import { AdminUI } from '../ui/AdminUI.js';
+import { MatchSim } from './MatchSim.js';
 import { OUTFITS, CARS, CLUBS, priceOf } from '../../shared/catalogs.js';
 
 /** Bir oyun oturumu: sahne + ağ olayları + arayüz + döngü. */
@@ -147,6 +148,21 @@ export class Game {
       onShoot: () => this.runAction({ type: 'match:shoot', params: {} }),
     });
     this.match = init.match ?? null;
+    this.matchSim = new MatchSim();
+    this.matchSim.setMatch(this.match);
+    this.commentary = el('div', { class: 'commentary hidden' });
+    this.ui.hud.append(this.commentary);
+    this.matchSim.onEvent = (text) => {
+      if (!this.watchingMatch()) return;
+      this.commentary.textContent = `🎙️ ${text}`;
+      this.commentary.classList.remove('hidden', 'pop');
+      void this.commentary.offsetWidth;
+      this.commentary.classList.add('pop');
+      clearTimeout(this._comT);
+      this._comT = setTimeout(() => this.commentary.classList.add('hidden'), 3500);
+      if (text.includes('GOOOL')) this.audio.play('success', { important: true });
+      else if (text.includes('Şut')) this.audio.play('whoosh', { vol: 0.5 });
+    };
     this.phone = new PhoneUI(app.ui, {
       ui: this.ui,
       sfx: (n) => this.audio.play(n),
@@ -262,6 +278,7 @@ export class Game {
     });
     this.on('match:update', (m) => {
       this.match = m;
+      this.matchSim.setMatch(m);
       this.phone.setMatch(m);
       this.interior.setMatch?.(m);
       this.refreshShootBtn();
@@ -573,6 +590,13 @@ export class Game {
     const me = this.entities.getPlayer(this.selfId);
     if (me) this.entities.setCar(me, s.driving ?? '');
     if (s.tv && !before.tv) this.enterTv();
+    const inStadium = this.city.get(s.inside)?.type === 'stadium';
+    if (inStadium && s.pose === 'sit' && before.pose !== 'sit' && this.interior.pitch) {
+      const p = this.self.g.position;
+      this.rig.setFirstPerson({ x: p.x, y: 6.5, z: p.z + 1 }, { x: this.interior.pitch.x, y: 0, z: this.interior.pitch.z });
+      this.self.g.visible = false;
+    }
+    if (inStadium && before.pose === 'sit' && s.pose !== 'sit') { this.rig.setFirstPerson(null); this.self.g.visible = true; }
     if (!s.tv && before.tv) { this.rig.setFirstPerson(null); this.self.g.visible = true; }
     if (s.outfit && JSON.stringify(s.outfit) !== JSON.stringify(before.outfit ?? {}) && before.outfit !== undefined) this.entities.setOutfit(this.selfId, s.outfit);
     this.refreshShootBtn();
@@ -676,11 +700,28 @@ export class Game {
     this.drawTv();
   }
 
+  watchingMatch() {
+    return !!this.ui.self.tv || this.city.get(this.ui.self.inside)?.type === 'stadium';
+  }
+
   drawTv() {
     const scr = this.interior.tvScreen;
     if (!scr) return;
     if (!this.tvCanvas) { this.tvCanvas = document.createElement('canvas'); this.tvCanvas.width = 512; this.tvCanvas.height = 288; this.tvTex = null; }
     const c = this.tvCanvas, x = c.getContext('2d');
+    if (this.matchSim.live) {
+      // CANLI MAÇ YAYINI: kuşbakışı saha + skor + spiker
+      const M = this.match;
+      x.fillStyle = '#0b1a0f'; x.fillRect(0, 0, 512, 288);
+      this.matchSim.draw2D(x, 10, 40, 492, 210);
+      x.fillStyle = 'rgba(0,0,0,0.75)'; x.fillRect(0, 0, 512, 36);
+      const min = Math.min(90, Math.floor(((Date.now() - M.startedAt) / 120000) * 90));
+      x.fillStyle = '#fff'; x.font = 'bold 20px sans-serif'; x.textAlign = 'center';
+      x.fillText(`${CLUBS[M.home].name}  ${M.score[0]} - ${M.score[1]}  ${CLUBS[M.away].name}`, 256, 25);
+      x.textAlign = 'left'; x.fillStyle = '#ff3b30'; x.fillText(`🔴 ${min}'`, 8, 25);
+      x.fillStyle = '#111'; x.fillRect(0, 252, 512, 36);
+      x.fillStyle = '#ffd34d'; x.font = '15px sans-serif'; x.fillText(`🎙️ ${this.matchSim.lastEvent || 'Maç başladı!'}`.slice(0, 64), 10, 276);
+    } else {
     const slide = this.tvSlide % 4;
     const bg = ['#0b2a4a', '#0b3b2a', '#3a0b2a', '#1a1a2a'][slide];
     x.fillStyle = bg; x.fillRect(0, 0, 512, 288);
@@ -728,6 +769,7 @@ export class Game {
     }
     x.fillStyle = '#111'; x.fillRect(0, 268, 512, 20);
     x.fillStyle = '#ffd34d'; x.font = '13px sans-serif'; x.fillText((this.ui.newsLog[0]?.text ?? 'WORLD CHAOS TV').slice(0, 70), 8, 283);
+    }
     if (!this.tvTex || scr.material.map !== this.tvTex) { this.tvTex = new THREE.CanvasTexture(c); this.tvTex.colorSpace = THREE.SRGBColorSpace; scr.material.map = this.tvTex; scr.material.needsUpdate = true; }
     this.tvTex.needsUpdate = true;
   }
@@ -891,6 +933,7 @@ export class Game {
         if (b.type === 'bank') return this.phone.open('bank');
         return this.openShop(b, !!(b.type === 'cafe' || b.type === 'restaurant' || b.type === 'bar'), spot);
       case 'bench': return this.phone.open('court');
+      case 'tribune': return open(act('🏟️ Tribüne Otur ve İzle', 'primary', 'sit'), el('p', { class: 'muted' }, this.match?.status === 'live' ? '🔴 Maç canlı!' : `Maç her gün 14:00'te · 2 dakika sürer`), el('button', { class: 'btn ghost', onClick: () => this.phone.open('match') }, '🎟️ Bahis & Kadro'));
       case 'mirror': return this.phone.open('wardrobe');
       case 'pitch': return this.match?.status === 'live' ? this.ui.toast('⚽ Kadrodaysan ekrandaki ⚽ Şut butonuna bas!', 'info') : this.phone.open('match');
       case 'reception':
@@ -1053,7 +1096,12 @@ export class Game {
     this.entities.camZ = this.self.g.position.z;
     setWeapon(this.self.g, this.ui.self.weapon ?? 'fist');
     this.interior.update(dt, kit.night ?? 0);
-    if (this.ui.self.tv) { this.tvTimer = (this.tvTimer ?? 0) + dt; if (this.tvTimer > 4.5) { this.tvTimer = 0; this.tvSlide = (this.tvSlide ?? 0) + 1; this.drawTv(); } }
+    if (this.matchSim.live && this.watchingMatch()) {
+      this.matchSim.update(dt);
+      if (this.interior.pitch) this.interior.renderMatch(this.matchSim, dt);
+    }
+    if (this.ui.self.tv && this.matchSim.live) { this.tvTimer = (this.tvTimer ?? 0) + dt; if (this.tvTimer > 0.1) { this.tvTimer = 0; this.drawTv(); } }
+    else if (this.ui.self.tv) { this.tvTimer = (this.tvTimer ?? 0) + dt; if (this.tvTimer > 4.5) { this.tvTimer = 0; this.tvSlide = (this.tvSlide ?? 0) + 1; this.drawTv(); } }
     if (this.interior.scoreboard) { this._sbT = (this._sbT ?? 0) + dt; if (this._sbT > 1) { this._sbT = 0; this.interior.drawScoreboard(this.match, (i) => CLUBS[i].name); } }
     const shake = this.effects.update(dt);
     this.rig.update(dt, this.self.g.position, shake);

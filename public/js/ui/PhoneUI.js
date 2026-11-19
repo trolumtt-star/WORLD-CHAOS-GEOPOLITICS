@@ -399,7 +399,7 @@ export class PhoneUI {
     const body = this.page('Bahis · Kaos Arena');
     if (!M) { body.append(el('p', { class: 'ph-muted' }, 'Bugün maç yok. Her gün 00:00\'da yeni maç açıklanır, 14:00\'te başlar.')); return; }
     const H = CLUBS[M.home], A = CLUBS[M.away];
-    const min = M.status === 'live' && M.startedAt ? Math.min(90, Math.floor((Date.now() - M.startedAt) / 1000)) : 0;
+    const min = M.status === 'live' && M.startedAt ? Math.min(90, Math.floor(((Date.now() - M.startedAt) / 120000) * 90)) : 0;
     body.append(el('div', { class: 'ph-match' },
       el('div', { class: 'ph-team' }, el('i', { style: { background: hex(H.color) } }), H.name),
       el('div', { class: 'ph-score' }, M.status === 'upcoming' ? '14:00' : `${M.score[0]} - ${M.score[1]}`, el('small', {}, M.status === 'live' ? `🔴 ${min}'` : M.status === 'done' ? 'MS' : 'Bugün')),

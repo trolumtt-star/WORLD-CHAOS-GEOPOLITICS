@@ -279,10 +279,12 @@ L.stadium = {
     ['pitch', 0, -2, 56, 34, 0.05], ['goal', -28.5, -2, 1.5, 7, 2.6], ['goal', 28.5, -2, 1.5, 7, 2.6, null, Math.PI],
     ['stand', 0, -23, 70, 4, 6], ['stand', -35, -2, 4, 40, 6], ['stand', 35, -2, 4, 40, 6],
     ['scoreboard', 0, -25.4, 14, 1, 9], ['counter', -20, 20, 8, 2, 1.7, 0x2e7d32],
+    ['bench', 11, 21.8, 12, 1.2, 1, 0x1e88e5],
   ],
   spots: [
     { id: 'counter', tag: 'counter', label: 'Bilet & Bahis Gişesi', icon: '🎟️', x: -20, z: 22.4 },
     { id: 'pitch', tag: 'pitch', label: 'Saha · Maça Katıl', icon: '⚽', x: 0, z: 17 },
+    { id: 'tribune', tag: 'tribune', label: 'Tribün · Maçı İzle', icon: '🏟️', x: 10, z: 20.5, seats: [[6, 21.6, Math.PI], [8, 21.6, Math.PI], [10, 21.6, Math.PI], [12, 21.6, Math.PI], [14, 21.6, Math.PI], [16, 21.6, Math.PI]] },
     { id: 'exit', tag: 'exit', label: 'Dışarı Çık', icon: '🚪', x: 0, z: 24.6 },
   ],
 };

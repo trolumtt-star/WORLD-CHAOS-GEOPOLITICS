@@ -352,25 +352,39 @@ export class InteriorRenderer {
   }
 
   setMatch(match) {
-    if (!this.pitch || !this.group) return;
     this.match = match;
-    const want = match && match.status === 'live' ? 10 : 0;
-    if (this.footballers.length === want && this.matchTeams === `${match?.home}-${match?.away}`) return;
+    if (!this.pitch || !this.group) return;
+    const want = match && match.status === 'live' ? 14 : 0;
+    if (this.footballers.length === want && this.matchTeams === `${match?.id}`) return;
     for (const f of this.footballers) this.group.remove(f.g);
     this.footballers = [];
-    this.matchTeams = `${match?.home}-${match?.away}`;
+    this.matchTeams = `${match?.id}`;
     if (!want) return;
-    const P = this.pitch, o = this.matchOrigin;
-    for (let i = 0; i < 10; i++) {
-      const side = i < 5 ? 0 : 1;
+    for (let i = 0; i < want; i++) {
+      const side = i < 7 ? 0 : 1;
       const club = CLUBS[side ? match.away : match.home];
-      const ch = makeCharacter(club.color, { seed: i * 31 + 5, pants: club.color2, outfit: {} });
-      const k = i % 5;
-      const home = { x: (side ? 1 : -1) * (k === 0 ? P.w * 0.45 : P.w * (0.12 + (k % 2) * 0.18)), z: (k - 2) * P.d * 0.18 };
-      ch.position.set(P.x - o.x + home.x, 0, P.z - o.z + home.z);
+      const ch = makeCharacter(i % 7 === 0 ? 0x30d158 : club.color, { seed: i * 31 + 5, pants: club.color2, outfit: {} }); // kaleci yeşil
       this.group.add(ch);
-      this.footballers.push({ g: ch, side, keeper: k === 0, home, speed: 0 });
+      this.footballers.push({ g: ch });
     }
+  }
+
+  /** MatchSim durumunu 3D sahneye uygula */
+  renderMatch(sim, dt) {
+    if (!this.pitch || !this.ball || !this.footballers.length || !sim.players.length) return;
+    const P = this.pitch, o = this.matchOrigin;
+    const cx = P.x - o.x, cz = P.z - o.z;
+    const kx = P.w / sim.W, kz = P.d / sim.D;
+    sim.players.forEach((p, i) => {
+      const f = this.footballers[i];
+      if (!f) return;
+      f.g.position.set(cx + p.x * kx, 0, cz + p.z * kz);
+      f.g.rotation.y = p.rot;
+      animateFootballer(f.g, p.speed, dt);
+    });
+    const b = sim.ball;
+    this.ball.position.set(cx + b.x * kx, 0.45 + b.air * 3, cz + b.z * kz);
+    this.ball.rotation.x += dt * Math.hypot(b.vx, b.vz) * 0.5;
   }
 
   goalFx(side) {
@@ -385,7 +399,7 @@ export class InteriorRenderer {
     x.fillStyle = '#0b0f17'; x.fillRect(0, 0, 512, 128);
     x.fillStyle = '#ffd34d'; x.font = 'bold 30px sans-serif'; x.textAlign = 'center';
     if (!match) { x.fillText('KAOS ARENA', 256, 75); sb.tex.needsUpdate = true; return; }
-    const min = match.status === 'live' && match.startedAt ? Math.min(90, Math.floor((Date.now() - match.startedAt) / 1000)) : match.status === 'done' ? 90 : 0;
+    const min = match.status === 'live' && match.startedAt ? Math.min(90, Math.floor(((Date.now() - match.startedAt) / 120000) * 90)) : match.status === 'done' ? 90 : 0;
     x.fillStyle = '#ffffff'; x.font = 'bold 26px sans-serif';
     x.fillText(`${clubName(match.home)}  ${match.score[0]} - ${match.score[1]}  ${clubName(match.away)}`, 256, 60);
     x.fillStyle = match.status === 'live' ? '#3ddc84' : '#aaaaaa'; x.font = 'bold 22px sans-serif';
@@ -426,30 +440,6 @@ export class InteriorRenderer {
   update(dt, night) {
     if (!this.group) return;
     if (this.spinners) for (const c of this.spinners) c.rotation.y += dt * 0.3;
-    if (this.ball && this.footballers?.length) {
-      const P = this.pitch, o = this.matchOrigin;
-      const bx = this.ball.position.x, bz = this.ball.position.z;
-      const t = this.ballTarget;
-      if (t.goal > 0) t.goal -= dt;
-      else if (Math.hypot(t.x - (bx - (P.x - o.x)), t.z - (bz - (P.z - o.z))) < 1.5 || Math.random() < dt * 0.6) {
-        this.ballTarget = { x: (Math.random() - 0.5) * P.w * 0.8, z: (Math.random() - 0.5) * P.d * 0.8, goal: 0 };
-      }
-      const tx = P.x - o.x + this.ballTarget.x, tz = P.z - o.z + this.ballTarget.z;
-      const k = Math.min(1, dt * (this.ballTarget.goal > 0 ? 4 : 1.6));
-      this.ball.position.x += (tx - bx) * k;
-      this.ball.position.z += (tz - bz) * k;
-      this.ball.rotation.x += dt * 6;
-      for (const f of this.footballers) {
-        const gx = f.keeper ? P.x - o.x + f.home.x : (this.ball.position.x * 0.7 + (P.x - o.x + f.home.x) * 0.3);
-        const gz = f.keeper ? P.z - o.z + Math.max(-4, Math.min(4, this.ball.position.z - (P.z - o.z))) : (this.ball.position.z * 0.6 + (P.z - o.z + f.home.z) * 0.4);
-        const dx = gx - f.g.position.x, dz = gz - f.g.position.z;
-        const d = Math.hypot(dx, dz);
-        const sp = Math.min(d, dt * 9);
-        if (d > 0.3) { f.g.position.x += (dx / d) * sp; f.g.position.z += (dz / d) * sp; f.g.rotation.y = Math.atan2(dx, dz); }
-        f.speed = sp / Math.max(dt, 0.001);
-        animateFootballer(f.g, f.speed, dt);
-      }
-    }
     if (this.taskMarker.visible) {
       this.taskMarker.children[0].rotation.z += dt * 2;
       this.taskMarker.children[1].position.y = 3.6 + Math.sin(performance.now() / 200) * 0.3;
