@@ -55,7 +55,7 @@ export class LifeSystem {
         p.energy = clamp(p.energy + L.sleepEnergyPerHour * hrs * (p.inside ? 1 : 0.6));
         if (p.energy >= 100) { p.pose = ''; this.say(p, '☀️ Dinç uyandın! Enerjin full.', 'ok'); }
       } else {
-        p.energy = clamp(p.energy - L.energyPerHour * hrs * (p.shift ? 1.2 : 1));
+        p.energy = clamp(p.energy - L.energyPerHour * hrs * (p.shift ? 1.1 : 1));
         if (p.energy <= 0 && p.pose !== 'sleep') this.passOut(p);
       }
       if (p.food <= 0 || p.water <= 0) {
@@ -457,7 +457,7 @@ export class LifeSystem {
     }
     p.shift.done++;
     p.shift.hourDone++;
-    p.energy = clamp(p.energy - 1);
+    p.energy = clamp(p.energy - 0.3);
     if (b.category === 'commercial') b.crimeHeat = Math.max(0, b.crimeHeat - 0.2);
     const done = t.label;
     this.assignTask(p);

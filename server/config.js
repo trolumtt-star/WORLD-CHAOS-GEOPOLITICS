@@ -82,11 +82,11 @@ export const CONFIG = {
 
   // Oyuncu hayatta kalma (saat başı değişim, 0..100)
   life: {
-    foodPerHour: 3.2,
-    waterPerHour: 4.2,
-    energyPerHour: 4.4,      // uyanıkken
+    foodPerHour: 1.2,        // tam tok -> aç: ~83 oyun saati (~14 dk)
+    waterPerHour: 1.6,       // ~62 oyun saati (~10 dk)
+    energyPerHour: 1.8,      // uyanıkken ~55 oyun saati (~9 dk)
     sleepEnergyPerHour: 24,
-    starveDamagePerHour: 9,
+    starveDamagePerHour: 5,
     regenPerHour: 4,
     respawnMs: 8000,
     deathCashLoss: 0.12,
