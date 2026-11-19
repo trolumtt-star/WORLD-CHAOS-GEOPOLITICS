@@ -12,6 +12,7 @@ export class NpcBrainSystem {
   name = 'npcBrain';
 
   init(ctx) {
+    this.ctx = ctx;
     for (const npc of ctx.world.npcs.values()) {
       this.planDay(npc, ctx);
       const d = this.desired(npc, ctx.clock.hour, ctx);
@@ -51,14 +52,14 @@ export class NpcBrainSystem {
     npc.targets = {};
   }
 
-  decide(npc, hour, ctx) {
+  decide(npc, hour, ctx, after = false) {
     if (!npc.alive) return;
     const d = this.desired(npc, hour, ctx);
     if (!d.buildingId) return;
     if (d.buildingId === npc.targetId) {
       npc.activity = d.activity;
       // Zaten dükkandaysa (ör. açılmadan önce gelmişse) alışverişi tekrar dene
-      if (npc.state === 'inside' && PURCHASE_ACTIVITIES.has(d.activity)) {
+      if (npc.state === 'inside' && PURCHASE_ACTIVITIES.has(d.activity) && !npc.ind && !after) {
         ctx.bus.emit('npc:arrived', { npc, building: ctx.world.buildings.get(npc.targetId) });
       }
     } else this.sendTo(npc, d, ctx);
@@ -164,6 +165,7 @@ export class NpcBrainSystem {
     if (!target) return;
     if (npc.state === 'inside') {
       const cur = world.buildings.get(npc.locationId);
+      npc.ind = null;
       if (cur) {
         cur.occupants.delete(npc.id);
         npc.x = cur.door.x;
@@ -195,5 +197,6 @@ export class NpcBrainSystem {
     npc.z = b.door.z;
     npc.path = [];
     b.occupants.add(npc.id);
+    this.ctx?.engine.getSystem('indoor')?.enter(npc, b);
   }
 }

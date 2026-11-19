@@ -1,3 +1,4 @@
+import { interiorOrigin } from '../../shared/interiors.js';
 const r1 = (n) => Math.round(n * 10) / 10;
 
 export class NPC {
@@ -55,6 +56,10 @@ export class NPC {
   }
 
   toSnapshot() {
+    if (this.ind && this.state === 'inside') {
+      const o = interiorOrigin(this.ind.b), s = this.ind;
+      return [this.id, r1(o.x + s.x), r1(o.z + s.z), s.mode === 'work' && s.arrived ? 3 : 2, Math.round(s.rot * 100) / 100];
+    }
     return [this.id, r1(this.x), r1(this.z), this.visible ? 1 : 0];
   }
 }

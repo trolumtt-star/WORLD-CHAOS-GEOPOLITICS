@@ -1,4 +1,4 @@
-import { TECHS, ERAS, techCost, techHours, researchChance, playerEra } from '../data/tech.js';
+import { TECHS, ERAS, techCost, techBuyCost, techHours, researchChance, playerEra } from '../data/tech.js';
 
 const tl = (n) => `₺${Math.round(n).toLocaleString('tr-TR')}`;
 
@@ -25,6 +25,26 @@ export class TechSystem {
     world.touchPlayer(player);
     bus.emit('net:private', { playerId: player.id, item: { category: 'tech', text: `🔬 ${t.label} araştırması başladı (${hours} saat, başarı şansı %${Math.round(researchChance(player) * 100)}).` } });
     return { ok: true, message: `🔬 ${t.icon} ${t.label} araştırması başladı! ${hours} oyun saati sonra sonuç belli olacak.`, sfx: 'build' };
+  }
+
+  /** Şansa bırakma: yüksek bedeli öde, teknoloji anında senin */
+  buy(ctx, player, techId) {
+    const { world, config, bus } = ctx;
+    const t = TECHS[techId];
+    if (!t) return { ok: false, error: 'Bilinmeyen teknoloji.' };
+    if (player.techs.includes(techId)) return { ok: false, error: 'Bunu zaten biliyorsun.' };
+    const missing = t.requires.filter((r) => !player.techs.includes(r));
+    if (missing.length) return { ok: false, error: `Önce şunlar gerekli: ${missing.map((m) => TECHS[m].label).join(', ')}` };
+    const cost = techBuyCost(techId, config);
+    if (player.balance < cost) return { ok: false, error: `${t.label} için ${tl(cost)} gerekiyor.` };
+    player.balance -= cost;
+    if (player.research?.techId === techId) player.research = null;
+    const before = playerEra(player);
+    player.techs.push(techId);
+    world.touchPlayer(player);
+    bus.news('tech', `🔬 ${player.name}, ${t.icon} ${t.label} teknolojisini satın aldı!`);
+    if (playerEra(player) > before) { const e = ERAS[playerEra(player)]; bus.emit('net:alert', { level: 'info', text: `${e.icon} ${player.name} ${e.label} çağına geçti! (${e.years})` }); }
+    return { ok: true, message: `✅ ${t.icon} ${t.label} artık senin! (−${tl(cost)})`, sfx: 'success' };
   }
 
   onHour(_time, { world, rng, bus }) {

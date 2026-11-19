@@ -37,6 +37,11 @@ export class CommerceSystem {
         if (q) { npc.happiness = Math.min(100, npc.happiness + 15); npc.plan.luxury = false; }
         return q;
       },
+      leisure: () => {
+        const q = this.buy(npc, b, 'drink', 1);
+        if (q) npc.happiness = Math.min(100, npc.happiness + 3);
+        return q;
+      },
       weapon: () => {
         const q = this.buy(npc, b, 'weapons', 1);
         if (q) { npc.armed = true; npc.plan.weapon = false; }
@@ -45,7 +50,23 @@ export class CommerceSystem {
     };
     const fn = purchases[npc.activity];
     if (!fn) return;
-    const ok = world.isOpen(b) && fn() > 0;
+    const fail = () => {
+      npc.happiness = Math.max(0, npc.happiness - 2);
+      npc.targets[npc.activity] = null;
+    };
+    if (!world.isOpen(b)) return fail();
+    // İçeri girip kasaya yürüsün, kasada ödesin (görünür alışveriş)
+    const indoor = this.ctx.engine.getSystem('indoor');
+    if (indoor && !npc.ind) {
+      const started = indoor.visit(npc, b, () => {
+        const before = b.balance;
+        const q = fn();
+        if (!(q > 0)) fail();
+        return b.balance - before;
+      });
+      if (started) return;
+    }
+    const ok = fn() > 0;
     if (!ok) {
       npc.happiness = Math.max(0, npc.happiness - 2);
       npc.targets[npc.activity] = null; // bir sonraki saatte başka dükkan denesin

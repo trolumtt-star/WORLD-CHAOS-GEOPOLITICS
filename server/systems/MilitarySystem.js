@@ -3,6 +3,9 @@ import { UNIT_TYPES } from '../data/military.js';
 import { roadPath, stepAlongPath } from '../world/Pathfinding.js';
 import { isUnlocked, requiredTech, TECHS } from '../data/tech.js';
 
+const tl = (n) => `₺${Math.round(n).toLocaleString('tr-TR')}`;
+const VEHICLE = new Set(['tank', 'cannon', 'cavalry']);
+
 /**
  * Kara birlikleri: eğitim, hareket, otomatik çatışma.
  * Sadece SAVAŞTA olunan ülkeye ateş eder. Hedef önceliği:
@@ -31,19 +34,25 @@ export class MilitarySystem {
   }
 
   move(ctx, player, unitIds, x, z) {
-    const { world } = ctx;
+    const { world, config } = ctx;
     const target = world.nearestRoadPoint(x, z);
     let n = 0;
-    for (const id of unitIds ?? []) {
-      const u = world.units.get(id);
-      if (!u || u.ownerId !== player.id || u.def.combat === false || u.def.air) continue;
+    // Yol masrafı (yakıt + erzak): birlik başına mesafeye göre
+    let cost = 0;
+    const list = (unitIds ?? []).map((id) => world.units.get(id)).filter((u) => u && u.ownerId === player.id && u.def.combat !== false && !u.def.air);
+    if (!player.isAI) for (const u of list) cost += Math.hypot(u.x - target.x, u.z - target.z) / 100 * config.costs.marchPer100 * (VEHICLE.has(u.type) ? 3 : 1);
+    cost = Math.round(cost);
+    if (cost > player.balance) return { ok: false, error: `⛽ Yol masrafı ${tl(cost)} (yakıt + erzak). Paran yetmiyor — daha yakına gönder ya da daha az birlik seç.` };
+    player.balance -= cost;
+    if (cost) world.touchPlayer(player);
+    for (const u of list) {
       const start = world.nearestRoadPoint(u.x, u.z);
       u.x = start.x;
       u.z = start.z;
       u.path = roadPath(world, start, target);
       n++;
     }
-    return n ? { ok: true, moved: n } : { ok: false, error: 'Kara birliğin yok.' };
+    return n ? { ok: true, moved: n, cost, message: cost ? `🪖 ${n} birlik yola çıktı · ⛽ yol masrafı −${tl(cost)}` : undefined } : { ok: false, error: 'Kara birliğin yok.' };
   }
 
   // Ortak hedef bulma (helikopter de kullanır)
@@ -88,6 +97,25 @@ export class MilitarySystem {
     } else if (target.kind === 'building') {
       world.damageBuilding(target.ref, damage, attacker.ownerId);
       if (target.ref.destroyed) bus.news('war', `🔥 ${target.ref.name} çatışmada yerle bir oldu!`);
+    }
+  }
+
+  /** Savaştaki ülke her saat askerlerine yemek, araçlarına yakıt öder; ödeyemezse ordu erir */
+  onHour(time, { world, config, bus }) {
+    for (const p of world.players.values()) {
+      if (p.isAI || !world.warsOf(p.id).length) continue;
+      const units = [...world.units.values()].filter((u) => u.ownerId === p.id && u.def.combat !== false && !u.def.air && !u.def.street);
+      if (!units.length) continue;
+      let bill = 0;
+      for (const u of units) bill += VEHICLE.has(u.type) ? config.costs.upkeepVehicle : config.costs.upkeepFoot;
+      if (p.balance >= bill) {
+        p.balance -= bill;
+        if (time.hour % 4 === 0) bus.emit('net:private', { playerId: p.id, item: { category: 'war', text: `🍞⛽ Ordu ikmali: ${units.length} birlik için saatlik −${tl(bill)}` } });
+      } else {
+        for (const u of units) u.hp = Math.max(1, u.hp - u.maxHp * 0.15);
+        bus.emit('net:private', { playerId: p.id, item: { category: 'war', text: `⚠️ Hazinede ikmal parası yok (${tl(bill)}/saat)! Askerler aç, araçlar yakıtsız: ordu her saat %15 zayıflıyor.`, toast: 'err', sfx: 'alarm' } });
+      }
+      world.touchPlayer(p);
     }
   }
 

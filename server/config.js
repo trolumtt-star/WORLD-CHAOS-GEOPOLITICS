@@ -41,7 +41,8 @@ export const CONFIG = {
   player: {
     speed: 8,               // yürüme
     sprintMultiplier: 1.9,  // koşu ~15
-    startBalance: [4000, 6000],
+    startBalance: [500, 500], // herkes 500₺ ile başlar
+    rentMul: 3,               // oyuncu kirası = ev başı kira × 3
     sandboxBalance: 10_000_000,
     maxUnits: 30,
   },
@@ -98,6 +99,21 @@ export const CONFIG = {
     deathCashLoss: 0.12,
     healCost: 250,
     voiceRange: 45,
+  },
+
+  country: {
+    foundCost: 15000,       // ülke kurmak bedava değil
+  },
+
+  // Savaş masrafları: bedava savaş yok
+  costs: {
+    declareWar: 8000,       // seferberlik
+    marchPer100: 6,         // birlik başına her 100 birim yol (yakıt/erzak)
+    upkeepFoot: 5,          // savaşta yaya asker başı saatlik yemek
+    upkeepVehicle: 18,      // savaşta tank/top/süvari başı saatlik yakıt/yem
+    missileFuel: 0.15,      // füze fiyatına ek yakıt + fırlatma masrafı
+    airFuel: 0.2,           // uçak/helikopter kalkış yakıtı
+    interceptor: 600,       // hava savunmasının her önleme füzesi
   },
 
   war: {

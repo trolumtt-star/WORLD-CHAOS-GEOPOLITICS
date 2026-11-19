@@ -7,7 +7,7 @@ import { GameEngine } from '../core/GameEngine.js';
 import { World } from '../world/World.js';
 import { generateWorld, findFoundingSpot, ensureTownExtras, createVillage } from '../world/WorldGenerator.js';
 import { setupOperations } from '../world/BuildingSetup.js';
-import { TECHS, techCost, techHours } from '../data/tech.js';
+import { TECHS, techCost, techBuyCost, techHours } from '../data/tech.js';
 import { Player } from '../entities/Player.js';
 import { UNIT_TYPES, MISSILE_TYPES } from '../data/military.js';
 import { ACTIONS, catalog } from '../actions/index.js';
@@ -37,6 +37,7 @@ import { AiSystem } from '../systems/AiSystem.js';
 import { LifeSystem } from '../systems/LifeSystem.js';
 import { SocietySystem } from '../systems/SocietySystem.js';
 import { UnderworldSystem } from '../systems/UnderworldSystem.js';
+import { IndoorSystem } from '../systems/IndoorSystem.js';
 import { interiorLayout, interiorOrigin } from '../../shared/interiors.js';
 
 const COLORS = ['#ff4d4d', '#3ddc84', '#ffd23f', '#a06cff', '#2ec4ff', '#ff8c42', '#ff5fa2', '#00e0b8', '#c0ff3e', '#ffffff'];
@@ -107,8 +108,10 @@ export class Room {
       .use(new LifeSystem())
       .use(new SocietySystem())
       .use(new UnderworldSystem())
+      .use(new IndoorSystem())
       .use(new NetworkSyncSystem(io, this.code));
     this.ctx = this.engine.ctx;
+    this.ctx.room = this;
     if (save) {
       const life = this.engine.getSystem('life');
       if (life) life.incSeq = save.life?.incSeq ?? 0;
@@ -170,7 +173,7 @@ export class Room {
     return null;
   }
 
-  addPlayer(socket, rawName, token) {
+  addPlayer(socket, rawName, token, { gender } = {}) {
     const { world, rng, config, bus } = this.ctx;
     let player = this.findByToken(token);
     if (player && player.online && player.socketId !== socket.id) {
@@ -197,9 +200,13 @@ export class Room {
       world.players.set(player.id, player);
       if (this.sandbox) player.techs = Object.keys(TECHS);
       if (home) {
-        player.homeId = home.id;
         player.citizenOf = world.ownerAt(home.x, home.z) ?? 'state';
+        // Kimsenin evi yok: herkes kirada başlar
+        this.engine.getSystem('society').setHome(player, home);
       }
+      player.gender = gender === 'f' ? 'f' : 'm';
+      // Başlangıçta rastgele bir iş: beğenmezsen gidip başka iş bulursun
+      if (!this.sandbox) this.engine.getSystem('society').assignJob(player);
       const nation = world.players.get(player.citizenOf);
       player.citizenName = nation?.countryName ?? world.republic?.name ?? 'Merkez Şehir';
       bus.news('player', `🧳 ${player.name}, ${player.citizenName} vatandaşı olarak hayata başladı.`);
@@ -208,6 +215,7 @@ export class Room {
     }
     // Eski kayıtlarda sahip id'si yok: kurucu kendi karakteriyle dönünce sahip olur
     if (!this.ownerId && this.ownerName && token && player.token === token && player.name === this.ownerName) this.ownerId = player.id;
+    if (gender === 'f' || gender === 'm') player.gender = gender;
     player.online = true;
     player.socketId = socket.id;
     player.lastMoveAt = Date.now();
@@ -297,13 +305,13 @@ export class Room {
     const range = this.config.life.voiceRange;
     // Telefonla konuşuyorsa karşı taraf her yerden duyar
     const callee = player.callWith && this.world.players.get(player.callWith);
-    if (callee?.online && callee.socketId) this.io.to(callee.socketId).volatile.emit('voice:in', { id: player.id, d: 4, a: data, call: 1 });
+    if (callee?.online && callee.socketId) this.io.to(callee.socketId).emit('voice:in', { id: player.id, d: 4, a: data, call: 1 });
     for (const o of this.world.players.values()) {
       if (o === player || o === callee || !o.online || !o.socketId || o.inside !== player.inside) continue;
       // Aynı arabadakiler birbirini net duyar
       const d = Math.hypot(o.x - player.x, o.z - player.z);
       if (d > range) continue;
-      this.io.to(o.socketId).volatile.emit('voice:in', { id: player.id, d: Math.round(d * 10) / 10, a: data });
+      this.io.to(o.socketId).emit('voice:in', { id: player.id, d: Math.round(d * 10) / 10, a: data });
     }
   }
 
@@ -473,7 +481,8 @@ export class Room {
         ...catalog(),
         units: UNIT_TYPES,
         missiles: MISSILE_TYPES,
-        techCost: Object.fromEntries(Object.keys(TECHS).map((k) => [k, { cost: techCost(k, config), hours: techHours(k) }])),
+        techCost: Object.fromEntries(Object.keys(TECHS).map((k) => [k, { cost: techCost(k, config), buy: techBuyCost(k, config), hours: techHours(k) }])),
+        costs: { ...config.costs, foundCountry: config.country.foundCost },
       },
       tiles: world.tilesPublic(),
       world: world.publicStatic(),

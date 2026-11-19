@@ -643,3 +643,29 @@ textarea.ph-input { border-radius: 12px; resize: none; }
 .uw-h { display: flex; gap: 8px; align-items: center; font-size: 14px; } .uw-card small { color: var(--muted); }
 .uw-sel { width: 100%; padding: 8px; border-radius: 10px; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid rgba(255,255,255,0.15); }
 .uw-range { width: 100%; accent-color: #ff3b3b; }
+/* Büyük dünya haritası */
+.wm { position: fixed; inset: 0; z-index: 40; background: #10160d; touch-action: none; }
+.wm-canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+.wm-top { position: absolute; left: calc(10px + var(--sal, 0px)); right: calc(10px + var(--sar, 0px)); top: calc(8px + var(--sat, 0px)); display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+.wm-top > * { pointer-events: auto; }
+.wm-row { display: flex; gap: 8px; max-width: 520px; }
+.wm-search { flex: 1; padding: 10px 14px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.18); background: rgba(12,14,20,0.88); color: #fff; font-size: 14px; }
+.wm-close { width: 42px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.18); background: rgba(12,14,20,0.88); color: #fff; font-size: 18px; }
+.wm-chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.wm-chip { flex: none; padding: 6px 11px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.15); background: rgba(12,14,20,0.82); color: #ddd; font-size: 12px; font-weight: 700; }
+.wm-chip.on { background: #ffcc4d; color: #1d1405; border-color: #ffcc4d; }
+.wm-results { max-width: 520px; max-height: 45vh; overflow: auto; border-radius: 14px; background: rgba(12,14,20,0.95); border: 1px solid rgba(255,255,255,0.12); }
+.wm-res { display: grid; grid-template-columns: 28px 1fr; grid-template-rows: auto auto; width: 100%; text-align: left; padding: 8px 12px; background: none; border: 0; border-bottom: 1px solid rgba(255,255,255,0.06); color: #fff; }
+.wm-res span { grid-row: span 2; font-size: 20px; align-self: center; } .wm-res small { color: var(--muted); }
+.wm-zoom { position: absolute; right: calc(12px + var(--sar, 0px)); bottom: 24px; display: flex; flex-direction: column; gap: 8px; }
+.wm-zbtn { width: 46px; height: 46px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.18); background: rgba(12,14,20,0.88); color: #fff; font-size: 20px; font-weight: 800; }
+.wm-legend { position: absolute; left: calc(12px + var(--sal, 0px)); bottom: 10px; font-size: 11px; color: #cfd6c8; background: rgba(0,0,0,0.5); padding: 4px 10px; border-radius: 10px; pointer-events: none; }
+.wm-card { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); width: min(92vw, 380px); padding: 12px; border-radius: 18px; background: rgba(14,16,22,0.96); border: 1px solid rgba(255,255,255,0.15); box-shadow: 0 10px 30px rgba(0,0,0,0.6); display: flex; flex-direction: column; gap: 8px; }
+.wm-card-h { display: flex; gap: 10px; align-items: center; } .wm-card-h > div { flex: 1; display: flex; flex-direction: column; } .wm-card-h small { color: var(--muted); }
+.wm-card-i { font-size: 28px; } .wm-x { background: none; border: 0; color: #aaa; font-size: 18px; }
+.wm-card-a { display: flex; gap: 8px; } .wm-card-a .btn { flex: 1; }
+.pin-chip { position: absolute; left: 50%; transform: translateX(-50%); top: calc(54px + var(--sat, 0px)); display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 20px; border: 1px solid rgba(255,60,70,0.6); background: rgba(20,8,10,0.85); color: #fff; font-weight: 800; font-size: 12px; z-index: 6; max-width: 70vw; }
+.pin-chip i { display: inline-block; font-style: normal; color: #ff3b48; font-size: 16px; transition: transform 0.15s; }
+.pin-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .pin-chip small { color: #aaa; }
+.gender-row { display: flex; gap: 8px; } .gender-row .btn { flex: 1; }
+.tech-modal .btn.wide { flex-direction: column; gap: 2px; } .tech-modal .btn small { font-weight: 500; opacity: 0.8; font-size: 11px; }

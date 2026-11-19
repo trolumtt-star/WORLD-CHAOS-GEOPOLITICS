@@ -56,7 +56,11 @@ export class Menu {
 
   nameField() {
     const i = el('input', { maxlength: 16, placeholder: 'Takma adın', value: Settings.get('name') || '' });
-    return { node: el('label', { class: 'field' }, el('span', {}, 'Takma ad'), i), get: () => { const v = i.value.trim(); Settings.set('name', v); return v; } };
+    // Cinsiyet: karakterin görünüşü (sunucuya girerken seçilir)
+    if (!Settings.get('gender')) Settings.set('gender', 'm');
+    const gb = [['m', '👨 Erkek'], ['f', '👩 Kadın']].map(([k, l]) => el('button', { type: 'button', class: `btn g-btn ${Settings.get('gender') === k ? 'on primary' : ''}`, 'data-g': k, onClick: () => { Settings.set('gender', k); this.app.audio.play('click'); for (const b of gb) { const on = b.dataset.g === k; b.classList.toggle('on', on); b.classList.toggle('primary', on); } } }, l));
+    const node = el('div', { class: 'col' }, el('label', { class: 'field' }, el('span', {}, 'Takma ad'), i), el('div', { class: 'field' }, el('span', {}, 'Cinsiyet'), el('div', { class: 'row gender-row' }, ...gb)));
+    return { node, get: () => { const v = i.value.trim(); Settings.set('name', v); return v; } };
   }
 
   error(text) {

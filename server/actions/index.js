@@ -167,6 +167,9 @@ export const ACTIONS = {
       const dir = `${dz < -20 ? 'kuzey' : dz > 20 ? 'güney' : ''}${dx > 20 ? 'doğu' : dx < -20 ? 'batı' : ''}` || 'yakın';
       return { ok: false, error: `Burası uygun değil (sınırlara/nehre/dağa çok yakın). En yakın uygun yer: ${dir} yönünde ~${Math.round(Math.hypot(dx, dz) / world.blockSize)} parsel.`, hint: { x: c.x, z: c.z } };
     }
+    const fee = Math.round(config.country.foundCost * (world.society?.econ.mul ?? 1));
+    if (!ctx.room?.sandbox && p.balance < fee) return fail(`🏳️ Ülke kurmak ${tl(fee)} tutuyor (saray, ilk nüfus, toprak). Şu an ${tl(p.balance)} paran var.`);
+    if (!ctx.room?.sandbox) p.balance -= fee;
     const v = createVillage(world, rng, config, p, { spot: { i: t.i, j: t.j }, countryName: clean });
     if (!v) return fail('Ülke kurulamadı.');
     for (const n of v.npcs) bus.emit('net:spawn', { kind: 'npc', data: n.toMeta() });
@@ -193,6 +196,10 @@ export const ACTIONS = {
   // ---------------- TEKNOLOJİ / TOPRAK ----------------
   'tech:research'(ctx, p, { techId }) {
     return needCountry(p) ?? ctx.engine.getSystem('tech').start(ctx, p, techId);
+  },
+
+  'tech:buy'(ctx, p, { techId }) {
+    return needCountry(p) ?? ctx.engine.getSystem('tech').buy(ctx, p, techId);
   },
 
   'explore:scout'(ctx, p, { i, j }) {
@@ -318,6 +325,8 @@ export const ACTIONS = {
   'combat:attack'(ctx, p, { kind, id }) { return life(ctx).attack(p, String(kind), String(id)); },
   'combat:equip'(ctx, p, { weapon }) { return life(ctx).equip(p, String(weapon)); },
   'under:order'(ctx, p, params) { return ctx.engine.getSystem('underworld').order(p, params); },
+  'home:rent'(ctx, p, { buildingId }) { return ctx.engine.getSystem('society').rentHome(p, buildingId); },
+  'home:leave'(ctx, p) { return ctx.engine.getSystem('society').leaveHome(p); },
   'police:arrest'(ctx, p, { npcId }) { return life(ctx).arrest(p, String(npcId)); },
 
   // ---------------- TOPLUM (mahkeme, maç, banka, telefon, sosyal, sipariş, giyim, araba) ----------------
@@ -355,7 +364,8 @@ export const ACTIONS = {
   'market:listings'(ctx) {
     const { world } = ctx;
     const items = [...world.buildings.values()].filter((b) => b.forSale && b.operational !== false).slice(0, 80).map((b) => ({ id: b.id, name: b.name, type: b.type, price: b.salePrice, x: b.x, z: b.z, rent: b.rentPerResident || 0 }));
-    const rentals = [...world.buildings.values()].filter((b) => b.category === 'residential' && b.rentPerResident > 0).slice(0, 30).map((b) => ({ id: b.id, name: b.name, rent: b.rentPerResident, free: Math.max(0, (b.capacity ?? 0) - b.residentIds.length) }));
+    const soc = ctx.engine.getSystem('society');
+    const rentals = [...world.buildings.values()].filter((b) => b.category === 'residential' && b.operational && soc.roomIn(b) > 0).map((b) => ({ id: b.id, name: b.name, type: b.type, x: b.x, z: b.z, door: b.door, rent: soc.rentFor(b), free: soc.roomIn(b) })).sort((a, b) => a.rent - b.rent).slice(0, 40);
     const shops = [...world.buildings.values()].filter((b) => b.operational && world.isOpen(b) && (['market', 'cafe', 'restaurant'].includes(b.type) || b.type === 'clothing'))
       .map((b) => ({ id: b.id, name: b.name, type: b.type, stock: Object.fromEntries(Object.entries(b.stock).filter(([, s]) => s.sell).map(([k, s]) => [k, { price: s.price, qty: Math.floor(s.qty) }])) }));
     return { ok: true, quiet: true, items, rentals, shops, mul: ctx.world.society?.econ.mul ?? 1 };
@@ -401,6 +411,7 @@ export const ACTIONS = {
 
   // ---------------- SİYASET ----------------
   'politics:run'(ctx, p) {
+    if (ctx.world.republic) return ctx.engine.getSystem('society').runFor(p);
     const { world, config, bus } = ctx;
     if (p.isMayor || world.politics.candidates.some((c) => c.playerId === p.id)) return fail('Zaten adaysın.');
     if (!pay(ctx, p, config.politics.candidateFee)) return fail('Aday olma ücretini karşılayamıyorsun.');

@@ -10,6 +10,8 @@ export class PoliticsSystem {
   name = 'politics';
 
   onDay(time, ctx) {
+    // Cumhuriyette yönetimi oyuncuların telefondan yaptığı cumhurbaşkanlığı seçimi belirler
+    if (ctx.world.republic) return;
     if (time.day >= ctx.world.politics.nextElectionDay) this.runElection(ctx);
   }
 

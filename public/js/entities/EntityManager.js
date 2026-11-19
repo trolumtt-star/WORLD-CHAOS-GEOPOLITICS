@@ -31,7 +31,7 @@ const M = (c, r = 0.75, m = 0) => {
  * İnsan modeli (~3 birim boy): kafa + yüz + saç, boyun, gövde, kemer, eklemli kollar (dirsek) ve bacaklar, eller, ayakkabılar.
  * Pozlar: yürüme, koşma, oturma, uyuma, ölü, çalışma, yumruk/ateş.
  */
-export function makeCharacter(shirt, { scale = 1, pants, skin = 0xf1c27d, hair, seed = Math.random() * 1e6, outfit } = {}) {
+export function makeCharacter(shirt, { scale = 1, pants, skin = 0xf1c27d, hair, seed = Math.random() * 1e6, outfit, gender } = {}) {
   const g = new THREE.Group();
   const rig = new THREE.Group();
   g.add(rig);
@@ -44,8 +44,9 @@ export function makeCharacter(shirt, { scale = 1, pants, skin = 0xf1c27d, hair, 
   const dark = M(0x161616, 0.6);
   const add = (parent, geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m; };
 
-  // Gövde
-  add(rig, new THREE.CylinderGeometry(0.46, 0.38, 0.95, 10).scale(1, 1, 0.62), shirtMat, 0, 2.02, 0);
+  const fem = gender === 'f';
+  // Gövde (kadında daha dar omuz, belirgin bel)
+  add(rig, fem ? new THREE.CylinderGeometry(0.4, 0.33, 0.95, 10).scale(1, 1, 0.62) : new THREE.CylinderGeometry(0.46, 0.38, 0.95, 10).scale(1, 1, 0.62), shirtMat, 0, 2.02, 0);
   add(rig, new THREE.SphereGeometry(0.46, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.45, 0.62), shirtMat, 0, 2.48, 0);
   add(rig, new THREE.BoxGeometry(0.8, 0.28, 0.5), pantsMat, 0, 1.47, 0);
   add(rig, new THREE.BoxGeometry(0.82, 0.07, 0.52), dark, 0, 1.6, 0);
@@ -57,14 +58,17 @@ export function makeCharacter(shirt, { scale = 1, pants, skin = 0xf1c27d, hair, 
   add(head, new THREE.SphereGeometry(0.36, 16, 12).scale(0.95, 1.08, 1), skinMat, 0, 0, 0);
   for (const sx of [-0.13, 0.13]) {
     add(head, new THREE.SphereGeometry(0.05, 6, 6), dark, sx, 0.05, 0.31);
-    add(head, new THREE.BoxGeometry(0.12, 0.025, 0.03), hairMat, sx, 0.14, 0.32);
+    add(head, new THREE.BoxGeometry(fem ? 0.09 : 0.12, fem ? 0.018 : 0.025, 0.03), hairMat, sx, 0.14, 0.32);
+    if (fem) add(head, new THREE.BoxGeometry(0.1, 0.02, 0.02), dark, sx + (sx > 0 ? 0.02 : -0.02), 0.085, 0.33); // kirpik
     add(head, new THREE.SphereGeometry(0.07, 6, 6).scale(0.5, 1, 0.6), skinMat, sx * 2.6, 0, 0);
   }
   add(head, new THREE.BoxGeometry(0.08, 0.12, 0.1), skinMat, 0, -0.03, 0.36);
-  add(head, new THREE.BoxGeometry(0.14, 0.025, 0.03), M(0x8a3a3a), 0, -0.16, 0.32);
-  const style = (h >> 5) % 4;
+  add(head, new THREE.BoxGeometry(0.14, fem ? 0.035 : 0.025, 0.03), M(fem ? 0xc2185b : 0x8a3a3a), 0, -0.16, 0.32);
+  // Saç: cinsiyet seçildiyse ona göre (kadın: uzun/topuz, erkek: kısa)
+  const style = gender === 'f' ? ((h >> 5) % 2 ? 1 : 2) : gender === 'm' ? ((h >> 5) % 2 ? 0 : 3) : (h >> 5) % 4;
   add(head, new THREE.SphereGeometry(0.385, 14, 8, 0, Math.PI * 2, 0, Math.PI * (style === 3 ? 0.34 : 0.48)).scale(0.97, 1.08, 1.03), hairMat, 0, 0.02, -0.02);
   if (style === 1) add(head, new THREE.BoxGeometry(0.66, 0.55, 0.22), hairMat, 0, -0.2, -0.26); // uzun saç
+  if (style === 1 && fem) add(head, new THREE.BoxGeometry(0.7, 0.75, 0.2), hairMat, 0, -0.32, -0.26); // omuza inen saç
   if (style === 2) add(head, new THREE.SphereGeometry(0.16, 8, 6), hairMat, 0, 0.18, -0.36);   // topuz
 
   // Kollar: omuz -> dirsek -> el
@@ -614,7 +618,7 @@ export class EntityManager {
   addPlayer(p) {
     if (this.players.has(p.id)) return this.players.get(p.id);
     const h = Math.abs(hash(p.id + p.name));
-    const g = makeCharacter(new THREE.Color(p.color), { skin: SKIN[h % SKIN.length], seed: h, outfit: p.outfit });
+    const g = makeCharacter(new THREE.Color(p.color), { skin: SKIN[h % SKIN.length], seed: h, outfit: p.outfit, gender: p.gender });
     const label = textSprite(p.name + (p.countryName ? ` · 🏳️ ${p.countryName}` : ''), { color: p.color, border: p.color, scale: 0.75 });
     label.position.y = 4.0;
     const talk = textSprite('🔊', { color: '#3ddc84', border: '#3ddc84', scale: 0.6 });
@@ -640,7 +644,7 @@ export class EntityManager {
     if (!e) return;
     e.data = { ...e.data, outfit };
     const h = Math.abs(hash(e.data.id + e.data.name));
-    const ng = makeCharacter(new THREE.Color(e.data.color), { skin: SKIN[h % SKIN.length], seed: h, outfit });
+    const ng = makeCharacter(new THREE.Color(e.data.color), { skin: SKIN[h % SKIN.length], seed: h, outfit, gender: e.data.gender });
     ng.position.copy(e.g.position);
     ng.rotation.y = e.g.rotation.y;
     ng.visible = e.g.visible;
@@ -761,14 +765,19 @@ export class EntityManager {
   }
 
   applyNpcs(list) {
-    for (const [id, x, z, vis] of list) {
+    for (const [id, x, z, vis, rot] of list) {
       const n = this.npcs.get(id);
       if (!n) continue;
-      const tx = x + n.off.x;
-      const tz = z + n.off.z;
-      if (vis && !n.visible) { n.x = tx; n.z = tz; }
+      // 1 = sokakta, 2 = bina içinde (müşteri), 3 = bina içinde çalışıyor
+      const indoor = vis >= 2;
+      const tx = indoor ? x : x + n.off.x;
+      const tz = indoor ? z : z + n.off.z;
+      if ((vis && !n.visible) || indoor !== !!n.indoor) { n.x = tx; n.z = tz; }
       n.tx = tx;
       n.tz = tz;
+      n.indoor = indoor;
+      n.working = vis === 3;
+      if (indoor && rot != null) n.faceRot = rot; else n.faceRot = null;
       if (!vis && n.visible) this.hideNpc(n);
       n.visible = !!vis;
     }
@@ -881,6 +890,7 @@ export class EntityManager {
       const ox = n.x, oz = n.z;
       const moving = dx * dx + dz * dz > 0.02;
       if (moving) n.rot = lerpAngle(n.rot, Math.atan2(dx, dz), kn);
+      else if (n.faceRot != null) n.rot = lerpAngle(n.rot, n.faceRot, kn);
       n.x += dx * kn;
       n.z += dz * kn;
       n.speed += (Math.hypot(n.x - ox, n.z - oz) / Math.max(dt, 0.001) - n.speed) * 0.2;
@@ -890,6 +900,8 @@ export class EntityManager {
       n.phase += dt * (4 + n.speed * 0.9);
       const amp = n.speed > 0.4 ? Math.min(0.75, 0.2 + n.speed * 0.08) : 0;
       const sw = Math.sin(n.phase) * amp;
+      // Çalışan: yerinde durup kollarıyla iş yapıyor (kasa, raf)
+      const work = n.working && n.speed < 0.4 ? Math.sin(this.time * 6 + n.phase) * 0.35 - 0.9 : null;
       const bob = amp ? Math.abs(Math.cos(n.phase)) * 0.06 : 0;
       this._q.setFromAxisAngle(UP, n.rot);
       this._m.compose(this._v.set(n.x, bob, n.z), this._q, this._s);
@@ -898,8 +910,8 @@ export class EntityManager {
         this._m2.copy(this._m).multiply(this._rx.makeTranslation(lx, ly, 0)).multiply(this._rx.makeRotationX(ang));
         mesh.setMatrixAt(i, this._m2);
       };
-      limb(P.arm, n.idx * 2, -0.56, 2.42, -sw * 0.8);
-      limb(P.arm, n.idx * 2 + 1, 0.56, 2.42, sw * 0.8);
+      limb(P.arm, n.idx * 2, -0.56, 2.42, work != null ? work : -sw * 0.8);
+      limb(P.arm, n.idx * 2 + 1, 0.56, 2.42, work != null ? -0.9 - Math.sin(this.time * 6 + n.phase) * 0.35 : sw * 0.8);
       limb(P.leg, n.idx * 2, -0.2, 1.4, sw);
       limb(P.leg, n.idx * 2 + 1, 0.2, 1.4, -sw);
       dirty = true;

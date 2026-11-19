@@ -18,6 +18,8 @@ export function missilePos(m, t) {
   };
 }
 
+const tl = (n) => `₺${Math.round(n).toLocaleString('tr-TR')}`;
+
 export class MissileSystem {
   name = 'missiles';
 
@@ -36,9 +38,10 @@ export class MissileSystem {
     const now = Date.now();
     const silo = silos.find((s) => (s.cooldownUntil ?? 0) <= now);
     if (!silo) return { ok: false, error: 'Rampa yeniden dolduruluyor, biraz bekle.' };
-    if (player.balance < def.cost) return { ok: false, error: 'Yetersiz bakiye.' };
+    const total = Math.round(def.cost * (1 + ctx.config.costs.missileFuel));
+    if (player.balance < total) return { ok: false, error: `Füze ${tl(def.cost)} + yakıt/fırlatma ${tl(total - def.cost)} = ${tl(total)}. Paran yetmiyor.` };
 
-    player.balance -= def.cost;
+    player.balance -= total;
     world.touchPlayer(player);
     silo.cooldownUntil = now + 8000;
     const c = world.clampToBounds(x, z);
@@ -77,6 +80,14 @@ export class MissileSystem {
         const p = missilePos(m, hitAt);
         if (p.s < 0.1) continue;
         if (Math.hypot(p.x - d.x, p.z - d.z) > BUILDING_TYPES.air_defense.range) continue;
+        // Önleme füzesi de para: savunanın hazinesinden
+        const owner = world.players.get(d.ownerId);
+        const fee = owner?.isAI ? 0 : ctx.config.costs.interceptor;
+        if (owner && owner.balance < fee) {
+          if (!(d.brokeWarnAt > now - 20000)) { d.brokeWarnAt = now; bus.emit('net:private', { playerId: owner.id, item: { category: 'war', text: `🛡️ Hava savunman ateş edemedi: önleme füzesi ${tl(fee)}, hazine boş!`, toast: 'err', sfx: 'alarm' } }); }
+          continue;
+        }
+        if (owner && fee) { owner.balance -= fee; world.touchPlayer(owner); }
         const success = rng.chance(MISSILE_TYPES[m.type].interceptChance);
         const icp = { id: world.nextId('i'), missileId: m.id, hitAt, success, at: p };
         world.interceptors.push(icp);

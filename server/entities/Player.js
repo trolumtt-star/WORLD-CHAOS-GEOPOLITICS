@@ -68,7 +68,7 @@ export class Player {
   get era() { return playerEra(this); }
 
   toPublic() {
-    return { id: this.id, name: this.name, color: this.color, x: this.x, z: this.z, rotY: this.rotY, title: this.title, era: this.era, countryName: this.countryName, outfit: this.outfit ?? {} };
+    return { id: this.id, name: this.name, color: this.color, x: this.x, z: this.z, rotY: this.rotY, title: this.title, era: this.era, countryName: this.countryName, outfit: this.outfit ?? {}, gender: this.gender ?? 'm' };
   }
 
   toSnapshot() {
@@ -91,6 +91,8 @@ export class Player {
       era: this.era,
       village: this.village,
       homeId: this.homeId,
+      rent: this.rent ?? null,
+      gender: this.gender ?? 'm',
       ownedTiles: world.ownedTileCount(this.id),
       countryName: this.countryName,
       population: world.populationOf(this.id),

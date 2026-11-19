@@ -353,7 +353,12 @@ export class PhoneUI {
       for (const b of items) body.append(el('div', { class: 'ph-card' }, el('b', {}, `${this.h.icon(b.type)} ${b.name}`), el('small', {}, `💰 ${tl(b.price)}`),
         el('div', { class: 'ph-row-actions' }, this.btn('📍 Haritada', '', () => { this.close(); this.h.showOnMap(b); }), this.btn('🔑 Satın Al', 'primary', () => this.h.runAction({ type: 'property:buy', params: { buildingId: b.id }, confirm: `${b.name} · ${tl(b.price)} ödensin mi?` })))));
     } else if (tab === 'rent') {
-      for (const r of L?.rentals ?? []) body.append(el('div', { class: 'ph-card' }, el('b', {}, `🏠 ${r.name}`), el('small', {}, `Kira ${tl(r.rent)}/gün · ${r.free} boş oda`)));
+      const s = this.self;
+      if (s.homeId) body.append(el('div', { class: 'ph-card hl' }, el('b', {}, '🏠 Şu anki evin'), el('small', {}, s.rent ? `Kiracısın · ${tl(s.rent.amount)}/gün (her sabah otomatik)` : 'Kendi evin · kira yok')));
+      else body.append(el('div', { class: 'ph-card hl' }, el('b', {}, '⚠️ Evin yok!'), el('small', {}, 'Uyuyacak, yemek saklayacak yerin yok. Aşağıdan bir ev kirala.')));
+      for (const r of L?.rentals ?? []) body.append(el('div', { class: 'ph-card' }, el('b', {}, `${this.h.icon(r.type)} ${r.name}`), el('small', {}, `Kira ${tl(r.rent)}/gün · ${r.free} boş oda`),
+        el('div', { class: 'ph-row-actions' }, this.btn('📍 Haritada', '', () => { this.close(); this.h.showOnMap({ ...(r.door ?? r), label: `🏠 ${r.name}` }); }),
+          this.btn('🔑 Kirala', 'primary', () => this.h.runAction({ type: 'home:rent', params: { buildingId: r.id }, confirm: `${r.name} kiralansın mı? İlk gün peşin ${tl(r.rent)}, sonra her sabah otomatik.` }).then(() => this.appIlan('rent'))))));
       if (!L?.rentals?.length) body.append(el('p', { class: 'ph-muted' }, 'Kiralık ilan yok.'));
     } else {
       for (const [id, c] of Object.entries(CARS)) body.append(el('div', { class: 'ph-card' }, el('b', {}, `🚗 ${c.label}`), el('small', {}, `Satış ${tl(priceOf(c.price, L?.mul))} · Kira ${tl(priceOf(c.rent, L?.mul))}/gün · ${c.speed * 4} km/s`),

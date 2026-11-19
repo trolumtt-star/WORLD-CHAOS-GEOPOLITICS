@@ -134,9 +134,9 @@ export class Lobby {
     const outdated = (p) => Number(p?.v ?? 0) < GAME_VERSION;
     const updateReply = () => ({ ok: false, update: true, error: '📲 Yeni güncelleme var! İndirmeden oynayamazsın.', version: GAME_VERSION, apk: APK_URL, whatsapp: this.settings.whatsapp });
 
-    const enter = (r, name, token, ack, owner = false) => {
+    const enter = (r, name, token, ack, owner = false, gender) => {
       if (room) this.leave(socket, room, player);
-      const p = r.addPlayer(socket, name, token);
+      const p = r.addPlayer(socket, name, token, { gender });
       if (!p) return reply(ack)({ ok: false, error: 'Oda dolu.' });
       if (owner) r.ownerId = p.id;
       room = r;
@@ -166,7 +166,7 @@ export class Lobby {
         npcNations: p?.npcNations !== false,
       });
       this.rooms.set(code, r);
-      enter(r, p?.name, null, ack, true);
+      enter(r, p?.name, null, ack, true, p?.gender);
       this.saveRoom(r).then(() => { this.savedAt = 0; }).catch((e) => console.error('[kayıt]', e.message));
     });
 
@@ -181,7 +181,7 @@ export class Lobby {
       if (r.banned?.has(String(p?.token ?? '')) || r.bannedNames?.has(sanitizeName(p?.name).toLowerCase())) return reply(ack)({ ok: false, error: '⛔ Bu dünyaya girişin yasaklandı.' });
       const returning = r.findByToken(p?.token);
       if (!returning && !r.checkPassword(p?.password)) return reply(ack)({ ok: false, error: 'Şifre yanlış.' });
-      enter(r, p?.name, p?.token, ack);
+      enter(r, p?.name, p?.token, ack, false, p?.gender);
     });
 
     socket.on(EVENTS.ROOM_LEAVE, (_p, ack) => {

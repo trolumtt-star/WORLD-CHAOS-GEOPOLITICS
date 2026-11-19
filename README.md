@@ -112,6 +112,15 @@ NPC ülkeler de bunu yapar: insan oyuncuyu kukla yapar, birbirlerini çoğunlukl
 - Kovalanmıyorsan aranma yıldızları her 2 oyun saatinde 1 düşer (içerideysen daha hızlı).
 - Haritanın 4 köşesinde **Yeraltı İni** var. İçerideki Patron'a para verip iş yaptırırsın: 💵 sahte para (×10, 1 saat), 🔫 dükkan taratma, 💼 haraç (3 gün %15), 🎯 kiralık katil, 💥 darbe. Çete üyeleri haritada yürüyerek gider; polis %50 ihtimalle yakalar, bazen de seni ispiyonlarlar.
 
+## 🧭 v0.21: Harita, temiz ses, kira, görünür dükkanlar, maliyetli savaş
+- **Detaylı harita**: mini haritaya dokun → tam ekran harita. Sürükle/yakınlaştır, her dükkan ikonlu ve isimli, kategori filtreleri, arama. Binaya dokun → "📍 İşaretle & Git": dünyada kırmızı ışık sütunu + yön oku ve mesafe.
+- **Sesli sohbet**: 16 kHz, kenar yumuşatma, yumuşak kazanç/sınırlayıcı, AudioWorklet yakalama, tıksız birleştirme → cızırtı yok.
+- **Başlangıç**: herkes ₺500 ile, kirada bir evde ve rastgele bir işte başlar (her sabah kira otomatik ödenir; 3 gün ödemezsen tahliye). Telefon › Sahibinden › Kiralık'tan ev değiştir. Cinsiyet girişte seçilir.
+- **Dükkanlar canlı**: NPC'ler içeri girer, kasaya yürür, sıraya girer; kasadaki çalışan (NPC ya da sen) satar, kasa artar (+₺ efekti), kafede/barda masaya otururlar. Mesaideki çalışanlar içeride iş yaparken görünür.
+- **Maliyetler**: ülke kurmak ₺15.000; savaş ilanı ₺8.000 seferberlik, savaşta asker başı saatlik yemek/araç başı yakıt, birlik göndermek yol masrafı, füze/uçak yakıt payı, hava savunması önleme füzesi ₺600.
+- **Teknoloji**: 💰 direkt satın al (araştırmanın 10 katı, 1. çağ ₺3.000) ya da 🎲 ucuza şanslı araştır.
+- **Cumhurbaşkanı**: her dünyada merkez devlet cumhuriyet; telefondan aday olanlar arasında en çok oyuncu oyunu alan cumhurbaşkanı olur, vergileri ve hazineyi yönetir. Vergiler her gece otomatik kesilir, makbuz bildirimi gelir.
+
 ## 💾 Kalıcı Dünyalar (Supabase)
 
 Dünyalar her dakika ve sunucu kapanırken Supabase'e kaydedilir; boş dünya 10 dk sonra bellekten çıkar ("💤 Uyuyor") ve biri girince geri yüklenir. Sunucu uyurken geçen zaman (en fazla 5 oyun günü) hızlıca simüle edilir. **🌐 Sunucuya Katıl** ekranında tüm dünyalar listelenir; aynı telefondan dönen oyuncu aynı karakterle devam eder.

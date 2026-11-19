@@ -105,6 +105,14 @@ function describeBuilding(ctx, b, p) {
     const access = ctx.engine.getSystem('life').canEnter(p, b);
     A(access.ok ? '🚪 İçeri Gir' : `🔒 ${access.error.replace(/^🔒 |^🌙 /, '')}`, 'building:enter', {}, { style: access.ok ? 'primary' : 'ghost' });
   }
+  if (def.category === 'residential' && b.operational) {
+    const soc = ctx.engine.getSystem('society');
+    if (b.id === p.homeId) {
+      rows.push(['Senin evin', p.rent ? `Kiracısın · ${tl(p.rent.amount)}/gün` : 'Kira yok']);
+      A('🚪 Evden Çık', 'home:leave', {}, { style: 'ghost', confirm: 'Evden çıkılsın mı? Evsiz kalırsın.' });
+    } else if (isOwner) A('🏠 Buraya Taşın (kira yok)', 'home:rent', {}, { style: 'primary' });
+    else if (soc.roomIn(b) > 0) A(`🔑 Kirala · ${tl(soc.rentFor(b))}/gün`, 'home:rent', {}, { style: 'primary', confirm: `${b.name} kiralansın mı? İlk gün peşin, sonra her sabah ${tl(soc.rentFor(b))} otomatik ödenir.` });
+  }
   if (b.id === p.homeId || (isOwner && def.category === 'residential')) {
     A(b.guestsOpen ? '🔒 Kapıyı Kilitle' : '🚪 Kapıyı Misafirlere Aç', 'home:guests', { open: !b.guestsOpen }, { style: 'ghost' });
   }
@@ -264,7 +272,7 @@ export function diplomacyActions(world, p, targetId, ctx) {
     const ready = world.justifications.get(`${p.id}>${targetId}`);
     if (!ready) out.push({ label: `📜 Savaş Gerekçesi Hazırla (3 dk) · ${name}`, type: 'war:justify', params: P, style: 'danger', confirm: `${name}'a karşı savaş gerekçesi hazırlansın mı? Karşı taraf istihbarattan haberdar olacak.` });
     else if (Date.now() < ready) out.push({ label: `⏳ Gerekçe hazırlanıyor · ${Math.ceil((ready - Date.now()) / 1000)} sn`, type: 'war:declare', params: P, style: 'ghost' });
-    else out.push({ label: `⚔️ ${name}'a SAVAŞ İLAN ET`, type: 'war:declare', params: P, style: 'danger', confirm: `${name}'a savaş ilan edilsin mi? Askerlerin, füzelerin ve uçakların artık onlara saldırabilir.` });
+    else { const C = ctx?.config?.costs ?? { declareWar: 8000, upkeepFoot: 5, upkeepVehicle: 18 }; const fee = Math.round(C.declareWar * (world.society?.econ.mul ?? 1)); out.push({ label: `⚔️ ${name}'a SAVAŞ İLAN ET · ${tl(fee)}`, type: 'war:declare', params: P, style: 'danger', confirm: `${name}'a savaş ilan edilsin mi?\n\n💰 Seferberlik: ${tl(fee)}\n🍞 Savaş boyunca asker başı saatlik ${tl(C.upkeepFoot)} yemek, araç başı ${tl(C.upkeepVehicle)} yakıt\n⛽ Birlik göndermek yol masrafı ister, füze/uçak yakıtı ayrı.` }); }
   }
   const dip = ctx?.engine?.getSystem('diplomacy');
   if (dip?.peaceOffers.has(`${targetId}>${p.id}`)) out.push({ label: `🤝 ${name}'ın Barış Teklifini Kabul Et`, type: 'war:acceptPeace', params: { fromId: targetId }, style: 'primary' });

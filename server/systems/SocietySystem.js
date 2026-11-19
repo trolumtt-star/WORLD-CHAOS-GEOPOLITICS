@@ -30,8 +30,8 @@ export class SocietySystem {
     config.economy.priceMul = S.econ.mul;
     config.economy.wageMul = S.econ.mul;
     this.slow = 0;
-    // NPC ülke yoksa: herkes Kaos Cumhuriyeti vatandaşı, cumhurbaşkanını oyuncular seçer
-    if (!world.republic && ![...world.players.values()].some((p) => p.isAI)) {
+    // Merkez devlet bir cumhuriyet: cumhurbaşkanını sadece OYUNCULAR telefondan seçer (NPC ülkeler olsa da)
+    if (!world.republic) {
       world.republic = { name: 'Kaos Cumhuriyeti', presidentId: null, candidates: [], votes: {}, nextDay: ctx.clock.day, techs: [], electionHour: 20 };
     }
     world.logCrime = (p, text) => { p.crimeLog = [...(p.crimeLog ?? []), `${ctx.clock.label?.() ?? ''} ${text}`].slice(-8); };
@@ -80,9 +80,95 @@ export class SocietySystem {
   }
 
   // ------------------------------------------------------------------ zaman
+  // ================================================================== KİRA / EV / İŞ
+  rentFor(b) {
+    const own = b.ownerKind === 'player';
+    return Math.max(15, Math.round((b.rentPerResident || 10) * (this.ctx.config.player.rentMul ?? 3) * (own ? 1 : this.S.econ.mul)));
+  }
+
+  roomIn(b) {
+    const tenants = [...this.ctx.world.players.values()].filter((p) => p.homeId === b.id).length;
+    return Math.max(0, (b.capacity ?? 2) + 1 - b.residentIds.length - tenants);
+  }
+
+  /** Oyuncuyu eve yerleştir: kendi evi ise kira yok, değilse günlük kira */
+  setHome(p, b) {
+    p.homeId = b.id;
+    const mine = b.ownerKind === 'player' && b.ownerId === p.id;
+    p.rent = mine ? null : { amount: this.rentFor(b), missed: 0 };
+    this.ctx.world.touchPlayer(p);
+  }
+
+  rentHome(p, buildingId) {
+    const { world } = this.ctx;
+    const b = world.buildings.get(buildingId);
+    if (!b || b.category !== 'residential' || !b.operational) return fail('Burası kiralanacak bir ev değil.');
+    if (b.id === p.homeId) return fail('Zaten burada oturuyorsun.');
+    const mine = b.ownerKind === 'player' && b.ownerId === p.id;
+    if (!mine && this.roomIn(b) <= 0) return fail('Bu evde boş oda yok.');
+    if (b.ownerKind === 'player' && !mine) {
+      // başka oyuncunun evi: sahibinin izni gibi düşün, kira ona gider
+    }
+    const amount = mine ? 0 : this.rentFor(b);
+    if (!mine && p.balance < amount) return fail(`İlk günün kirası peşin: ${tl(amount)}.`);
+    if (!mine) { p.balance -= amount; world.credit(b.ownerKind, world.getOwner(b), amount); }
+    this.setHome(p, b);
+    this.ctx.bus.news('estate', `🏠 ${p.name}, ${b.name} adresine ${mine ? 'kendi evine' : 'kiracı olarak'} taşındı.`);
+    return { ok: true, message: mine ? `🏠 Kendi evine taşındın, kira yok!` : `🔑 ${b.name} kiralandı: günlük ${tl(amount)} (her sabah otomatik ödenir).`, sfx: 'cash' };
+  }
+
+  leaveHome(p) {
+    if (!p.homeId) return fail('Zaten bir evin yok.');
+    const b = this.ctx.world.buildings.get(p.homeId);
+    p.homeId = null;
+    p.rent = null;
+    this.ctx.world.touchPlayer(p);
+    return { ok: true, message: `🚪 ${b?.name ?? 'Evden'} çıktın. Telefon › Sahibinden › Kiralık'tan yeni ev bul.` };
+  }
+
+  /** Rastgele bir iş ata (yakındaki iş yerlerinden) */
+  assignJob(p) {
+    const { world, rng } = this.ctx;
+    const home = world.buildings.get(p.homeId) ?? { x: p.x, z: p.z };
+    const jobs = world.buildingsWhere((b) => b.operational && b.def?.staff && JOBS[b.def.staff.job] && !['palace', 'court', 'prison'].includes(b.type))
+      .sort((a, b) => Math.hypot(a.x - home.x, a.z - home.z) - Math.hypot(b.x - home.x, b.z - home.z)).slice(0, 10);
+    const b = rng.pick(jobs);
+    if (!b) return null;
+    p.jobBuildingId = b.id;
+    b.playerWorkerIds.push(p.id);
+    world.touchPlayer(p);
+    return b;
+  }
+
+  collectRent(world, bus) {
+    for (const p of world.players.values()) {
+      if (p.isAI || !p.homeId) continue;
+      const b = world.buildings.get(p.homeId);
+      if (!b) { p.homeId = null; p.rent = null; continue; }
+      const mine = b.ownerKind === 'player' && b.ownerId === p.id;
+      if (mine) { p.rent = null; continue; }
+      // Eski kayıtlar: bedava ev yok, kira başlar
+      if (!p.rent) p.rent = { amount: this.rentFor(b), missed: 0 };
+      const amt = p.rent.amount;
+      if (p.balance >= amt) {
+        p.balance -= amt;
+        world.credit(b.ownerKind, world.getOwner(b), amt);
+        p.rent.missed = 0;
+        this.say(p, `🏠 Günlük kira ödendi: −${tl(amt)} (${b.name})`, 'info');
+      } else if (++p.rent.missed >= 3) {
+        p.homeId = null;
+        p.rent = null;
+        this.say(p, `⚖️ 3 gündür kira ödemedin, ${b.name} evinden tahliye edildin! Telefon › Sahibinden › Kiralık'tan yeni ev bul.`, 'err', 'alarm');
+        bus.news('estate', `⚖️ İCRA: ${p.name} kirasını ödeyemediği için evinden çıkarıldı.`);
+      } else this.say(p, `⚠️ Kirayı ödeyemedin (${tl(amt)}). ${3 - p.rent.missed} gün içinde ödemezsen tahliye edileceksin!`, 'warn', 'alarm');
+      world.touchPlayer(p);
+    }
+  }
+
   onDay(time, ctx) {
     const { world, rng, bus, config } = ctx;
     const S = this.S;
+    this.collectRent(world, bus);
     // Enflasyon: her 3 günde bir maaşlar ve fiyatlar birlikte artar
     if (time.day % 3 === 0 && S.econ.lastDay !== time.day) {
       S.econ.lastDay = time.day;
@@ -262,7 +348,7 @@ export class SocietySystem {
   // ================================================================== CUMHURİYET SEÇİMİ
   runFor(p) {
     const R = this.ctx.world.republic;
-    if (!R) return fail('Bu dünyada cumhuriyet yok (NPC ülkeler var).');
+    if (!R) return fail('Bu dünyada cumhuriyet yok.');
     if (p.village && R.presidentId !== p.id) return fail('Kendi ülkesi olan aday olamaz.');
     if (R.candidates.includes(p.id)) return fail('Zaten adaysın.');
     const fee = Math.round(1000 * this.mul());
@@ -323,6 +409,10 @@ export class SocietySystem {
     np.countryName = R.name;
     np.title = 'Cumhurbaşkanı';
     R.presidentId = np.id;
+    // Cumhurbaşkanı devleti yönetir: vergi oranları, hazine, kamu binaları
+    for (const p of world.players.values()) if (p.isMayor && p !== np) { p.isMayor = false; world.touchPlayer(p); }
+    np.isMayor = true;
+    world.politics.mayor = { kind: 'player', id: np.id, name: np.name, party: 'Cumhurbaşkanı' };
     world.touchPlayer(np);
   }
 

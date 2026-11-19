@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { textSprite } from '../render/geometry.js';
 import { EVENTS } from '../../shared/events.js';
 import { SceneKit } from '../render/SceneSetup.js';
 import { CityRenderer } from '../render/CityRenderer.js';
@@ -118,6 +119,8 @@ export class Game {
       handlers: {
         onAction: (a) => this.runAction(a),
         onInspect: (kind, id) => this.inspect(kind, id),
+        onPin: (p) => this.setPin(p),
+        nameOf: (id) => this.roster.get(id)?.name,
         onInteract: () => this.interact(),
         onProperties: () => this.openProperties(),
         onMenu: () => this.openMenu(),
@@ -211,6 +214,18 @@ export class Game {
     this.marker.visible = false;
     this.marker.renderOrder = 30;
     kit.scene.add(this.marker);
+    // Harita işareti: gökyüzüne uzanan kırmızı ışık sütunu
+    this.pinBeam = new THREE.Group();
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 60, 10, 1, true), new THREE.MeshBasicMaterial({ color: 0xff2d3c, transparent: true, opacity: 0.35, depthWrite: false, side: THREE.DoubleSide }));
+    beam.position.y = 30;
+    const ring = new THREE.Mesh(new THREE.RingGeometry(2.2, 3, 32), new THREE.MeshBasicMaterial({ color: 0xff2d3c, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthTest: false }));
+    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.4;
+    this.pinBeam.add(beam, ring);
+    this.pinBeam.visible = false;
+    kit.scene.add(this.pinBeam);
+    this.pinChip = el('button', { class: 'pin-chip hidden', onClick: (e) => { e.stopPropagation(); this.setPin(null); } });
+    this.ui.hud.append(this.pinChip);
+    try { const sp = JSON.parse(localStorage.getItem(`wc_pin_${init.room.code}`) || 'null'); if (sp) this.setPin(sp, true); } catch { /* yok */ }
     this.adRings = [];
 
     this.bindNet();
@@ -218,7 +233,9 @@ export class Game {
     this.audio.startAmbience();
     this.ui.toast(`🌍 ${init.room.name} · Oda kodu ${init.room.code}`, 'info');
     if (!init.self.village) {
-      setTimeout(() => this.ui.toast(`🧳 ${init.self.citizenName ?? 'Bu ülkenin'} vatandaşısın. Evinin önündesin: içeri girip buzdolabından ye, iş bul, para kazan!`, 'info'), 2200);
+      const job = this.city.entries.get(init.self.jobBuildingId)?.data;
+      setTimeout(() => this.ui.toast(`🧳 ${init.self.citizenName ?? 'Bu ülkenin'} vatandaşısın. ${init.self.rent ? `Kiradaki evinin önündesin (günlük ${tl(init.self.rent.amount)}).` : 'Evinin önündesin.'}`, 'info'), 2200);
+      if (job) setTimeout(() => { this.ui.toast(`👔 İşin hazır: ${job.name}. Mesai saatinde git, içeride "Mesaiye Başla" de. Beğenmezsen başka iş bulabilirsin.`, 'info'); }, 4600);
       setTimeout(() => this.ui.toast('🏳️ Kendi ülkeni kurmak için sınırlardan uzak, boş bir bölgeye yürü. ÜLKE KUR butonu orada çıkacak.', 'info'), 7000);
     }
 
@@ -346,6 +363,7 @@ export class Game {
         else if (f.t === 'melee') { this.effects.melee(f.a, f.b); this.lastWarAt = performance.now(); }
         else if (f.t === 'explosion') this.effects.explosion(f.x, 1.5, f.z, f.r / 6);
         else if (f.t === 'alarm') this.effects.alarm(f.x, f.z);
+        else if (f.t === 'sale') this.saleFx(f);
         else if (f.t === 'built') this.effects.built(f.x, f.z);
         else if (f.t === 'punch' || f.t === 'gun') this.combatFx(f);
         else if (f.t === 'robber') this.entities.setRobber(f.id, !!f.on);
@@ -646,8 +664,47 @@ export class Game {
     return this.runAction({ type: 'car:drive', params: { model: car.model } });
   }
 
+  /** Kasada satış: "+₺12" havaya yükselir, yakındaysan kasa sesi */
+  saleFx(f) {
+    const p = this.self.g.position;
+    if (Math.hypot(f.x - p.x, f.z - p.z) > 40) return;
+    const s = textSprite(`+${tl(f.v)}`, { color: '#3ddc84', border: '#3ddc84', scale: 0.7 });
+    s.position.set(f.x, 3.4, f.z);
+    s.material.depthTest = false;
+    s.renderOrder = 40;
+    this.kit.scene.add(s);
+    this.floaters = this.floaters ?? [];
+    this.floaters.push({ s, t: 0 });
+    this.audio.play(f.by === this.selfId ? 'cash' : 'soft');
+    if (f.by === this.selfId) this.ui.toast(`💰 Müşteriye sattın: +${tl(f.v)} kasaya, %10 prim cebine.`, 'ok');
+  }
+
+  /** Harita işareti (waypoint) koy / kaldır */
+  setPin(p, silent) {
+    this.pin = p ? { x: p.x, z: p.z, label: p.label ?? '📍 İşaret' } : null;
+    this.ui.minimap.pin = this.pin;
+    this.pinBeam.visible = !!this.pin;
+    if (this.pin) this.pinBeam.position.set(this.pin.x, 0, this.pin.z);
+    this.pinChip.classList.toggle('hidden', !this.pin);
+    try { localStorage.setItem(`wc_pin_${this.init.room.code}`, JSON.stringify(this.pin)); } catch { /* yok */ }
+    if (!silent) this.ui.toast(this.pin ? `📍 ${this.pin.label} işaretlendi. Kırmızı ışık sütununu takip et!` : '📍 İşaret kaldırıldı.', 'info');
+    this.updatePinChip();
+  }
+
+  updatePinChip() {
+    if (!this.pin) return;
+    const p = this.self.g.position;
+    const dx = this.pin.x - p.x, dz = this.pin.z - p.z, d = Math.hypot(dx, dz);
+    if (d < 7 && !this.interior.active) { this.ui.toast(`✅ Vardın: ${this.pin.label}`, 'ok'); return this.setPin(null, true); }
+    // kameraya göre yön oku
+    const ang = Math.atan2(dx, dz) - this.rig.yaw + Math.PI;
+    this.pinChip.innerHTML = '';
+    this.pinChip.append(el('i', { style: { transform: `rotate(${-ang}rad)` } }, '⬆'), el('span', {}, `${this.pin.label} · ${Math.round(d)} m`), el('small', {}, '✕'));
+  }
+
   showOnMap(pos) {
     if (!pos) return;
+    return this.setPin({ x: pos.x, z: pos.z, label: pos.label ?? (pos.name ? `📍 ${pos.name}` : '📍 Hedef') });
     this.marker.position.set(pos.x, 0.6, pos.z);
     this.marker.scale.setScalar(3);
     this.marker.visible = true;
@@ -668,7 +725,7 @@ export class Game {
       const d = Math.hypot(b.x - p.x, b.z - p.z);
       if (d < bd) { bd = d; best = b; }
     }
-    if (best) this.showOnMap(best.door); else this.ui.toast('Bu dünyada öyle bir yer yok.', 'warn');
+    if (best) this.showOnMap({ ...best.door, label: `${this.init.catalog.buildings[best.type]?.icon ?? '📍'} ${best.name}` }); else this.ui.toast('Bu dünyada öyle bir yer yok.', 'warn');
   }
 
   takePhoto() {
@@ -1147,6 +1204,8 @@ export class Game {
     this.audio.setMusic(performance.now() - this.lastWarAt < 25000 || this.effects.missiles.size ? 'war' : 'game');
 
     if (this.marker.visible) this.marker.rotation.z += dt * 2;
+    if (this.floaters?.length) this.floaters = this.floaters.filter((f) => { f.t += dt; f.s.position.y += dt * 1.2; f.s.material.opacity = Math.max(0, 1 - f.t / 1.8); if (f.t > 1.8) { this.kit.scene.remove(f.s); f.s.material.map?.dispose(); f.s.material.dispose(); return false; } return true; });
+    if (this.pin) { this.pinBeam.children[1].rotation.z += dt; this._pinT = (this._pinT ?? 0) - dt; if (this._pinT <= 0) { this._pinT = 0.15; this.updatePinChip(); } }
 
     this.miniTimer -= dt;
     if (this.miniTimer <= 0) {
@@ -1156,7 +1215,7 @@ export class Game {
         selfId: this.selfId,
         self: this.self.g.position,
         yaw: this.rig.yaw,
-        players: [...this.entities.players.values()].filter((p) => p.g.visible).map((p) => ({ id: p.id, x: p.g.position.x, z: p.g.position.z, color: this.roster.get(p.id)?.color ?? '#fff' })),
+        players: [...this.entities.players.values()].filter((p) => p.g.visible).map((p) => ({ id: p.id, x: p.g.position.x, z: p.g.position.z, color: this.roster.get(p.id)?.color ?? '#fff', name: this.roster.get(p.id)?.name })),
         units: this.entities.unitPositions(),
         missiles: [...this.effects.missiles.values()].map((m) => ({ ...missilePosAt(m, now), to: m.to })),
         hazards: this.hazards,

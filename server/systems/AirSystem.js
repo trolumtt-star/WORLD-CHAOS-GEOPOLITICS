@@ -28,8 +28,9 @@ export class AirSystem {
     if (!check.ok) return check;
     const base = world.buildingsWhere((b) => b.type === 'airbase' && b.ownerKind === 'player' && b.ownerId === p.id && b.operational)[0];
     if (!base) return { ok: false, error: 'Önce bir Hava Üssü inşa etmelisin.' };
-    if (p.balance < def.cost) return { ok: false, error: `Yetersiz bakiye (${tl(def.cost)}).` };
-    p.balance -= def.cost;
+    const total = Math.round(def.cost * (1 + (ctx.config.costs?.airFuel ?? 0)));
+    if (p.balance < total) return { ok: false, error: `${def.label} ${tl(def.cost)} + kalkış yakıtı ${tl(total - def.cost)} = ${tl(total)}. Paran yetmiyor.` };
+    p.balance -= total;
     world.touchPlayer(p);
     const u = new Unit({ id: world.nextId('u'), type, ownerId: p.id, color: p.color, x: base.x, z: base.z });
     u.alt = 3;

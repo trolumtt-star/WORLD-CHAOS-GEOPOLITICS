@@ -1,3 +1,5 @@
+import { drawPin } from './WorldMap.js';
+
 const CAT_COLORS = {
   residential: '#c9a66b', commercial: '#3fa7e0', industrial: '#8a8f99', civic: '#f0f0f0',
   military: '#6b8a3a', nature: '#4caf50', land: '#7a5c3a',
@@ -114,7 +116,9 @@ export class Minimap {
     this.dirtyBg = false;
   }
 
-  draw({ selfId, self, yaw, players, units, missiles, hazards }) {
+  draw(args) {
+    this.last = args;
+    const { selfId, self, yaw, players, units, missiles, hazards } = args;
     this.resize();
     if (this.dirtyBg) this.drawBg(selfId);
     const g = this.ctx;
@@ -146,6 +150,10 @@ export class Minimap {
       g.setLineDash([s / 60, s / 60]);
       g.beginPath(); g.moveTo(x, y); g.lineTo(tx, ty); g.stroke();
       g.setLineDash([]);
+    }
+    if (this.pin) {
+      const [x, y] = this.toMap(this.pin.x, this.pin.z);
+      drawPin(g, Math.max(10, Math.min(s - 10, x)), Math.max(22, Math.min(s - 2, y)), s / 160);
     }
     if (self) {
       const [x, y] = this.toMap(self.x, self.z);

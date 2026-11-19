@@ -1,5 +1,6 @@
 import { el, tl, pad, clear } from '../core/dom.js';
 import { Minimap } from './Minimap.js';
+import { WorldMap } from './WorldMap.js';
 
 const CATEGORY_LABELS = { residential: '🏠 Konut', commercial: '🛍️ Ticaret', industrial: '🏭 Sanayi', military: '🪖 Askeri' };
 export function unlocked(catalog, techs, kind, id) {
@@ -47,17 +48,13 @@ export class GameUI {
     this.elEra = el('div', { class: 'st-era' });
     this.elWar = el('div', { class: 'st-war hidden' });
     const status = el('div', { class: 'glass status' }, this.elClock, this.elBalance, this.elEra, this.elWar, el('div', { class: 'st-row' }, this.elTitle, this.elWanted));
-    this.foundBtn = el('button', { class: 'found-btn hidden', onClick: () => { this.sfx('click'); this.h.onFound(); } }, '🏳️ ÜLKE KUR', el('small', {}, 'Bulunduğun yere ülkeni kur'));
+    this.foundBtn = el('button', { class: 'found-btn hidden', onClick: () => { this.sfx('click'); this.h.onFound(); } }, '🏳️ ÜLKE KUR', el('small', {}, `Bulunduğun yere ülkeni kur · ${tl(this.catalog.costs?.foundCountry ?? 15000)}`));
 
     const roomChip = btn(`🔗 ${this.room.code}`, 'chip room', () => this.share());
     this.canvasMini = el('canvas', { class: 'minimap' });
     this.canvasMini.addEventListener('click', (e) => {
-      if (this.canvasMini.classList.contains('big')) {
-        const t = this.minimap.tileFromEvent(e);
-        this.canvasMini.classList.remove('big');
-        this.mapBackdrop.classList.add('hidden');
-        if (t) this.h.onInspect('tile', `${t.i},${t.j}`);
-      } else this.openMap();
+      e.stopPropagation();
+      this.openMap();
     });
     this.mapBackdrop = el('div', { class: 'map-backdrop hidden', onClick: () => { this.canvasMini.classList.remove('big'); this.mapBackdrop.classList.add('hidden'); } },
       el('div', { class: 'map-hint' }, '🗺️ Bir parsele dokun: kaşif gönder, sınırını ör ya da kime ait olduğunu gör'));
@@ -115,6 +112,13 @@ export class GameUI {
     this.root.append(this.hud);
 
     this.minimap = new Minimap(this.canvasMini, world, this.catalog);
+    this.worldMap = new WorldMap(this, {
+      info: world, catalog: this.catalog, minimap: this.minimap, selfId: this.selfId,
+      nameOf: (id) => this.h.nameOf?.(id),
+      onPin: (p) => this.h.onPin?.(p),
+      onInspectTile: (id) => this.h.onInspect('tile', id),
+      onInspectBuilding: (id) => this.h.onInspect('building', id),
+    });
 
     this.crosshair = el('div', { class: 'crosshair hidden' });
     this.lockHint = el('div', { class: 'lock-hint' }, '🖱️ Ekrana tıkla: fareyle etrafa bak · Esc: imleci serbest bırak');
@@ -240,9 +244,8 @@ export class GameUI {
 
   openMap() {
     this.closeSheet();
-    this.canvasMini.classList.add('big');
-    this.mapBackdrop.classList.remove('hidden');
-    this.minimap.dirtyBg = true;
+    if (document.pointerLockElement) document.exitPointerLock();
+    this.worldMap.open();
   }
 
   share() {
@@ -410,7 +413,8 @@ export class GameUI {
         else {
           status = `${tl(cost.cost)} · ⏱${cost.hours}sa`;
           cls = r ? 'wait' : 'ready';
-          onClick = () => this.h.onAction({ type: 'tech:research', params: { techId: id }, confirm: `${t.icon} ${t.label} araştırılsın mı?\n\nBedel: ${tl(cost.cost)} · Süre: ${cost.hours} oyun saati\nBaşarı şansı: %${chance} — başarısız olursa para geri gelmez.\n\n${t.desc}` });
+          status = `💰 ${tl(cost.buy)} · 🎲 ${tl(cost.cost)}`;
+          onClick = () => this.techChoice(id, t, cost, chance, !!r);
         }
         return el('button', { class: `tech-card ${cls}`, onClick: () => { if (onClick) onClick(); else this.toast(`${t.icon} ${t.label}: ${t.desc}`, 'info'); } },
           el('div', { class: 'tc-icon' }, t.icon), el('div', { class: 'tc-name' }, t.label), el('div', { class: 'tc-status' }, status));
@@ -420,8 +424,20 @@ export class GameUI {
         el('div', { class: 'card-grid' }, ...cards)));
     }
     this.openSheet('tech', { icon: '🔬', title: 'Teknoloji Ağacı', subtitle: `Başarı şansı %${chance} · ${techs.length}/${Object.keys(c.techs).length} teknoloji` },
-      r ? el('div', { class: 'research-bar' }, `🔬 ${c.techs[r.techId].icon} ${c.techs[r.techId].label} araştırılıyor`, el('div', { class: 'bar' }, el('i', { style: { width: `${Math.round((1 - r.hoursLeft / r.total) * 100)}%` } }))) : el('p', { class: 'muted' }, 'Bir teknoloji seç. Araştırma bitince zar atılır: tutarsa icat senin, tutmazsa para gider ve tekrar denersin.'),
+      r ? el('div', { class: 'research-bar' }, `🔬 ${c.techs[r.techId].icon} ${c.techs[r.techId].label} araştırılıyor`, el('div', { class: 'bar' }, el('i', { style: { width: `${Math.round((1 - r.hoursLeft / r.total) * 100)}%` } }))) : el('p', { class: 'muted' }, 'Bir teknoloji seç: 💰 yüksek bedelle direkt satın al (garanti) ya da 🎲 ucuza araştır (şansa bağlı).'),
       ...sections);
+  }
+
+  /** Teknoloji: direkt satın al (garanti) ya da ucuza araştır (şanslı) */
+  techChoice(id, t, cost, chance, busy) {
+    const close = () => { this.modalLayer.classList.add('hidden'); clear(this.modalLayer); };
+    clear(this.modalLayer).append(el('div', { class: 'modal glass tech-modal' },
+      el('h3', {}, `${t.icon} ${t.label}`),
+      el('p', { class: 'muted' }, t.desc),
+      el('button', { class: 'btn primary wide', onClick: () => { close(); this.h.onAction({ type: 'tech:buy', params: { techId: id } }); } }, `💰 Direkt Satın Al · ${tl(cost.buy)}`, el('small', {}, ' anında senin, şans yok')),
+      busy ? el('p', { class: 'muted' }, '🔬 Şu an başka bir araştırma sürüyor.') : el('button', { class: 'btn wide', onClick: () => { close(); this.h.onAction({ type: 'tech:research', params: { techId: id } }); } }, `🎲 Araştır · ${tl(cost.cost)}`, el('small', {}, ` ${cost.hours} saat, %${chance} şans`)),
+      el('button', { class: 'btn ghost wide', onClick: close }, 'Vazgeç')));
+    this.modalLayer.classList.remove('hidden');
   }
 
   openAdvertise(buildingId) {

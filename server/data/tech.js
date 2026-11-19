@@ -92,6 +92,11 @@ export function techCost(id, config) {
   return Math.round(config.tech.baseCost * Math.pow(config.tech.costGrowth, t.era - 1) / 10) * 10;
 }
 
+/** Direkt satın alma: araştırmanın 10 katı (1. çağ ₺3.000, sonra çağ çağ artar) */
+export function techBuyCost(id, config) {
+  return techCost(id, config) * 10;
+}
+
 export function techHours(id) {
   return 2 + TECHS[id].era;
 }

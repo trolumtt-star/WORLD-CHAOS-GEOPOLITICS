@@ -2,6 +2,8 @@
  * Diplomasi: savaş gerekçesi (3 dk) → savaş ilanı → çatışma → barış.
  * Askerler, füzeler ve uçaklar SADECE savaşta olunan ülkeye saldırır.
  */
+const tl = (n) => `₺${Math.round(n).toLocaleString('tr-TR')}`;
+
 export class DiplomacySystem {
   name = 'diplomacy';
 
@@ -37,12 +39,15 @@ export class DiplomacySystem {
     const ready = world.justifications.get(key);
     if (!ready) return { ok: false, error: 'Önce savaş gerekçesi hazırlamalısın.' };
     if (Date.now() < ready) return { ok: false, error: `Gerekçe hazır değil (${Math.ceil((ready - Date.now()) / 1000)} sn).` };
+    const fee = p.isAI ? 0 : Math.round(this.ctx.config.costs.declareWar * (world.society?.econ.mul ?? 1));
+    if (p.balance < fee) return { ok: false, error: `⚔️ Seferberlik masrafı ${tl(fee)} (asker toplama, cephane, ikmal). Paran yetmiyor.` };
+    p.balance -= fee;
     world.justifications.delete(key);
     world.wars.set(world.warKey(p.id, targetId), { since: world.clockHours(), attacker: p.id });
     this.touchBoth(p.id, targetId);
     bus.news('war', `⚔️ ${this.nameOf(p.id)}, ${this.nameOf(targetId)}'a SAVAŞ İLAN ETTİ!`);
     bus.emit('net:alert', { level: 'warning', text: `⚔️ ${this.nameOf(p.id)} → ${this.nameOf(targetId)}: SAVAŞ!` });
-    return { ok: true, message: '⚔️ Savaş ilan edildi! Birliklerin artık düşmana saldırır.', sfx: 'siren' };
+    return { ok: true, message: `⚔️ Savaş ilan edildi! (Seferberlik −${tl(fee)}) Savaş sürdükçe askerlerin saatlik yemek/yakıt masrafı hazineden düşer.`, sfx: 'siren' };
   }
 
   offerPeace(p, targetId) {
