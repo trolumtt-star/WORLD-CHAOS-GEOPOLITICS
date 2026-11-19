@@ -98,6 +98,13 @@ export class AiSystem {
     }
 
     if (enemies.length) {
+      // Başkent düştüyse teslim al: insana kukla, NPC ülkeye çoğu zaman ilhak
+      for (const e of enemies) {
+        if (!dip.siege(ai.id, e).ok) continue;
+        const t = world.players.get(e);
+        dip.conquer(ai, e, t?.isAI && rng.chance(0.6) ? 'annex' : 'puppet');
+        return;
+      }
       const target = world.players.get(enemies[0]);
       const hall = target && world.buildings.get(target.homeId);
       if (hall && time.hour % 3 === 0) {
@@ -120,7 +127,7 @@ export class AiSystem {
     if (time.day < config.ai.firstWarDay || time.hour !== 12 || !rng.chance(config.ai.warChancePerDay)) return;
     if (Object.keys(world.justificationsOf(ai.id)).length) return;
     const hallA = world.buildings.get(ai.homeId);
-    const candidates = [...world.players.values()].filter((p) => p.id !== ai.id && p.village && world.buildings.get(p.homeId));
+    const candidates = [...world.players.values()].filter((p) => p.id !== ai.id && p.village && world.buildings.get(p.homeId) && p.overlordId !== ai.id && ai.overlordId !== p.id);
     if (!hallA || !candidates.length) return;
     // İnsan oyunculara öncelik, en yakını
     candidates.sort((a, b) => (a.isAI - b.isAI) || dist(world, hallA, a) - dist(world, hallA, b));

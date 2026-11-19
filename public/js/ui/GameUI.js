@@ -142,7 +142,9 @@ export class GameUI {
     }
     this.elWanted.textContent = s.wanted ? '⭐'.repeat(s.wanted) : '';
     this.elWanted.classList.toggle('flash', s.wanted > 0);
-    this.elTitle.textContent = s.countryName ? `🏳️ ${s.countryName} · 👥 ${s.population ?? 0}` : `🧳 Vatandaş${s.citizenName ? ` · ${s.citizenName}` : ''}`;
+    this.elTitle.textContent = s.countryName
+      ? `🏳️ ${s.countryName} · 👥 ${s.population ?? 0}${s.overlordName ? ` · 🎎 ${s.overlordName} kuklası` : ''}${s.puppets?.length ? ` · 👑 ${s.puppets.length} kukla` : ''}`
+      : `🧳 Vatandaş${s.citizenName ? ` · ${s.citizenName}` : ''}`;
     const wars = (s.wars ?? []).map((id) => this.h.nameOf?.(id) ?? id);
     this.elWar.textContent = wars.length ? `⚔️ SAVAŞ: ${wars.join(', ')}` : '';
     this.elWar.classList.toggle('hidden', !wars.length);
@@ -476,7 +478,7 @@ export class GameUI {
       body = el('div', { class: 'rank' }, ...c.leaderboard.map((r, i) => el('div', { class: `rank-row ${r.id === this.selfId ? 'me' : ''}` },
         el('span', { class: 'pos' }, ['🥇', '🥈', '🥉'][i] ?? `${i + 1}.`),
         el('span', { class: 'dot', style: { background: r.color } }),
-        el('span', { class: 'nm' }, `${r.isAI ? '🤖 ' : ''}${r.countryName ?? r.name}`, el('small', {}, ` ${this.catalog.eras?.[r.era ?? 1]?.icon ?? ''} ${r.tiles ?? 0} parsel${r.wars?.length ? ' · ⚔️' : ''}${!r.isAI && !r.online ? ' · 💤' : ''}`)),
+        el('span', { class: 'nm' }, `${r.isAI ? '🤖 ' : ''}${r.countryName ?? r.name}`, el('small', {}, ` ${this.catalog.eras?.[r.era ?? 1]?.icon ?? ''} ${r.tiles ?? 0} parsel${r.wars?.length ? ' · ⚔️' : ''}${r.overlordId ? ` · 🎎 ${this.h.nameOf?.(r.overlordId) ?? ''} kuklası` : ''}${!r.isAI && !r.online ? ' · 💤' : ''}`)),
         el('b', {}, `👥 ${r.population ?? 0}`))));
     }
     this.openSheet(tab, { icon: tab === 'city' ? '🏛️' : '🏆', title: tab === 'city' ? 'Şehir Durumu' : 'Ülkeler (nüfusa göre)', subtitle: `Oda ${this.room.code} · ${this.room.name}` }, tabs, body);

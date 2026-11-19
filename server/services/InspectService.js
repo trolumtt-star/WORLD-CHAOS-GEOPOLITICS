@@ -242,7 +242,23 @@ export function diplomacyActions(world, p, targetId, ctx) {
   const name = t.countryName ?? t.name;
   const out = [];
   const P = { targetId };
+  const dip0 = ctx?.engine?.getSystem('diplomacy');
+  if (t.overlordId === p.id) {
+    out.push({ label: `🗽 ${name}'ı Serbest Bırak (kukla)`, type: 'war:release', params: { puppetId: targetId }, style: 'ghost', confirm: `${name} artık sana vergi ödemeyecek. Emin misin?` });
+    return out;
+  }
+  if (p.overlordId === targetId) {
+    out.push({ label: `🗽 Bağımsızlığını Satın Al · ₺${dip0.independenceCost(p).toLocaleString('tr-TR')}`, type: 'war:independence', params: {}, style: 'primary', confirm: 'Bu para efendine gidecek ve artık vergi ödemeyeceksin.' });
+    return out;
+  }
   if (world.atWar(p.id, targetId)) {
+    const sg = dip0.siege(p.id, targetId);
+    if (sg.ok) {
+      out.push({ label: `🎎 Teslim Al: KUKLA DEVLET Yap (her gün %15 vergi)`, type: 'war:conquer', params: { targetId, mode: 'puppet' }, style: 'primary', confirm: `${name} sana bağlı kukla devlet olsun mu? Ülkesi kalır ama her gün hazinesinin %15'ini sana öder.` });
+      out.push({ label: `🏴 Teslim Al: İLHAK ET (her şeyi al)`, type: 'war:conquer', params: { targetId, mode: 'annex' }, style: 'danger', confirm: `${name} haritadan silinsin mi? Tüm toprakları, binaları ve nüfusu senin olur; ordusu dağılır.` });
+    } else {
+      out.push({ label: `🏰 Kuşatma: sarayın çevresinde ${sg.mine}/3 askerin · ${sg.theirs} savunan${sg.destroyed ? ' · saray yıkık' : ''}`, type: 'war:conquer', params: { targetId, mode: 'puppet' }, style: 'ghost' });
+    }
     out.push({ label: `🕊️ ${name}'a Barış Teklif Et`, type: 'war:peace', params: P });
   } else {
     const ready = world.justifications.get(`${p.id}>${targetId}`);

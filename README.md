@@ -82,6 +82,13 @@ npx cap open android                                         # Android Studio'da
 - **Kamera:** ➕/➖ butonları, iki parmakla sıkıştır ya da fare tekerleği; omuz üstü yakın görüşe kadar inebilir. NPC'ler artık yürüyen insan hızında, kolları ve bacakları sallanarak yürür. Yeni insan modeli: yüz, saç modelleri, eklemli kollar ve bacaklar.
 - **PC kısayolları:** Sol tık saldır · E etkileşim · Q silah değiştir · V mikrofon · I çanta · +/- zoom.
 
+## 🏴 Fetih: Kukla Devlet ve İlhak
+
+Savaştığın ülkenin **sarayının 60 m çevresine en az 3 asker** sok (savunan asker kalmasın) ya da sarayı yık. Sonra saraya/topraklarına dokun:
+- **🎎 Kukla Devlet:** Ülke yaşar ama her sabah hazinesinin %15'ini sana öder, sana savaş açamaz. Bağımsızlığını satın alabilir (₺15.000 × çağ) ya da sen serbest bırakabilirsin.
+- **🏴 İlhak:** Tüm parseller, binalar ve nüfus senin olur; ordusu dağılır, lideri senin vatandaşın olur (sonra yeniden ülke kurabilir).
+NPC ülkeler de bunu yapar: insan oyuncuyu kukla yapar, birbirlerini çoğunlukla ilhak eder.
+
 ## 🧩 4. Neler var?
 
 **Dünya:** 64 parsellik şehir. Merkezde saray, çevresinde emniyet, banka ve hastane, dışarıda fabrikalar ve cezaevi. 16 farklı bina tipinin her biri ayrı modelle çiziliyor: kiremit çatılı ev, balkonlu apartman, havuzlu villa, otoparklı market, çizgili tenteli kafe, neonlu bar, alt türüne göre silolu / tanklı / bacalı fabrika, kubbeli saray, kuleli cezaevi ve dönen radarlı hava savunma.

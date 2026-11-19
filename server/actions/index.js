@@ -179,6 +179,9 @@ export const ACTIONS = {
   'war:justify'(ctx, p, { targetId }) { return needCountry(p) ??  ctx.engine.getSystem('diplomacy').justify(p, targetId); },
   'war:declare'(ctx, p, { targetId }) { return needCountry(p) ??  ctx.engine.getSystem('diplomacy').declare(p, targetId); },
   'war:peace'(ctx, p, { targetId }) { return ctx.engine.getSystem('diplomacy').offerPeace(p, targetId); },
+  'war:conquer'(ctx, p, { targetId, mode }) { return needCountry(p) ?? ctx.engine.getSystem('diplomacy').conquer(p, String(targetId), mode === 'annex' ? 'annex' : 'puppet'); },
+  'war:independence'(ctx, p) { return ctx.engine.getSystem('diplomacy').independence(p); },
+  'war:release'(ctx, p, { puppetId }) { return ctx.engine.getSystem('diplomacy').release(p, String(puppetId)); },
   'war:acceptPeace'(ctx, p, { fromId }) { return ctx.engine.getSystem('diplomacy').acceptPeace(p, fromId); },
 
   'air:launch'(ctx, p, { airType, x, z }) {

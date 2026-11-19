@@ -371,6 +371,7 @@ export function createVillage(world, rng, config, player, { spot: given = null, 
   player.village = { i: spot.i, j: spot.j };
   player.countryName = countryName ?? player.countryName ?? `${player.name} Ülkesi`;
   player.homeId = hall.id;
+  hall.capitalOf = player.id;
 
   // Köylüler: önce köyün kadroları
   const villageIds = new Set(created.map((x) => x.id));
