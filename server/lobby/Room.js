@@ -39,6 +39,7 @@ import { SocietySystem } from '../systems/SocietySystem.js';
 import { UnderworldSystem } from '../systems/UnderworldSystem.js';
 import { IndoorSystem } from '../systems/IndoorSystem.js';
 import { OrgSystem } from '../systems/OrgSystem.js';
+import { VehicleSystem } from '../systems/VehicleSystem.js';
 import { interiorLayout, interiorOrigin } from '../../shared/interiors.js';
 
 const COLORS = ['#ff4d4d', '#3ddc84', '#ffd23f', '#a06cff', '#2ec4ff', '#ff8c42', '#ff5fa2', '#00e0b8', '#c0ff3e', '#ffffff'];
@@ -111,6 +112,7 @@ export class Room {
       .use(new UnderworldSystem())
       .use(new IndoorSystem())
       .use(new OrgSystem())
+      .use(new VehicleSystem())
       .use(new NetworkSyncSystem(io, this.code));
     this.ctx = this.engine.ctx;
     this.ctx.room = this;
@@ -257,8 +259,8 @@ export class Room {
       return;
     }
 
-    // Arabada yolcuysa konumunu sürücü belirler
-    if (player.rideWith) return;
+    // Arabada yolcuysa / helikopterdeyse konumunu araç belirler
+    if (player.rideWith || player.flying) return;
     if (player.jailedUntil > world.clockHours() && !player.pendingCase) {
       const pr = world.prison;
       if (pr && Math.hypot(x - pr.door.x, z - pr.door.z) > 6) {

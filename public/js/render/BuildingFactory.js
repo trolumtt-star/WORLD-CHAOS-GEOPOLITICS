@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { PartBuilder } from './geometry.js';
+import { LUX_HOUSES } from '../../shared/catalogs.js';
 
 /**
  * Prosedürel, düşük poligonlu ama karakterli binalar. Her tipin kendine has silueti var:
@@ -370,6 +371,144 @@ const BUILDERS = {
     glow.box(w * 0.4, 0.9, 0.2, 0, h * 0.75 + 0.6, -d * 0.12 + d * 0.35 + 2.75, 0xffd34d);
     addWindows(win, w, h, d * 0.7, { faces: 'bs', floorH: 4, spacing: 3.6 });
     for (let i = 0; i < 3; i++) pb.box(w * 0.6, 0.4, 1, 0, 0.2 + i * 0.4, d * 0.35 + 2.6 - i * 0.9, 0xd8d0bc);
+  },
+
+  /** Lüks evler: modern, cam, klasik sütunlu, Toskana, kule, saray — havuz, palmiye, şezlong, çit, bahçe ışıkları */
+  mansion({ pb, win, glow, w, d, h, lotSize, extras, b }) {
+    const L = LUX_HOUSES[b?.subtype] ?? LUX_HOUSES.aqua;
+    const col = L.color, acc = L.accent;
+    const gold = L.gold ? 0xd4af37 : L.diamond ? 0xcff4ff : acc;
+    const warm = new THREE.Color(1, 0.86, 0.62), cool = new THREE.Color(0.75, 0.88, 1);
+    lotBase(pb, lotSize, 0x5f9e4a);
+    // çevre: alçak duvar + çit, giriş kapısı, araba yolu
+    const lw = lotSize - 1.2;
+    for (const [x, z, sx, sz] of [[0, -lw / 2, lw, 0.5], [-lw / 2, 0, 0.5, lw], [lw / 2, 0, 0.5, lw], [-lw / 4 - 2, lw / 2, lw / 2 - 4, 0.5], [lw / 4 + 2, lw / 2, lw / 2 - 4, 0.5]]) {
+      pb.box(sx, 1.1, sz, x, 0.55, z, 0xe8e4dc);
+      pb.box(sx, 0.9, sz, x, 1.55, z, 0x2f6a2a);
+    }
+    for (const x of [-3.2, 3.2]) { pb.box(0.8, 2.6, 0.8, x, 1.3, lw / 2, 0xe8e4dc); glow.box(0.4, 0.4, 0.4, x, 2.8, lw / 2, 0xffe2a0); }
+    pb.plane(5, lw / 2, 0, 0.07, lw / 4, 0xbdb6a8);
+    // bahçe lambaları
+    for (let i = -2; i <= 2; i++) { pb.cyl(0.08, 0.1, 1.4, 6, -2.8, 0.7, i * 2.6 + lw / 4, 0x222222); glow.sphere(0.18, -2.8, 1.5, i * 2.6 + lw / 4, 0xfff1c4); }
+    const palm = (x, z, hh = 7) => {
+      for (let k = 0; k < 5; k++) pb.cyl(0.22 - k * 0.02, 0.26 - k * 0.02, hh / 5, 6, x + k * 0.08, hh / 10 + (k * hh) / 5, z, 0x8a6a45);
+      for (let k = 0; k < 7; k++) { const a = (k / 7) * Math.PI * 2; pb.box(0.5, 0.08, 2.8, x + Math.sin(a) * 1.3, hh + 0.1, z + Math.cos(a) * 1.3, 0x2f8f3a, { ry: a, rx: 0.35 }); }
+    };
+    const pool = (cx, cz, pw, pd) => {
+      pb.box(pw + 2.4, 0.35, pd + 2.4, cx, 0.18, cz, 0xf1ece2);
+      glow.box(pw, 0.08, pd, cx, 0.38, cz, 0x29b6f6);
+      for (let i = 0; i < 3; i++) pb.box(0.9, 0.35, 2.2, cx - pw / 2 + 1.4 + i * 1.6, 0.55, cz + pd / 2 + 1.8, 0xffffff, { rx: -0.15 });
+      pb.cyl(0.06, 0.06, 2.4, 6, cx + pw / 2 + 0.5, 1.2, cz + pd / 2 + 1.3, 0x888888);
+      pb.cone(1.6, 0.6, 10, cx + pw / 2 + 0.5, 2.6, cz + pd / 2 + 1.3, acc);
+      glow.box(pw * 0.9, 0.05, 0.12, cx, 0.42, cz - pd / 2 + 0.2, 0x81d4fa);
+    };
+    const bz = -d * 0.16; // ev arkada, havuz önde
+    if (L.style === 'tower') {
+      const tw = w * 0.42, tz = -d * 0.12;
+      for (let f = 0; f < L.floors; f++) {
+        const y = f * 3.6;
+        pb.box(tw, 3.0, tw, 0, y + 1.5, tz, f % 2 ? col : acc);
+        win.box(tw + 0.05, 2.0, tw + 0.05, 0, y + 1.6, tz, f % 3 ? warm : cool);
+        pb.box(tw + 0.9, 0.25, tw + 0.9, 0, y + 3.1, tz, gold);
+      }
+      const top = L.floors * 3.6;
+      glow.box(tw * 0.7, 0.1, tw * 0.45, 0, top + 0.35, tz - tw * 0.15, 0x29b6f6); // çatı havuzu
+      pb.box(tw * 0.75, 0.3, tw * 0.5, 0, top + 0.15, tz - tw * 0.15, 0xe6e6e6);
+      pb.cyl(tw * 0.22, tw * 0.22, 0.12, 20, 0, top + 0.06, tz + tw * 0.28, 0x333333);
+      glow.box(0.25, 0.05, tw * 0.25, -tw * 0.08, top + 0.16, tz + tw * 0.28, 0xffffff);
+      glow.box(0.25, 0.05, tw * 0.25, tw * 0.08, top + 0.16, tz + tw * 0.28, 0xffffff);
+      glow.box(tw * 0.16, 0.05, 0.25, 0, top + 0.16, tz + tw * 0.28, 0xffffff);
+      pool(w * 0.18, d * 0.26, 8, 4.5);
+      palm(-w * 0.32, d * 0.3); palm(w * 0.38, -d * 0.35, 8);
+      extras.signY = top + 3;
+      return;
+    }
+    const fl = L.floors, fh = 4.2;
+    const hw = w * (L.style === 'palace' ? 0.84 : 0.66), hd = d * 0.4;
+    if (L.style === 'modern' || L.style === 'glass') {
+      for (let f = 0; f < fl; f++) {
+        const off = (f % 2 ? 1 : -1) * w * 0.06, sw = hw * (1 - f * 0.08);
+        const y = f * fh;
+        if (L.bunker && f === 0) { pb.box(sw, fh, hd, off, y + fh / 2, bz, 0x6d7275); win.box(sw * 0.8, 1, 0.1, off, y + 2.6, bz + hd / 2 + 0.05, warm); continue; }
+        if (L.style === 'glass') { win.box(sw - 0.3, fh - 0.5, hd - 0.3, off, y + fh / 2, bz, f % 2 ? cool : warm); for (const x of [-1, 1]) for (const z of [-1, 1]) pb.box(0.35, fh, 0.35, off + x * sw / 2, y + fh / 2, bz + z * hd / 2, acc); }
+        else {
+          pb.box(sw, fh - 0.3, hd, off, y + fh / 2 - 0.15, bz, L.wood && f > 0 ? 0x8d6e63 : col);
+          win.quad(sw * 0.75, fh * 0.62, off, y + fh * 0.5, bz + hd / 2 + 0.06, f % 2 ? cool : warm, 0);
+          win.quad(hd * 0.6, fh * 0.5, off + sw / 2 + 0.06, y + fh * 0.5, bz, warm, Math.PI / 2);
+          if (L.wood) for (let i = 0; i < 8; i++) pb.box(0.12, fh - 0.4, 0.12, off - sw / 2 + 0.5 + i * (sw / 8), y + fh / 2, bz + hd / 2 + 0.08, 0x5d4037);
+        }
+        pb.box(sw + 1.4, 0.3, hd + 1.4, off, y + fh, bz, acc);
+        // cam korkuluklu balkon
+        if (f > 0) { pb.box(sw * 0.5, 0.2, 2.2, off, y + 0.1, bz + hd / 2 + 1.1, acc); win.box(sw * 0.5, 1.1, 0.06, off, y + 0.75, bz + hd / 2 + 2.15, cool); }
+      }
+      pool(w * 0.16, d * 0.24, 10, 5);
+    } else if (L.style === 'classic' || L.style === 'tuscan') {
+      for (let f = 0; f < fl; f++) {
+        const y = f * fh;
+        pb.box(hw, fh, hd, 0, y + fh / 2, bz, col);
+        pb.box(hw + 0.4, 0.3, hd + 0.4, 0, y + fh - 0.1, bz, 0xffffff);
+        const n = Math.floor(hw / 3.2);
+        for (let i = 0; i < n; i++) {
+          const x = -hw / 2 + 1.6 + i * (hw - 3.2) / Math.max(1, n - 1);
+          win.quad(1.3, 2.0, x, y + 2.1, bz + hd / 2 + 0.06, i % 3 ? warm : cool, 0);
+          pb.box(1.6, 0.18, 0.2, x, y + 3.2, bz + hd / 2 + 0.1, 0xffffff);
+          if (L.style === 'tuscan') pb.box(1.5, 0.12, 0.6, x, y + 1.0, bz + hd / 2 + 0.3, 0x3b2a1a);
+        }
+      }
+      const top = fl * fh;
+      // kırma çatı (4 kenarlı koni)
+      const roof = pb.cone(Math.hypot(hw, hd) * 0.58, L.style === 'tuscan' ? 2.6 : 3.4, 4, 0, top + (L.style === 'tuscan' ? 1.3 : 1.7), bz, L.style === 'tuscan' ? 0xb5532f : 0x3d4450, { ry: Math.PI / 4 });
+      void roof;
+      if (L.style === 'classic') {
+        // sütunlu giriş + alınlık
+        for (let i = 0; i < 6; i++) pb.cyl(0.38, 0.45, fh * 2 - 0.4, 12, -5 + i * 2, fh - 0.2, bz + hd / 2 + 2, 0xffffff);
+        pb.box(12.6, 0.6, 4.4, 0, fh * 2 - 0.1, bz + hd / 2 + 1.8, 0xffffff);
+        pb.cone(6.6, 1.6, 3, 0, fh * 2 + 0.9, bz + hd / 2 + 1.8, 0xf4f4f4, { ry: Math.PI / 2, sz: 0.35 });
+        pb.box(6, 0.4, 2.5, 0, 0.2, bz + hd / 2 + 4.2, 0xdedede);
+        glow.box(1.6, 2.6, 0.1, 0, 1.4, bz + hd / 2 + 0.07, 0xffd28a);
+        // fıskiye
+        pb.cyl(2.2, 2.4, 0.6, 18, -w * 0.28, 0.3, d * 0.28, 0xe8e4dc); glow.cyl(1.9, 1.9, 0.1, 18, -w * 0.28, 0.62, d * 0.28, 0x4fc3f7);
+        pb.cyl(0.25, 0.35, 1.6, 8, -w * 0.28, 1.2, d * 0.28, 0xe8e4dc);
+      } else {
+        // kemerli sundurma + selvi ağaçları
+        for (let i = 0; i < 4; i++) pb.box(0.5, fh - 0.6, 0.5, -4.5 + i * 3, (fh - 0.6) / 2, bz + hd / 2 + 2.4, 0xe9d8bd);
+        pb.box(10.5, 0.5, 3, 0, fh - 0.4, bz + hd / 2 + 1.3, 0xb5532f, { rx: 0.18 });
+        for (let i = 0; i < (L.palms ?? 4); i++) pb.cone(0.9, 7, 8, -w / 2 + 2.5 + i * 2.6, 3.6, -d / 2 + 2.2, 0x2e5d2a);
+      }
+      if (L.pool) pool(w * 0.18, d * 0.25, 9, 4.6);
+    } else {
+      // SARAY: orta kubbe, iki kanat, köşe kuleleri (sultan: minare)
+      const cw = hw * 0.42;
+      for (const [x, ww, hh2] of [[0, cw, fl * fh + 1], [-hw * 0.34, hw * 0.3, fl * fh - 1], [hw * 0.34, hw * 0.3, fl * fh - 1]]) {
+        pb.box(ww, hh2, hd, x, hh2 / 2, bz, col);
+        for (let f = 0; f < fl; f++) for (let i = 0; i < 4; i++) win.quad(1.2, 2.0, x - ww / 2 + ww * (i + 0.5) / 4, f * fh + 2.2, bz + hd / 2 + 0.06, warm, 0);
+        pb.box(ww + 0.6, 0.5, hd + 0.6, x, hh2, bz, gold);
+      }
+      const top = fl * fh + 1;
+      pb.cyl(cw * 0.38, cw * 0.42, 2.2, 16, 0, top + 1.1, bz, col);
+      pb.sphere(cw * 0.4, 0, top + 2.2, bz, L.diamond ? 0xdff6ff : gold, {}, 20, 12, Math.PI / 2);
+      glow.cone(0.3, 1.6, 8, 0, top + 2.2 + cw * 0.4 + 0.7, bz, 0xffd34d);
+      for (const x of [-1, 1]) for (const z of [-1, 1]) {
+        const tx = x * (hw / 2 + 0.5), tzz = bz + z * (hd / 2 + 0.5);
+        pb.cyl(0.9, 1.1, top + 4, 12, tx, (top + 4) / 2, tzz, col);
+        pb.box(2.6, 0.4, 2.6, tx, top + 4, tzz, gold);
+        pb.cone(1.1, 3.2, 12, tx, top + 5.8, tzz, gold);
+        glow.sphere(0.25, tx, top + 7.5, tzz, 0xfff1b0);
+      }
+      for (let i = 0; i < 8; i++) pb.cyl(0.35, 0.4, fh * 1.6, 12, -7 + i * 2, fh * 0.8, bz + hd / 2 + 2, 0xffffff);
+      pb.box(16.5, 0.6, 4, 0, fh * 1.6, bz + hd / 2 + 1.8, gold);
+      glow.box(2.4, 3.2, 0.1, 0, 1.6, bz + hd / 2 + 0.07, 0xffd28a);
+      pool(w * 0.2, d * 0.28, 11, 4.2);
+      pb.cyl(2.4, 2.6, 0.7, 20, -w * 0.25, 0.35, d * 0.28, 0xf5f0e6); glow.cyl(2.1, 2.1, 0.1, 20, -w * 0.25, 0.72, d * 0.28, 0x4fc3f7);
+      if (L.diamond) for (let i = 0; i < 24; i++) glow.box(0.18, 0.18, 0.18, (Math.random() - 0.5) * hw, top * Math.random(), bz + hd / 2 + 0.15, 0xe6fbff);
+    }
+    // kapı, garaj, palmiyeler
+    door(pb, bz * 2 + hd, 0x3b2414, 2.4, 3.2);
+    pb.box(6, 3.4, 0.25, -w * 0.3, 1.7, bz + hd / 2 + 0.15, 0xdcdcdc);
+    for (let i = 0; i < 5; i++) pb.box(5.8, 0.06, 0.3, -w * 0.3, 0.5 + i * 0.6, bz + hd / 2 + 0.3, 0xbcbcbc);
+    palm(w * 0.42, d * 0.42); palm(-w * 0.42, d * 0.42); if (L.pool) palm(w * 0.42, d * 0.05, 8);
+    if (L.gold || L.diamond) glow.box(hw * 0.8, 0.25, 0.1, 0, fl * fh - 0.4, bz + hd / 2 + 0.12, L.diamond ? 0xcff4ff : 0xffd34d);
+    extras.signY = fl * fh + 6;
   },
 
   /** Örgüt karargahı olabilecek duvarlı depo: çevre duvarı, dikenli tel, nöbet kuleleri, büyük ambar */

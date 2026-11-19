@@ -1,3 +1,4 @@
+import { LUX_HOUSES } from '../../shared/catalogs.js';
 /**
  * Bina kataloğu. Kategori:
  *  residential | commercial | industrial | civic | military | nature | land
@@ -11,6 +12,7 @@ export const BUILDING_TYPES = {
   // ---------- KONUT ----------
   house:      { label: 'Müstakil Ev', icon: '🏠', category: 'residential', footprint: [14, 22], height: [5, 8],  value: [3000, 6000],   capacity: [2, 4],  rent: [8, 14],  buildCost: 2000,  buildHours: 6 },
   apartment:  { label: 'Apartman',    icon: '🏢', category: 'residential', footprint: [18, 26], height: [16, 34], value: [12000, 25000], capacity: [8, 14], rent: [6, 10],  buildCost: 15000, buildHours: 14 },
+  mansion:    { label: 'Lüks Ev',     icon: '🏰', category: 'residential', footprint: [27, 31], height: [8, 10], value: [60000, 60000], capacity: [1, 2], rent: [80, 120] },
   villa:      { label: 'Villa',       icon: '🏡', category: 'residential', footprint: [26, 30], height: [6, 8],  value: [15000, 30000], capacity: [1, 3],  rent: [25, 40], buildCost: 18000, buildHours: 10 },
 
   // ---------- TİCARET ----------
@@ -71,10 +73,13 @@ export function buildOptions() {
       out.push({ key: type, type, subtype: null, label: def.label, icon: def.icon, category: def.category, cost: def.buildCost, hours: def.buildHours });
     }
   }
+  // Lüks evler: havuzlu villalar, cam köşkler, saraylar, kuleler
+  for (const [k, h] of Object.entries(LUX_HOUSES)) out.push({ key: `mansion:${k}`, type: 'mansion', subtype: k, label: h.label, icon: h.pool ? '🏖️' : '🏰', category: 'luxury', cost: h.cost, hours: h.hours });
   return out;
 }
 
 export function labelOf(building) {
   if (building.type === 'factory' && building.subtype) return FACTORY_SUBTYPES[building.subtype].label;
+  if (building.type === 'mansion' && building.subtype) return LUX_HOUSES[building.subtype]?.label ?? 'Lüks Ev';
   return BUILDING_TYPES[building.type].label;
 }

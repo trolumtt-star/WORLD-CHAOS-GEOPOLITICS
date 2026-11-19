@@ -675,3 +675,5 @@ textarea.ph-input { border-radius: 12px; resize: none; }
 .org-man, .org-mis { display: flex; flex-direction: column; gap: 6px; }
 .ph-row.threat { background: rgba(90,0,0,0.35); }
 .ph-bubble.threat { background: #2a0606; color: #ffb3b3; border: 1px solid rgba(255,60,60,0.4); }
+.wm-legend.pick { background: rgba(200,30,40,0.9); color: #fff; font-size: 14px; font-weight: 800; padding: 8px 14px; }
+.gal-tabs .ph-btn { font-size: 11px; padding: 6px 4px; } .ph-ok { color: #3ddc84; font-weight: 700; } .gal-item .ph-swatch { width: 26px; height: 26px; border-radius: 8px; }

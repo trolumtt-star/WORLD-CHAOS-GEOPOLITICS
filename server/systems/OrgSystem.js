@@ -1,3 +1,4 @@
+import { CARS } from '../../shared/catalogs.js';
 import { Unit } from '../entities/Unit.js';
 import { interiorOrigin, interiorLayout, spotById } from '../../shared/interiors.js';
 
@@ -29,6 +30,7 @@ export const MISSIONS = {
   raid:   { label: 'Mekan Basma',      icon: '🚙', men: 'enforcer',  target: 'building', cost: 400, desc: 'Kasayı soy, mekanı tara' },
   turf:   { label: 'Bölge Ele Geçir',  icon: '🏴', men: 'enforcer',  target: 'here', cost: 600, desc: 'Bölgeyi haraca bağla' },
   kidnap: { label: 'Adam Kaçırma',     icon: '🥷', men: 'kidnapper', target: 'player', cost: 400, desc: 'Kaçır, fidye al' },
+  wreck:  { label: 'Araç Çal / Patlat', icon: '🚗', men: 'enforcer', target: 'unit', cost: 300, desc: 'Park halindeki aracı çal ya da patlat' },
   ceonap: { label: 'CEO Kaçırma',      icon: '👔', men: 'kidnapper', target: 'building', cost: 400, desc: 'İşletmenin CEO\'sunu rehin al', hidden: true },
 };
 
@@ -99,7 +101,7 @@ export class OrgSystem {
     const u = new Unit({ id: world.nextId('u'), type, ownerId: owner, color, x, z });
     Object.assign(u, extra);
     world.units.set(u.id, u);
-    bus.emit('net:spawn', { kind: 'unit', data: { ...u.toMeta(), tag: extra.tag } });
+    bus.emit('net:spawn', { kind: 'unit', data: { ...u.toMeta(), tag: extra.tag, model: extra.model } });
     return u;
   }
 
@@ -292,6 +294,9 @@ export class OrgSystem {
       target = world.buildings.get(targetId);
       if (!target || target.destroyed || target.type === 'land' || target.type === 'park') return fail('Hedef binayı seç.');
       if (target.orgId === o.id) return fail('Kendi karargahın!');
+    } else if (M.target === 'unit') {
+      target = world.units.get(targetId);
+      if (!target || !target.def?.keep || target.ownerId === p.id) return fail('Hedef aracı seç.');
     } else {
       const t = world.tileAt(p.x, p.z);
       if (!t) return fail('Geçersiz yer.');
@@ -319,7 +324,15 @@ export class OrgSystem {
     const from = hq ? { x: hq.door.x, z: hq.door.z + 6 } : this.edgePoint(target);
     const cars = [];
     const nc = Math.max(1, Math.min(40, Math.ceil(n / 3))); // 100 adam = 34 araçlık konvoy
-    for (let i = 0; i < nc; i++) cars.push(this.spawn('gangcar', from.x + (i % 4) * 4 - 6, from.z + Math.floor(i / 4) * 6, `org:${o.id}`, o.color, { tag: o.name }).id);
+    // filodaki arabalar kullanılır (zırhlılar daha dayanıklı); filo yoksa standart siyah cip
+    const fleet = Object.entries(o.fleet?.cars ?? {}).flatMap(([k, n]) => Array(Math.max(0, n)).fill(k));
+    for (let i = 0; i < nc; i++) {
+      const model = fleet.length ? fleet[i % fleet.length] : (o.ai ? ['gwagon', 'tank_suv', 'sprinter', 'hummer'][i % 4] : null);
+      const u = this.spawn('gangcar', from.x + (i % 4) * 4 - 6, from.z + Math.floor(i / 4) * 6, `org:${o.id}`, o.color, { tag: o.name, model });
+      u.model = model;
+      if (model) { const k = CARS[model]?.armor ?? 1; u.hp = u.maxHp = Math.round(420 * k); }
+      cars.push(u.id);
+    }
     const id = `m${++this.seq}`;
     const m = { id, orgId: o.id, kind, menType: M.men, n, cars, men: [], phase: 'drive', from, byId, t: 0, targetKind: M.target, targetId: target.id ?? null, tile: target.tile ?? null, tx: target.x, tz: target.z, loot: 0 };
     this.missions.set(id, m);
@@ -340,6 +353,10 @@ export class OrgSystem {
       if (!t || !t.online) return null;
       if (t.inside) { const b = world.buildings.get(t.inside); return b ? { x: b.door.x, z: b.door.z, inside: true, p: t } : null; }
       return { x: t.x, z: t.z, p: t };
+    }
+    if (m.targetKind === 'unit') {
+      const u = world.units.get(m.targetId);
+      return u && u.def?.keep && !u.flight ? { x: u.x, z: u.z + 3, u } : null;
     }
     if (m.targetKind === 'building') {
       const b = world.buildings.get(m.targetId);
@@ -465,6 +482,30 @@ export class OrgSystem {
         }
         // oyuncunun evi bombalandı
         for (const pl of world.players.values()) if (pl.homeId === b.id && pl !== world.players.get(m.byId)) this.say(pl, `🏠💥 EVİN BOMBALANDI! (${b.name}) "${o.name}"`, 'err', 'alarm');
+        m.done = true;
+        return true;
+      }
+      case 'wreck': {
+        const v = T.u;
+        if (!v) { m.done = true; return true; }
+        if (!near(v.x, v.z, 6)) return false;
+        m.grab = (m.grab ?? 0) + dt;
+        if (m.grab < 3) return false;
+        const veh = engine.getSystem('vehicles');
+        const owner = world.players.get(v.ownerId);
+        const label = (v.type === 'pheli' ? '🚁' : '🚗') + ' ' + (v.model ?? 'araç');
+        if (rng.chance(0.5)) {
+          veh.transfer(v, null, v.kindV ?? (v.type === 'pheli' ? 'heli' : 'car'));
+          if (owner) { this.say(owner, `🚗💨 Park halindeki aracın "${o.name}" tarafından ÇALINDI!`, 'err', 'alarm'); if (o.ai) this.threat(o, owner.id, 'Güzel araban vardı. Artık bizim.'); }
+          bus.news('crime', `🚗💨 "${o.name}" ${owner?.name ?? 'birinin'} aracını çaldı!`);
+        } else {
+          this.despawn(v.id, 'destroyed');
+          veh.destroyed(v);
+          if (owner && o.ai) this.threat(o, owner.id, 'Aracına küçük bir hediye bıraktık. 💥');
+          bus.news('crime', `💥 "${o.name}" ${owner?.name ?? 'birinin'} aracını havaya uçurdu!`);
+        }
+        if (owner) this.grudge(o, owner.id);
+        void label;
         m.done = true;
         return true;
       }
@@ -800,6 +841,9 @@ export class OrgSystem {
     if (v.hp > 0) return;
     bus.emit('net:fx', { t: 'blood', x: v.x, z: v.z });
     this.despawn(v.id, 'destroyed');
+    if (v.def?.keep) { this.ctx.engine.getSystem('vehicles')?.destroyed(v); return; }
+    if (v.type === 'gangcar' && v.model && v.org) { const fo = world.orgs[v.org]; if (fo?.fleet?.cars?.[v.model]) fo.fleet.cars[v.model]--; }
+    if (v.type === 'oheli' && v.model && v.org) { const fo = world.orgs[v.org]; if (fo?.fleet?.helis?.[v.model]) fo.fleet.helis[v.model]--; bus.news('crime', `🚁💥 "${fo?.name}" helikopteri düşürüldü!`); }
     if (v.org && world.orgs[v.org] && !v.job) {
       const o = world.orgs[v.org];
       if (v.type === 'guard') o.men.guard = Math.max(0, (o.men.guard ?? 0) - 1);
@@ -910,6 +954,8 @@ export class OrgSystem {
       const home = world.buildings.get(victim.homeId);
       const ceoBiz = owned.filter((x) => x.ceo && !x.ceo.held);
       if (ceoBiz.length && roll < 0.22 && this.available(o, 'kidnapper') > 0) { this.launch(o, 'ceonap', rng.pick(ceoBiz), Math.min(4, this.available(o, 'kidnapper')), null); continue; }
+      const parked = [...world.units.values()].filter((u) => u.def?.keep && u.ownerId === victim.id && !u.flight);
+      if (parked.length && roll > 0.7 && roll <= 0.85) { this.launch(o, 'wreck', rng.pick(parked), Math.max(2, Math.min(5, this.available(o, 'enforcer'))), null); continue; }
       if (home && grudgeP.includes(victim) && roll > 0.85) { this.launch(o, 'bomb', home, Math.max(2, Math.min(4, this.available(o, 'bomber'))), null); this.threat(o, victim.id, `Evini biliyoruz ${victim.name}.`); continue; }
       if (roll < 0.3 && (owned.length || work)) {
         const b = rng.pick(owned.length ? owned : [work]);
@@ -1042,6 +1088,8 @@ export class OrgSystem {
       out.org = {
         id: o.id, name: o.name, leader: world.players.get(o.leaderId)?.name, isLeader: o.leaderId === p.id,
         members: o.members.map((id) => ({ id, name: world.players.get(id)?.name ?? '?', online: !!world.players.get(id)?.online })),
+        fleet: o.fleet ?? { cars: {}, helis: {} },
+        air: [...world.units.values()].filter((u) => u.type === 'oheli' && u.org === o.id).map((u) => ({ id: u.id, model: u.model, phase: u.flight?.phase ?? 'land', hp: Math.round((u.hp / u.maxHp) * 100) })),
         men, hq: this.hqOf(o) ? { id: o.hqId, name: this.hqOf(o).name, x: this.hqOf(o).door.x, z: this.hqOf(o).door.z } : null, turf: o.turf.length, escort: (o.escort[p.id] ?? []).length,
         missions: [...this.missions.values()].filter((m) => m.orgId === o.id).map((m) => ({ id: m.id, kind: m.kind, n: m.men.length || m.n, phase: m.phase })),
       };

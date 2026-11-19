@@ -1,5 +1,5 @@
 import { el, clear, tl, pad } from '../core/dom.js';
-import { OUTFITS, CARS, CLUBS, priceOf } from '../../shared/catalogs.js';
+import { OUTFITS, CARS, HELIS, CLUBS, priceOf } from '../../shared/catalogs.js';
 
 /**
  * iPhone tarzı telefon: ana ekran + uygulamalar. Oyunun bütün menüleri burada toplanır,
@@ -8,7 +8,7 @@ import { OUTFITS, CARS, CLUBS, priceOf } from '../../shared/catalogs.js';
 const APPS = [
   ['messages', '💬', 'Mesajlar', 'g-green'], ['call', '📞', 'Telefon', 'g-green2'], ['camera', '📷', 'Kamera', 'g-grey'], ['social', '📸', 'ChaosGram', 'g-insta'],
   ['order', '🛵', 'Sipariş', 'g-orange'], ['ilan', '🏠', 'Sahibinden', 'g-yellow'], ['bank', '🏦', 'Banka', 'g-blue'], ['match', '⚽', 'Bahis', 'g-pitch'],
-  ['news', '📰', 'Haberler', 'g-red'], ['econ', '📈', 'Ekonomi', 'g-teal'], ['map', '🗺️', 'Harita', 'g-map'], ['garage', '🚗', 'Garaj', 'g-dark'],
+  ['news', '📰', 'Haberler', 'g-red'], ['econ', '📈', 'Ekonomi', 'g-teal'], ['map', '🗺️', 'Harita', 'g-map'], ['garage', '🏎️', 'Galeri', 'g-dark'],
   ['wardrobe', '👕', 'Gardırop', 'g-pink'], ['court', '⚖️', 'Adalet', 'g-brown'], ['props', '🏘️', 'Mülklerim', 'g-indigo'], ['bag', '🎒', 'Çanta', 'g-amber'],
   ['org', '🕴️', 'Örgüt', 'g-dark'], ['vote', '🗳️', 'Seçim', 'g-crimson'], ['city', '🏛️', 'Şehir', 'g-slate'], ['rank', '🏆', 'Sıralama', 'g-gold'],
   ['settings', '⚙️', 'Ayarlar', 'g-grey2'],
@@ -469,12 +469,12 @@ export class PhoneUI {
       const T = this.h.orgTargets?.() ?? { buildings: [], players: [] };
       const MS = [
         ['hit', '🎯 Suikast', 'player', 'hitman'], ['kidnap', '🥷 Adam Kaçır', 'player', 'kidnapper'],
-        ['bomb', '💣 Bombala', 'building', 'bomber'], ['raid', '🚙 Mekan Bas', 'building', 'enforcer'], ['turf', '🏴 Bulunduğum Bölgeyi Ele Geçir', 'here', 'enforcer'],
+        ['bomb', '💣 Bombala', 'building', 'bomber'], ['raid', '🚙 Mekan Bas', 'building', 'enforcer'], ['wreck', '🚗 Araç Çal / Patlat', 'unit', 'enforcer'], ['turf', '🏴 Bulunduğum Bölgeyi Ele Geçir', 'here', 'enforcer'],
       ];
       for (const [kind, label, tk, mt] of MS) {
         const free = men[mt]?.free ?? 0;
-        const sel = tk === 'here' ? null : el('select', { class: 'ph-input' }, el('option', { value: '' }, tk === 'player' ? '— hedef oyuncu —' : '— hedef bina —'),
-          ...(tk === 'player' ? T.players : T.buildings).map((x) => el('option', { value: x.id }, x.label)));
+        const sel = tk === 'here' ? null : el('select', { class: 'ph-input' }, el('option', { value: '' }, tk === 'player' ? '— hedef oyuncu —' : tk === 'unit' ? '— hedef araç —' : '— hedef bina —'),
+          ...(tk === 'player' ? T.players : tk === 'unit' ? (T.vehicles ?? []) : T.buildings).map((x) => el('option', { value: x.id }, x.label)));
         if (sel) { sel.addEventListener('focus', () => { this._typing = true; }); sel.addEventListener('blur', () => { this._typing = false; }); }
         const cnt = this.slider(1, Math.max(1, free), 1, Math.max(1, free), (v) => `${v} adam · ${Math.min(40, Math.ceil(v / 3))} araç`);
         body.append(el('div', { class: 'ph-card org-mis' }, el('b', {}, label), el('small', {}, free ? `${free} boşta` : 'Boşta adam yok — önce adam tut'),
@@ -483,6 +483,21 @@ export class PhoneUI {
             run('org:order', { kind, targetId: sel?.value, n: cnt.value }, kind === 'bomb' ? 'Bomba konulsun mu? Etraftaki herkes ölebilir.' : null);
           })));
       }
+      // 🚁 Hava filosu
+      const helis = Object.entries(o.fleet?.helis ?? {}).filter(([, n]) => n > 0);
+      body.append(el('h4', {}, '🚁 Hava Filosu'));
+      if (!helis.length) body.append(el('p', { class: 'ph-muted' }, 'Filoda helikopter yok. Telefon › 🏎️ Galeri › Örgüt Filosu.'), this.btn('🏎️ Galeriye Git', '', () => { this._galTab = 'org'; this.openApp('garage'); }));
+      else {
+        const hsel = el('select', { class: 'ph-input' }, ...helis.map(([k, n]) => el('option', { value: k }, `${HELIS[k]?.label ?? k} ×${n}`)));
+        const tsel = el('select', { class: 'ph-input' }, el('option', { value: '' }, '— hedef —'),
+          ...T.players.map((x) => el('option', { value: `player:${x.id}` }, x.label)), ...T.buildings.map((x) => el('option', { value: `building:${x.id}` }, x.label)));
+        for (const x of [hsel, tsel]) { x.addEventListener('focus', () => { this._typing = true; }); x.addEventListener('blur', () => { this._typing = false; }); }
+        const go = (ride) => { if (!tsel.value) return this.h.ui.toast('Hedef seç.', 'warn'); const [tk, id] = tsel.value.split(':'); run('oheli:send', { model: hsel.value, targetKind: tk, targetId: id, ride }); if (ride) this.close(); };
+        body.append(el('div', { class: 'ph-card org-mis' }, el('b', {}, '🚁 Taarruz: tara / bombala'), el('small', {}, 'Hedefin etrafında döner, tarar; bombalı modeller 5 m bomba atar.'), hsel, tsel,
+          el('div', { class: 'ph-row-actions' }, this.btn('🚀 Gönder', 'danger', () => go(false)), this.btn('🪂 Bin & Git', 'primary', () => go(true)))));
+      }
+      if (o.air?.length) body.append(...o.air.map((a) => el('div', { class: 'ph-card' }, el('b', {}, `🚁 ${HELIS[a.model]?.label ?? a.model}`), el('small', {}, `${{ up: '⬆️ kalkıyor', go: '✈️ hedefe gidiyor', attack: '🔥 saldırıyor', home: '↩️ dönüyor', down: '⬇️ iniyor' }[a.phase] ?? a.phase} · ❤️ %${a.hp}`))),
+        this.btn('↩️ Hepsini Geri Çağır', 'wide', () => run('oheli:recall', {})));
       if (o.missions?.length) {
         const PH = { drive: '🚙 yolda', act: '🔥 iş başında', remount: '🏃 araçlara biniyor', escape: '💨 kaçıyor' };
         body.append(el('h4', {}, '📡 Sahadaki ekipler'), ...o.missions.map((m) => el('div', { class: 'ph-card' }, el('b', {}, `${m.kind} · ${m.n} adam`), el('small', {}, PH[m.phase] ?? m.phase))));
@@ -564,15 +579,61 @@ export class PhoneUI {
   }
 
   // ------------------------------------------------------------------ garaj / gardırop
-  appGarage() {
+  /** 🏎️ Galeri: araba / helikopter satın al, araçlarını yönet, örgüt filosu */
+  appGarage(tab = this._galTab ?? 'mine') {
+    this._galTab = tab;
     const s = this.self;
-    const body = this.page('Garaj');
-    if (!s.cars?.length) body.append(el('p', { class: 'ph-muted' }, 'Araban yok. Araba bayisinden satın al ya da kirala.'), this.btn('📍 Bayiye Git', 'primary wide', () => { this.close(); this.h.showBuildingType('car_dealer'); }));
-    for (const c of s.cars ?? []) {
-      const def = CARS[c.model];
-      const driving = s.driving === c.model;
-      body.append(el('div', { class: 'ph-card' }, el('b', {}, `🚗 ${def.label}`), el('small', {}, c.until ? `⏳ Kiralık (${Math.max(0, c.until - (this.h.hourNow() ?? 0))} sa kaldı)` : '✅ Senin'),
-        this.btn(driving ? '🅿️ Park Et' : '🔑 Bin', driving ? '' : 'primary', () => this.act(driving ? 'car:park' : 'car:drive', { model: c.model }).then(() => this.close()))));
+    const V = s.veh ?? { cars: (s.cars ?? []).map((c) => ({ ...c, parked: null })), helis: [] };
+    const mul = s.econ?.mul ?? 1;
+    const body = this.page('🏎️ Galeri');
+    const tabs = [['mine', '🔑 Araçlarım'], ['car', '🚗 Arabalar'], ['heli', '🚁 Helikopter'], ['org', '🕴️ Örgüt Filosu']];
+    body.append(el('div', { class: 'ph-row-actions gal-tabs' }, ...tabs.map(([k, l]) => this.btn(l, k === tab ? 'primary' : '', () => this.appGarage(k)))));
+    const run = (type, params, confirm) => this.h.runAction({ type, params, confirm }).then(() => setTimeout(() => this.openApp('garage', true), 300));
+    const swatch = (c) => el('span', { class: 'ph-swatch', style: { background: c.diamond ? 'linear-gradient(135deg,#fff,#bfefff,#fff)' : c.gold ? 'linear-gradient(135deg,#ffe58a,#d4af37,#8a6d1a)' : hex(c.color) } });
+    if (tab === 'mine') {
+      if (!V.cars.length && !V.helis.length) body.append(el('p', { class: 'ph-muted' }, 'Hiç aracın yok. 🚗 Arabalar ya da 🚁 Helikopter sekmesinden al: anında yanına teslim edilir.'));
+      for (const [kind, list] of [['car', V.cars], ['heli', V.helis]]) for (const c of list) {
+        const def = (kind === 'heli' ? HELIS : CARS)[c.model];
+        if (!def) continue;
+        const P = c.parked;
+        const driving = s.driving === c.model;
+        body.append(el('div', { class: 'ph-card' }, el('div', { class: 'ph-row' }, swatch(def), el('div', { class: 'ph-rt' }, el('b', {}, `${kind === 'heli' ? '🚁' : '🚗'} ${def.label}`),
+          el('small', {}, driving ? '🛣️ Sürüyorsun' : P ? `${P.flying ? '✈️ Havada' : '🅿️ Park halinde'} · ${P.locked ? '🔒 kilitli' : '🔓 açık'} · ❤️ %${P.hp}` : c.until ? '⏳ Kiralık' : '🏠 Garajda'))),
+          el('div', { class: 'ph-row-actions' },
+            P ? this.btn('📍 Haritada', '', () => { this.close(); this.h.showOnMap({ x: P.x, z: P.z, label: `${kind === 'heli' ? '🚁' : '🚗'} ${def.label}` }); }) : '',
+            P ? this.btn(P.locked ? '🔓 Aç' : '🔒 Kilitle', '', () => run('veh:lock', { unitId: P.unitId })) : '',
+            kind === 'car' && !P && !driving ? this.btn('🔑 Getir & Bin', 'primary', () => this.act('car:drive', { model: c.model }).then(() => this.close())) : '',
+            kind === 'heli' && P && !P.flying ? this.btn('🚁 Uç', 'primary', () => { this.close(); this.h.flyHeli?.(P.unitId); }) : '')));
+      }
+      return;
+    }
+    if (tab === 'car' || tab === 'heli') {
+      const CAT = tab === 'heli' ? HELIS : CARS;
+      const entries = Object.entries(CAT).filter(([, c]) => tab === 'heli' ? !c.org || c.seats >= 4 : true).sort((a, b) => a[1].price - b[1].price);
+      body.append(el('p', { class: 'ph-muted' }, tab === 'heli' ? 'Bin, haritadan iniş yerini seç: seni bırakır ve orada bekler.' : 'Satın aldığın araba yanına teslim edilir. İnince kilitli park edilir, yok olmaz.'));
+      for (const [k, c] of entries) {
+        const has = (tab === 'heli' ? V.helis : V.cars).some((x) => x.model === k);
+        const pr = priceOf(c.price, mul);
+        body.append(el('div', { class: 'ph-card gal-item' }, el('div', { class: 'ph-row' }, swatch(c), el('div', { class: 'ph-rt' }, el('b', {}, c.label),
+          el('small', {}, `${tl(pr)} · ⚡${c.speed} · 💺${c.seats}${c.armor ? ` · 🛡️x${c.armor}` : ''}${c.gold ? ' · ✨ altın' : ''}${c.diamond ? ' · 💎 elmas' : ''}`))),
+          has ? el('small', { class: 'ph-ok' }, '✅ Sende var') : this.btn('Satın Al', 'primary', () => run('veh:buy', { kind: tab, model: k }, `${c.label} alınsın mı? ${tl(pr)}`))));
+      }
+      return;
+    }
+    // örgüt filosu
+    const o = s.org?.org;
+    if (!o) { body.append(el('p', { class: 'ph-muted' }, 'Örgüt filosu için önce Telefon › Örgüt\'ten örgüt kur.')); return; }
+    const F = o.fleet ?? { cars: {}, helis: {} };
+    body.append(el('div', { class: 'ph-bankcard' }, el('small', {}, `🕴️ ${o.name} FİLOSU`), el('div', { class: 'ph-big' }, `🚙 ${Object.values(F.cars).reduce((a, b) => a + b, 0)} · 🚁 ${Object.values(F.helis).reduce((a, b) => a + b, 0)}`),
+      el('small', {}, 'Görevlerde adamlar filodaki araçlarla gider (zırhlılar dayanıklı). Taarruz helikopterlerini Örgüt uygulamasından gönder ya da bin.')));
+    for (const [kind, CAT] of [['car', CARS], ['heli', HELIS]]) {
+      body.append(el('h4', {}, kind === 'car' ? '🚙 Kartel Araçları' : '🚁 Taarruz Helikopterleri'));
+      for (const [k, c] of Object.entries(CAT).filter(([, c]) => c.org).sort((a, b) => a[1].price - b[1].price)) {
+        const n = (kind === 'car' ? F.cars : F.helis)[k] ?? 0;
+        body.append(el('div', { class: 'ph-card gal-item' }, el('div', { class: 'ph-row' }, swatch(c), el('div', { class: 'ph-rt' }, el('b', {}, `${c.label}${n ? ` ×${n}` : ''}`),
+          el('small', {}, `${tl(priceOf(c.price, mul))}${c.armor ? ` · 🛡️x${c.armor}` : ''}${c.dmg ? ` · 💥${c.dmg}` : ''}${c.bombs ? ' · 💣 bomba' : ''}`))),
+          this.btn('+ Filoya Kat', 'primary', () => run('veh:buy', { kind, model: k, forOrg: true }, `${c.label} örgüt filosuna alınsın mı? ${tl(priceOf(c.price, mul))}`))));
+      }
     }
   }
 

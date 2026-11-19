@@ -998,7 +998,12 @@ export class SocietySystem {
     const owned = (p.cars ?? []).find((c) => c.model === model);
     if (!owned) return fail('Bu araba sende yok.');
     if (p.inside) return fail('Önce dışarı çık.');
+    if (p.flying) return fail('Helikopterdesin.');
+    if (p.driving === model) return { ok: true, quiet: true };
+    if (p.driving) this.park(p);
     if (p.rideWith) this.leaveCar(p);
+    const err = this.ctx.engine.getSystem('vehicles')?.board(p, model);
+    if (err) return err;
     if (p.dead || p.jailedUntil > this.ctx.world.clockHours()) return fail('Şu an süremezsin.');
     p.driving = model;
     p.pose = 'drive';
@@ -1013,6 +1018,8 @@ export class SocietySystem {
   park(p) {
     const { config, world } = this.ctx;
     for (const x of world.players.values()) if (x.rideWith === p.id) this.leaveCar(x);
+    // araba yok olmaz: olduğu yerde kilitli park edilir
+    this.ctx.engine.getSystem('vehicles')?.parkCar(p);
     p.driving = null;
     if (p.pose === 'drive') p.pose = '';
     p.maxSpeed = config.player.speed * config.player.sprintMultiplier;

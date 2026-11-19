@@ -2,7 +2,7 @@ import { el, tl, pad, clear } from '../core/dom.js';
 import { Minimap } from './Minimap.js';
 import { WorldMap } from './WorldMap.js';
 
-const CATEGORY_LABELS = { residential: '🏠 Konut', commercial: '🛍️ Ticaret', industrial: '🏭 Sanayi', military: '🪖 Askeri' };
+const CATEGORY_LABELS = { luxury: '💎 Lüks Evler (havuzlu, saray, kule)', residential: '🏠 Konut', commercial: '🛍️ Ticaret', industrial: '🏭 Sanayi', military: '🪖 Askeri' };
 export function unlocked(catalog, techs, kind, id) {
   if (catalog.defaultUnlocks?.[kind]?.includes(id)) return true;
   return (techs ?? []).some((t) => catalog.techs[t]?.unlocks[kind]?.includes(id));

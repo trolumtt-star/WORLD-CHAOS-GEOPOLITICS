@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { textSprite, glowTexture } from '../render/geometry.js';
 import { POSES, WEAPON_CODES } from '../../shared/interiors.js';
 import { OUTFITS, CARS, CAR_CODES } from '../../shared/catalogs.js';
+import { makeDetailedCar, makeDetailedHeli, luxMaterial, gemMaterial } from './Vehicles3D.js';
 
 const JOB_COLORS = {
   worker: 0xe67e22, clerk: 0x3498db, waiter: 0xf4f4f4, bartender: 0x8e44ad, civil_servant: 0x5d6d7e,
@@ -37,8 +38,8 @@ export function makeCharacter(shirt, { scale = 1, pants, skin = 0xf1c27d, hair, 
   g.add(rig);
   const h = Math.abs(Math.floor(seed));
   const O = { top: OUTFITS[outfit?.top], bottom: OUTFITS[outfit?.bottom], hat: OUTFITS[outfit?.hat], acc: OUTFITS[outfit?.acc] };
-  const shirtMat = new THREE.MeshStandardMaterial({ color: O.top?.color ?? shirt, roughness: O.top?.style === 'suit' || O.top?.style === 'jacket' ? 0.45 : 0.7 });
-  const pantsMat = M(O.bottom?.color ?? pants ?? PANTS[h % PANTS.length], 0.85);
+  const shirtMat = O.top?.lux ? luxMaterial(O.top.lux, O.top.color) : new THREE.MeshStandardMaterial({ color: O.top?.color ?? shirt, roughness: O.top?.style === 'suit' || O.top?.style === 'jacket' ? 0.45 : 0.7 });
+  const pantsMat = O.bottom?.lux ? luxMaterial(O.bottom.lux, O.bottom.color) : M(O.bottom?.color ?? pants ?? PANTS[h % PANTS.length], 0.85);
   const skinMat = M(skin, 0.6);
   const hairMat = M(hair ?? HAIR[(h >> 3) % HAIR.length], 0.9);
   const dark = M(0x161616, 0.6);
@@ -125,7 +126,7 @@ function dressUp(rig, head, O, { shirtMat, add }) {
   if (t?.style === 'dress' || b?.style === 'skirt') add(rig, new THREE.CylinderGeometry(0.42, 0.72, 0.95, 12), t?.style === 'dress' ? shirtMat : M(b.color), 0, 1.15, 0);
   if (b?.color2) for (const x of [-0.37, 0.37]) add(rig, new THREE.BoxGeometry(0.03, 0.6, 0.05), M(b.color2), x, 1.1, 0.12);
   if (hat) {
-    const hm = M(hat.color, hat.style === 'crown' ? 0.25 : 0.8, hat.style === 'crown' ? 0.9 : 0);
+    const hm = hat.lux ? luxMaterial(hat.lux, hat.color) : M(hat.color, hat.style === 'crown' ? 0.25 : 0.8, hat.style === 'crown' ? 0.9 : 0);
     if (hat.style === 'cap') { add(head, new THREE.SphereGeometry(0.4, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), hm, 0, 0.06, 0); add(head, new THREE.BoxGeometry(0.42, 0.04, 0.32), hm, 0, 0.08, 0.42); }
     if (hat.style === 'beanie') add(head, new THREE.SphereGeometry(0.41, 12, 8, 0, Math.PI * 2, 0, Math.PI / 1.8).scale(1, 1.15, 1), hm, 0, 0.04, 0);
     if (hat.style === 'fedora' || hat.style === 'cowboy') {
@@ -136,46 +137,29 @@ function dressUp(rig, head, O, { shirtMat, add }) {
     if (hat.style === 'crown') {
       add(head, new THREE.CylinderGeometry(0.36, 0.33, 0.24, 12, 1, true), hm, 0, 0.42, 0);
       for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; add(head, new THREE.ConeGeometry(0.07, 0.2, 4), hm, Math.sin(a) * 0.33, 0.62, Math.cos(a) * 0.33); }
-      add(head, new THREE.SphereGeometry(0.05, 6, 6), M(0xd50000, 0.2, 0.3), 0, 0.42, 0.36);
+      add(head, new THREE.SphereGeometry(0.05, 6, 6), hat.lux === 'diamond' ? gemMaterial() : M(0xd50000, 0.2, 0.3), 0, 0.42, 0.36);
+      if (hat.lux === 'diamond') for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; add(head, new THREE.OctahedronGeometry(0.06), gemMaterial(), Math.sin(a) * 0.35, 0.72, Math.cos(a) * 0.35); }
     }
   }
   if (acc?.style === 'glasses' || acc?.style === 'sunglasses') {
-    const gm = M(acc.color, 0.3, 0.4);
+    const gm = acc.lux ? luxMaterial(acc.lux, acc.color) : M(acc.color, 0.3, 0.4);
     for (const x of [-0.13, 0.13]) add(head, acc.style === 'sunglasses' ? new THREE.BoxGeometry(0.17, 0.1, 0.03) : new THREE.TorusGeometry(0.07, 0.015, 6, 12), gm, x, 0.05, 0.345);
     add(head, new THREE.BoxGeometry(0.1, 0.02, 0.02), gm, 0, 0.07, 0.35);
   }
-  if (acc?.style === 'chain') add(rig, new THREE.TorusGeometry(0.2, 0.025, 6, 16), M(acc.color, 0.2, 0.9), 0, 2.45, 0.12).rotation.x = Math.PI / 2.4;
+  if (acc?.style === 'chain') {
+    const cm = acc.lux ? luxMaterial(acc.lux, acc.color) : M(acc.color, 0.2, 0.9);
+    add(rig, new THREE.TorusGeometry(acc.thick ? 0.24 : 0.2, acc.thick ? 0.05 : 0.025, 8, 20), cm, 0, 2.45, 0.12).rotation.x = Math.PI / 2.4;
+    // madalyon / taş
+    add(rig, acc.lux === 'diamond' ? new THREE.OctahedronGeometry(0.09) : new THREE.CylinderGeometry(0.08, 0.08, 0.03, 12).rotateX(Math.PI / 2), acc.lux === 'diamond' ? gemMaterial() : cm, 0, 2.2, 0.33);
+  }
+  // Elmas işlemeli kıyafetler: göğüste ve yakada parlayan taşlar
+  if (t?.lux === 'diamond') for (let i = 0; i < 10; i++) add(rig, new THREE.OctahedronGeometry(0.035), gemMaterial(), (Math.random() - 0.5) * 0.6, 1.7 + Math.random() * 0.75, 0.3);
+  if (t?.lux === 'gold' && t.style === 'suit') add(rig, new THREE.BoxGeometry(0.1, 0.62, 0.03), M(0x111111), 0, 2.1, 0.325);
   if (acc?.style === 'backpack') add(rig, new THREE.BoxGeometry(0.62, 0.75, 0.3), M(acc.color), 0, 2.05, -0.42);
 }
 
-/** Arabalar: sedan, spor, SUV, pikap, minivan */
-export function makeCar(modelId) {
-  const c = CARS[modelId] ?? CARS.sahin;
-  const g = new THREE.Group();
-  const body = M(c.color, 0.3, 0.6);
-  const glass = new THREE.MeshStandardMaterial({ color: 0x1b2a3a, roughness: 0.1, metalness: 0.6, transparent: true, opacity: 0.45 });
-  const dark = M(0x111111, 0.7);
-  const box = (w, h, d, m, x, y, z) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); o.castShadow = true; g.add(o); return o; };
-  const L = { sedan: [7.4, 3.3, 1.0], sport: [7.6, 3.6, 0.75], suv: [7.2, 3.5, 1.5], pickup: [8.2, 3.5, 1.3], van: [7.6, 3.4, 1.7] }[c.model] ?? [7.4, 3.3, 1];
-  const [len, wid, hh] = L;
-  box(wid, hh, len, body, 0, 0.55 + hh / 2, 0);
-  if (c.model === 'pickup') { box(wid, 1.2, len * 0.42, body, 0, 0.55 + hh + 0.6, len * 0.1); box(wid - 0.4, 0.1, len * 0.4, dark, 0, 0.56 + hh, -len * 0.28); }
-  else if (c.model === 'sport') { box(wid * 0.82, 0.85, len * 0.38, glass, 0, 0.55 + hh + 0.42, -len * 0.05); box(wid, 0.12, 0.6, dark, 0, 0.55 + hh + 0.5, -len / 2 + 0.3); for (const x of [-1, 1]) box(0.15, 0.5, 0.15, dark, x * (wid / 2 - 0.4), 0.55 + hh + 0.25, -len / 2 + 0.3); }
-  else box(wid * 0.9, c.model === 'van' || c.model === 'suv' ? 1.4 : 1.15, len * (c.model === 'van' ? 0.7 : 0.5), glass, 0, 0.55 + hh + (c.model === 'van' || c.model === 'suv' ? 0.7 : 0.57), c.model === 'van' ? -len * 0.08 : -len * 0.04);
-  for (const [x, z] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) {
-    const w = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.5, 14).rotateZ(Math.PI / 2), dark);
-    w.position.set(x * (wid / 2), 0.62, z * (len / 2 - 1.3));
-    g.add(w);
-  }
-  const lamp = new THREE.MeshBasicMaterial({ color: 0xfff6c8 });
-  const tail = new THREE.MeshBasicMaterial({ color: 0xff2020 });
-  for (const x of [-1, 1]) {
-    const h1 = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.3, 0.1), lamp); h1.position.set(x * (wid / 2 - 0.55), 0.55 + hh * 0.6, len / 2 + 0.02); g.add(h1);
-    const t1 = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.3, 0.1), tail); t1.position.set(x * (wid / 2 - 0.55), 0.55 + hh * 0.6, -len / 2 - 0.02); g.add(t1);
-  }
-  g.userData.isCar = true;
-  return g;
-}
+/** Arabalar: detaylı modeller Vehicles3D.js içinde */
+export function makeCar(modelId) { return makeDetailedCar(modelId); }
 
 function makeMoped() {
   const g = new THREE.Group();
@@ -424,14 +408,28 @@ const STREET_LOOK = {
   kidnapper: { shirt: 0x0c0c0c, pants: 0x0c0c0c, outfit: { hat: 'beanie', top: 'hoodie_grey' }, tag: '🥷', dark: true },
 };
 
-function makeStreetUnit(type, color, tagText) {
+function makeStreetUnit(type, color, tagText, model) {
   const g = new THREE.Group();
-  if (type === 'gangcar') {
-    // Siyah kartel aracı + örgüt renginde şerit
-    const car = makeCar('gwagon');
-    car.traverse((m) => { if (m.isMesh && m.material?.color?.getHex?.() === 0x2d2d2d) m.material = new THREE.MeshStandardMaterial({ color: 0x0b0b0d, roughness: 0.25, metalness: 0.7 }); });
-    const stripe = new THREE.Mesh(new THREE.BoxGeometry(2.35, 0.18, 4.2), new THREE.MeshBasicMaterial({ color }));
-    stripe.position.y = 1.35;
+  if (type === 'pheli' || type === 'oheli') {
+    const h = makeDetailedHeli(model ?? (type === 'oheli' ? 'apache' : 'robin'));
+    g.add(h);
+    g.userData.air = true;
+    g.userData.rotors = h.userData.rotors;
+    g.userData.tailRotor = h.userData.tailRotor;
+    if (tagText) { const tc = type === 'oheli' ? '#' + color.getHexString() : '#ffffff'; const tag = textSprite(`${type === 'oheli' ? '🚁' : '🅿️'} ${tagText}`, { color: tc, border: tc, scale: 0.5 }); tag.position.y = 7; g.add(tag); }
+    g.userData.street = true;
+  } else if (type === 'pcar') {
+    const car = makeCar(model);
+    g.add(car);
+    if (tagText) { const tag = textSprite(`🅿️ ${tagText}`, { color: '#ffffff', border: '#888888', scale: 0.42 }); tag.position.y = 4.2; g.add(tag); }
+    g.userData.street = true;
+    g.userData.car = true;
+  } else if (type === 'gangcar') {
+    // Kartel aracı (filodan) + örgüt renginde şerit
+    const car = makeCar(model ?? 'gwagon');
+    if (!model) car.traverse((m) => { if (m.isMesh && m.material?.color?.getHex?.() === 0x2d2d2d) m.material = new THREE.MeshStandardMaterial({ color: 0x0b0b0d, roughness: 0.25, metalness: 0.7 }); });
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.12, 0.3), new THREE.MeshBasicMaterial({ color }));
+    stripe.position.set(0, 1.2, 3.75);
     g.add(car, stripe);
     if (tagText) { const tag = textSprite(`🚙 ${tagText}`, { color: '#' + color.getHexString(), border: '#' + color.getHexString(), scale: 0.5 }); tag.position.y = 4.4; g.add(tag); }
     g.userData.street = true;
@@ -470,10 +468,10 @@ function makeStreetUnit(type, color, tagText) {
   return g;
 }
 
-const STREET_TYPES = new Set(['cop', 'swat', 'gang', 'guard', 'hitman', 'bomber', 'enforcer', 'kidnapper', 'gangcar']);
+const STREET_TYPES = new Set(['cop', 'swat', 'gang', 'guard', 'hitman', 'bomber', 'enforcer', 'kidnapper', 'gangcar', 'pcar', 'pheli', 'oheli']);
 
-function makeUnit(type, color, tag) {
-  if (STREET_TYPES.has(type)) return makeStreetUnit(type, color, tag);
+function makeUnit(type, color, tag, model) {
+  if (STREET_TYPES.has(type)) return makeStreetUnit(type, color, tag, model);
   const g = new THREE.Group();
   const olive = new THREE.MeshStandardMaterial({ color: 0x556b2f, roughness: 0.8 });
   const team = new THREE.MeshStandardMaterial({ color, roughness: 0.6 });
@@ -858,7 +856,7 @@ export class EntityManager {
   // ---------- Birlikler ----------
   addUnit(u) {
     if (this.units.has(u.id)) return;
-    const g = u.air ? makeAircraft(u.type, new THREE.Color(u.color)) : makeUnit(u.type, new THREE.Color(u.color), u.tag);
+    const g = u.air ? makeAircraft(u.type, new THREE.Color(u.color)) : makeUnit(u.type, new THREE.Color(u.color), u.tag, u.model);
     g.position.set(u.x, u.alt ?? 0, u.z);
     g.rotation.y = u.rotY ?? 0;
     this.markPick(g, 'unit', u.id);
@@ -937,9 +935,22 @@ export class EntityManager {
       e.g.visible = e.inside === this.selfInside;
       const p = e.g.position;
       const ox = p.x, oz = p.z;
-      p.x += (e.target.x - p.x) * k;
-      p.z += (e.target.z - p.z) * k;
-      e.g.rotation.y = lerpAngle(e.g.rotation.y, e.target.rotY, k);
+      // Yolcu: sürücünün arabasındaki koltuğa sabit (arkadan uçarak gelmez)
+      const rw = e.rideWith;
+      const drv = rw && (rw === this.selfId ? selfGroup : this.players.get(rw)?.g);
+      if (rw && String(rw).startsWith('u')) {
+        // helikopterde: kabinin içinde, görünmez; helikopterle birlikte
+        const hu = this.units.get(rw);
+        e.g.visible = false;
+        if (hu) { p.x = hu.g.position.x; p.z = hu.g.position.z; }
+      } else if (drv) {
+        p.x = drv.position.x; p.z = drv.position.z;
+        e.g.rotation.y = drv.rotation.y;
+      } else {
+        p.x += (e.target.x - p.x) * k;
+        p.z += (e.target.z - p.z) * k;
+        e.g.rotation.y = lerpAngle(e.g.rotation.y, e.target.rotY, k);
+      }
       e.speed = Math.hypot(p.x - ox, p.z - oz) / Math.max(dt, 0.001);
       setWeapon(e.g, e.weapon);
       animateWalk(e.g, e.pose ? 0 : e.speed, dt, { pose: e.car || e.seat ? 'drive' : e.pose, seat: e.seat, attackT: e.attackT, gun: !e.car && (e.weapon === 'pistol' || e.weapon === 'rifle') ? e.weapon : null });
@@ -1004,6 +1015,7 @@ export class EntityManager {
         u.g.rotation.y = lerpAngle(u.g.rotation.y, u.target.rot, ku);
         u.g.rotation.z = THREE.MathUtils.clamp((u.g.rotation.y - prev) * -25, -0.6, 0.6);
         if (u.g.userData.rotor) { u.g.userData.rotor.rotation.y += dt * 25; u.g.userData.tailRotor.rotation.x += dt * 30; }
+        if (u.g.userData.rotors) { const sp = p.y > 0.3 ? 28 : 6; for (const r of u.g.userData.rotors) r.rotation.y += dt * sp; if (u.g.userData.tailRotor) u.g.userData.tailRotor.rotation.x += dt * sp * 1.3; }
         continue;
       }
       if (u.speed > 0.5 || u.g.userData.street) u.g.rotation.y = lerpAngle(u.g.rotation.y, u.target.rot, ku);

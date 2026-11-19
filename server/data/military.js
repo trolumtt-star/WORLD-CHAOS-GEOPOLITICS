@@ -20,6 +20,10 @@ export const UNIT_TYPES = {
   enforcer: { label: 'Tetikçi',           icon: '🔫', cost: 0, hp: 160, speed: 14, range: 0, damage: 0, fireRate: 0, combat: false, street: true, fight: { dmg: 14, range: 28, cd: 0.9 } },
   kidnapper:{ label: 'Kaçırıcı',          icon: '🥷', cost: 0, hp: 140, speed: 16, range: 0, damage: 0, fireRate: 0, combat: false, street: true, fight: { dmg: 9,  range: 22, cd: 1.1 } },
   gangcar:  { label: 'Kartel Aracı',      icon: '🚙', cost: 0, hp: 420, speed: 34, range: 0, damage: 0, fireRate: 0, combat: false, street: true, car: true },
+  // Park halindeki oyuncu araçları (kalıcı: keep) ve örgüt taarruz helikopteri
+  pcar:     { label: 'Park Halindeki Araba', icon: '🚗', cost: 0, hp: 650, speed: 0, range: 0, damage: 0, fireRate: 0, combat: false, street: true, car: true, keep: true },
+  pheli:    { label: 'Helikopter',          icon: '🚁', cost: 0, hp: 500, speed: 0, range: 0, damage: 0, fireRate: 0, combat: false, street: true, heli: true, keep: true },
+  oheli:    { label: 'Taarruz Helikopteri', icon: '🚁', cost: 0, hp: 700, speed: 0, range: 0, damage: 0, fireRate: 0, combat: false, street: true, heli: true, fight: { dmg: 18, range: 46, cd: 0.6 } },
   // Faz 3: jet, helicopter, drone, siha
 };
 

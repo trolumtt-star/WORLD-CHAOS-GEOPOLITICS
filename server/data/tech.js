@@ -1,3 +1,4 @@
+import { LUX_HOUSES } from '../../shared/catalogs.js';
 /**
  * Teknoloji ağacı: gerçek dünya tarihine göre 8 çağ.
  * Her deneme parayla yapılır, araştırma süresi sonunda %30 (bonuslarla daha fazla) başarı şansı.
@@ -69,7 +70,7 @@ export const TECHS = {
 
 // Varsayılan (teknoloji gerektirmeyen) içerik
 export const DEFAULT_UNLOCKS = {
-  buildings: ['house', 'market', 'bar', 'factory:food', 'barracks'],
+  buildings: ['house', 'market', 'bar', 'factory:food', 'barracks', ...Object.keys(LUX_HOUSES).map((k) => `mansion:${k}`)],
   units: ['swordsman', 'scout'],
   missiles: [],
   ads: ['tellal'],

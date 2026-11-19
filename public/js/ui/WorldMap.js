@@ -45,7 +45,7 @@ export class WorldMap {
         el('div', { class: 'wm-row' }, this.search, el('button', { class: 'wm-close', onClick: () => this.close() }, '✕')),
         this.chips, this.results),
       el('div', { class: 'wm-zoom' }, zb('＋', 1.5), zb('－', 1 / 1.5), el('button', { class: 'wm-zbtn', title: 'Bana dön', onClick: () => this.centerSelf() }, '🎯')),
-      el('div', { class: 'wm-legend' }, '🟡 Sen · 📍 İşaret · Dokun: bilgi / işaret koy'),
+      (this.legend = el('div', { class: 'wm-legend' }, '🟡 Sen · 📍 İşaret · Dokun: bilgi / işaret koy')),
       this.card);
     ui.root.append(this.root);
 
@@ -68,7 +68,10 @@ export class WorldMap {
 
   get isOpen() { return !this.root.classList.contains('hidden'); }
 
-  open() {
+  open(opts = {}) {
+    this.pick = opts.pick ?? null;
+    this.legend.textContent = this.pick ? '🚁 İNİŞ YERİ SEÇ: haritada bir yere dokun' : '🟡 Sen · 📍 İşaret · Dokun: bilgi / işaret koy';
+    this.legend.classList.toggle('pick', !!this.pick);
     this.root.classList.remove('hidden');
     this.card.classList.add('hidden');
     if (!this.opened) { this.opened = true; this.zoom = 4; this.centerSelf(false); }
@@ -172,6 +175,7 @@ export class WorldMap {
   tap(sx, sy) {
     this.results.classList.add('hidden');
     const [x, z] = this.toWorld(sx, sy);
+    if (this.pick) { const cb = this.pick; this.pick = null; this.close(); cb(x, z); return; }
     const s = this.scale;
     let best = null, bd = Infinity;
     for (const b of this.mm.buildings.values()) {

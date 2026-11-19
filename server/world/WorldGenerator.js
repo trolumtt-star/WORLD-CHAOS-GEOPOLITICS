@@ -197,6 +197,7 @@ export function makeName(type, subtype, address, rng, ctx) {
   }
   if (type === 'apartment') return `${rng.pick(LAST_NAMES)} Apartmanı`;
   if (type === 'villa') return `Villa ${rng.pick(LAST_NAMES)}`;
+  if (type === 'mansion') return `${rng.pick(LAST_NAMES)} Malikanesi`;
   if (type === 'house') return `Ev · ${address}`;
   if (type === 'land') return `Arsa · ${address}`;
   const list = BUSINESS_NAMES[type];

@@ -16,7 +16,7 @@ export function interiorOrigin(buildingId) {
 export function isInteriorPos(x) { return x > INTERIOR_GRID.x - 60; }
 
 const KIND_BY_TYPE = {
-  house: 'home', villa: 'home', apartment: 'home', town_hall: 'manor',
+  house: 'home', villa: 'home', mansion: 'manor', apartment: 'home', town_hall: 'manor',
   market: 'shop', tech_store: 'shop', gun_shop: 'gunshop',
   cafe: 'cafe', restaurant: 'cafe', bar: 'bar',
   factory: 'factory', police: 'police', bank: 'bank', hospital: 'hospital', palace: 'office',

@@ -112,6 +112,15 @@ NPC ülkeler de bunu yapar: insan oyuncuyu kukla yapar, birbirlerini çoğunlukl
 - Kovalanmıyorsan aranma yıldızları her 2 oyun saatinde 1 düşer (içerideysen daha hızlı).
 - Haritanın 4 köşesinde **Yeraltı İni** var. İçerideki Patron'a para verip iş yaptırırsın: 💵 sahte para (×10, 1 saat), 🔫 dükkan taratma, 💼 haraç (3 gün %15), 🎯 kiralık katil, 💥 darbe. Çete üyeleri haritada yürüyerek gider; polis %50 ihtimalle yakalar, bazen de seni ispiyonlarlar.
 
+## 🏎️ v0.25: Galeri, helikopterler, lüks hayat
+- Telefon › 🏎️ Galeri: 26 detaylı araba (sedan, coupé, spor, hypercar, muscle, limuzin, SUV, arazi, zırhlı, silahlı pikap; altın ve elmas sürümler) ve 20 helikopter. Satın alınan araç yanına teslim edilir.
+- Araçlar dünyada kalır: inince kilitli park edilir, birden fazla araç park edebilirsin. Park halindeki araçlar vurulup patlatılabilir, çalınabilir (kilitliyse alarm); karteller de çalar/patlatır.
+- Kişisel helikopter: yanına git 🚁, haritadan iniş yeri seç, seni bırakır ve orada bekler.
+- Örgüt filosu: kartel araçları (görevlerde kullanılır, zırhlılar dayanıklı) ve taarruz helikopterleri (gönder ya da bin; tarar, 5 m bomba atar; istediğin an geri çağır).
+- 24 lüks kıyafet: altın, elmas, platin, ipek (parlayan taşlar).
+- 20 lüks ev: havuzlu modern villalar, cam köşkler, sütunlu konaklar, Toskana evleri, penthouse kuleleri (çatı havuzu + helipad), saraylar (kubbe, kuleler, fıskiye).
+- Düzeltme: yanına binen kişi arabanın koltuğunda sabit, arkadan uçarak gelmiyor.
+
 ## ☠️ v0.24
 - NPC kartelleri: işletmelerindeki çalışanları ve CEO'nu vurur (bildirim gelir), CEO'nu rehin alır, evini bombalar, telefondan kartel adına tehdit mesajı atar.
 - Rehineler: kartel seni kaçırırsa 24 saat içinde fidye ödenmezse infaz edilirsin; örgütündekileri kaçırıp sadece 1 kişiyi bırakır, tehdit ona gelir. Telefon › Örgüt › Rehineler'den fidye ödenir.

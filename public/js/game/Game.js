@@ -19,7 +19,7 @@ import { WEAPONS, canFoundAtTiles } from '../../shared/interiors.js';
 import { PhoneUI } from '../ui/PhoneUI.js';
 import { AdminUI } from '../ui/AdminUI.js';
 import { MatchSim } from './MatchSim.js';
-import { OUTFITS, CARS, CLUBS, priceOf } from '../../shared/catalogs.js';
+import { OUTFITS, CARS, HELIS, CLUBS, priceOf } from '../../shared/catalogs.js';
 
 /** Bir oyun oturumu: sahne + ağ olayları + arayüz + döngü. */
 export class Game {
@@ -195,8 +195,11 @@ export class Game {
           .sort((a, b) => Math.hypot(a.x - me.x, a.z - me.z) - Math.hypot(b.x - me.x, b.z - me.z)).slice(0, 40)
           .map((b) => ({ id: b.id, label: `${cat[b.type]?.icon ?? '🏢'} ${b.name ?? cat[b.type]?.label} · ${Math.round(Math.hypot(b.x - me.x, b.z - me.z))} m` }));
         const players = [...this.roster.values()].filter((r) => !r.isAI && r.id !== this.selfId).map((r) => ({ id: r.id, label: `👤 ${r.name}` }));
-        return { buildings, players };
+        const vehicles = [...this.entities.units.values()].filter((u) => (u.type === 'pcar' || u.type === 'pheli') && u.ownerId !== this.selfId)
+          .map((u) => ({ id: u.id, label: `${u.type === 'pheli' ? '🚁' : '🚗'} ${u.tag ?? ''} · ${(u.type === 'pheli' ? HELIS : CARS)[u.model]?.label ?? u.model} · ${Math.round(Math.hypot(u.g.position.x - me.x, u.g.position.z - me.z))} m` }));
+        return { buildings, players, vehicles };
       },
+      flyHeli: (unitId) => { const u = this.entities.units.get(unitId); if (u) this.pickLanding(u); },
       showNearest: (type) => this.showBuildingType?.(type) ?? this.ui.toast('Haritada 🏭 depoları ara.', 'info'),
       hourNow: () => (this.clockBase.day - 1) * 24 + this.clockBase.hour,
       isOwner: () => !!this.init.isOwner,
@@ -601,7 +604,7 @@ export class Game {
 
   // ------------------------------------------------------------------ gündelik hayat
   applySelf(s, before) {
-    this.controller.locked = (!!s.jailed && !s.myCase) || !!s.dead || (s.pose === 'sleep' && s.energy < 15) || !!s.rideWith || !!s.myCase;
+    this.controller.locked = (!!s.jailed && !s.myCase) || !!s.dead || (s.pose === 'sleep' && s.energy < 15) || !!s.rideWith || !!s.myCase || !!s.veh?.flying;
     this.life.set(s);
     if ((s.inside ?? null) !== (before.inside ?? null)) {
       if (s.inside) this.enterInterior(s.inside);
@@ -653,16 +656,33 @@ export class Game {
     return best;
   }
 
+  /** Yakındaki park halindeki araçlar: kendi arabam / helikopterim / başkasınınki (çalınabilir) */
+  nearbyParked() {
+    const me = this.self.g.position;
+    let mineCar = null, mineHeli = null, other = null, dc = 9, dh = 12, dor = 6;
+    for (const u of this.entities.units.values()) {
+      if (u.type !== 'pcar' && u.type !== 'pheli') continue;
+      const d = Math.hypot(u.g.position.x - me.x, u.g.position.z - me.z);
+      if (u.ownerId === this.selfId) { if (u.type === 'pcar' && d < dc) { dc = d; mineCar = u; } if (u.type === 'pheli' && d < dh && u.g.position.y < 1) { dh = d; mineHeli = u; } }
+      else if (d < dor) { dor = d; other = u; }
+    }
+    return { mineCar, mineHeli, other };
+  }
+
   updateCarButton() {
     const s = this.ui.self;
     const b = this.life?.carBtn;
     if (!b) return;
+    if (s.veh?.flying) { b.classList.add('hidden'); return; }
     const ride = this.nearbyRide();
-    const mode = s.rideWith ? 'leave' : s.driving ? 'park' : ride ? 'ride' : s.cars?.length && !s.inside ? 'drive' : null;
+    const P = s.inside ? {} : this.nearbyParked();
+    const garage = (s.veh?.cars ?? s.cars ?? []).find((c) => !c.parked);
+    const mode = s.rideWith ? 'leave' : s.driving ? 'park' : ride ? 'ride' : P.mineCar ? 'drive' : P.mineHeli ? 'heli' : P.other ? 'steal' : garage && !s.inside ? 'summon' : null;
     b.classList.toggle('hidden', !mode);
     b.classList.toggle('on', mode === 'park' || mode === 'leave');
-    b.textContent = { leave: '🚪', park: '🅿️', ride: '🚕', drive: '🚗' }[mode] ?? '🚗';
-    b.title = { leave: 'Arabadan in', park: 'Park et', ride: `${this.roster.get(ride?.id)?.name ?? ''} arabasına bin`, drive: 'Arabana bin' }[mode] ?? '';
+    b.classList.toggle('danger', mode === 'steal');
+    b.textContent = { leave: '🚪', park: '🅿️', ride: '🚕', drive: '🚗', heli: '🚁', steal: '🔓', summon: '🚗' }[mode] ?? '🚗';
+    b.title = { leave: 'Arabadan in', park: 'Park et (kilitli kalır)', ride: `${this.roster.get(ride?.id)?.name ?? ''} arabasına bin`, drive: 'Arabana bin', heli: 'Helikoptere bin, iniş yeri seç', steal: 'Aracı çal', summon: 'Garajdaki arabanı getir' }[mode] ?? '';
   }
 
   toggleCar() {
@@ -671,9 +691,19 @@ export class Game {
     if (s.driving) return this.runAction({ type: 'car:park', params: {} });
     const ride = this.nearbyRide();
     if (ride) return this.runAction({ type: 'car:ride', params: { driverId: ride.id } });
-    const car = s.cars?.[0];
-    if (!car) return this.ui.toast('🚗 Araban yok. Araba bayisinden al ya da kirala (Telefon › Sahibinden › Vasıta).', 'info');
-    return this.runAction({ type: 'car:drive', params: { model: car.model } });
+    const P = s.inside ? {} : this.nearbyParked();
+    if (P.mineCar) return this.runAction({ type: 'car:drive', params: { model: P.mineCar.model } });
+    if (P.mineHeli) return this.pickLanding(P.mineHeli);
+    if (P.other) return this.runAction({ type: 'veh:steal', params: { unitId: P.other.id }, confirm: `Bu ${P.other.type === 'pheli' ? 'helikopteri' : 'arabayı'} çalmaya çalışılsın mı? Kilitliyse alarm çalabilir, aranırsın.` });
+    const garage = (s.veh?.cars ?? s.cars ?? []).find((c) => !c.parked);
+    if (!garage) return this.ui.toast('🚗 Araban yok. Telefon › 🏎️ Galeri\'den al.', 'info');
+    return this.runAction({ type: 'car:drive', params: { model: garage.model } });
+  }
+
+  /** Helikopter: haritadan iniş yeri seç, oraya uç */
+  pickLanding(u) {
+    this.ui.toast('🚁 Haritada iniş yerine dokun.', 'info');
+    this.ui.worldMap.open({ pick: (x, z) => this.runAction({ type: 'heli:fly', params: { unitId: u.id, x, z } }) });
   }
 
   /** Kasada satış: "+₺12" havaya yükselir, yakındaysan kasa sesi */
@@ -965,7 +995,7 @@ export class Game {
     this._standing = true;
     // Sunucu bizi mobilyanın önüne ışınlayana kadar yürüme (koltuğun içinde sıkışma olmasın)
     this.controller.locked = true;
-    const unlock = () => { const t = this.ui.self; this.controller.locked = (!!t.jailed && !t.myCase) || !!t.dead || !!t.rideWith || !!t.myCase; };
+    const unlock = () => { const t = this.ui.self; this.controller.locked = (!!t.jailed && !t.myCase) || !!t.dead || !!t.rideWith || !!t.myCase || !!t.veh?.flying; };
     setTimeout(unlock, 700);
     this.net.action('life:stand', {}).finally(() => { this._standing = false; setTimeout(unlock, 150); });
     this.ui.setSelf({ pose: '', tv: false });
@@ -1207,6 +1237,14 @@ export class Game {
       const d = this.entities.getPlayer(this.ui.self.rideWith);
       if (d) { this.self.g.position.x = d.g.position.x; this.self.g.position.z = d.g.position.z; this.self.g.rotation.y = d.g.rotation.y; }
     }
+    // Helikopterdeyken kamera helikopteri takip eder, karakter kabinde
+    const fly = this.ui.self.veh?.flying;
+    if (fly) {
+      const hu = this.entities.units.get(fly.unitId);
+      if (hu) { this.self.g.position.x = hu.g.position.x; this.self.g.position.z = hu.g.position.z; this.self.g.position.y = hu.g.position.y + 1; }
+      this.self.g.visible = false;
+      this._wasFlying = true;
+    } else if (this._wasFlying) { this._wasFlying = false; this.self.g.visible = true; this.self.g.position.y = 0; }
     this.updateTask(dt);
     this.controller.update(dt);
     this.entities.selfInside = this.ui.self.inside || 0;

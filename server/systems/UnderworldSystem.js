@@ -31,7 +31,7 @@ export class UnderworldSystem {
     this.slow = 0;
     ctx.world.chaseFor = (p) => this.chaseInfo(p);
     // Kayıttan dönen sokak birimlerini temizle
-    for (const u of [...ctx.world.units.values()]) if (u.def?.street) ctx.world.units.delete(u.id);
+    for (const u of [...ctx.world.units.values()]) if (u.def?.street && !u.def.keep) ctx.world.units.delete(u.id);
   }
 
   mul() { return this.ctx.world.society?.econ.mul ?? 1; }

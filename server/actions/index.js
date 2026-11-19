@@ -1,3 +1,4 @@
+import { LUX_HOUSES } from '../../shared/catalogs.js';
 import { BUILDING_TYPES, FACTORY_SUBTYPES, buildOptions } from '../data/buildingTypes.js';
 import { PRODUCTS } from '../data/products.js';
 import { JOBS } from '../data/jobs.js';
@@ -69,11 +70,12 @@ export const ACTIONS = {
     const def = BUILDING_TYPES[type];
     const maxFoot = world.blockSize - world.roadWidth - 4;
     b.type = type;
-    b.subtype = type === 'factory' ? subtype : null;
+    b.subtype = type === 'factory' || type === 'mansion' ? subtype : null;
     b.variant = rng.int(0, 3);
     b.width = Math.round(Math.min(maxFoot, rng.range(def.footprint[0], def.footprint[1])));
     b.depth = Math.round(Math.min(maxFoot, rng.range(def.footprint[0], def.footprint[1])));
     b.height = Math.round(rng.range(def.height[0], def.height[1]));
+    if (type === 'mansion') { const L = LUX_HOUSES[subtype]; b.width = b.depth = maxFoot; b.height = Math.round(L.floors * (L.style === 'tower' ? 3.6 : 4.2)); b.variant = 0; }
     const clean = String(name ?? '').replace(/<[^>]*>/g, '').replace(/[<>"'&]/g, '').trim().slice(0, 28);
     b.name = clean || (def.category === 'residential' ? makeName(type, null, b.address, rng, {}) : `${p.name} ${opt.label}`);
     b.value = Math.round(b.value + opt.cost * 0.9);
@@ -329,6 +331,12 @@ export const ACTIONS = {
   'home:leave'(ctx, p) { return ctx.engine.getSystem('society').leaveHome(p); },
   'ceo:hire'(ctx, p, params) { return ctx.engine.getSystem('society').ceoHire(p, params); },
   'ceo:fire'(ctx, p, params) { return ctx.engine.getSystem('society').ceoFire(p, params); },
+  'veh:buy'(ctx, p, params) { return ctx.engine.getSystem('vehicles').buy(p, params); },
+  'veh:lock'(ctx, p, params) { return ctx.engine.getSystem('vehicles').lock(p, params); },
+  'veh:steal'(ctx, p, params) { return ctx.engine.getSystem('vehicles').steal(p, params); },
+  'heli:fly'(ctx, p, params) { return ctx.engine.getSystem('vehicles').fly(p, params); },
+  'oheli:send'(ctx, p, params) { return ctx.engine.getSystem('vehicles').sendHeli(p, params); },
+  'oheli:recall'(ctx, p) { return ctx.engine.getSystem('vehicles').recall(p); },
   'org:found'(ctx, p, params) { return ctx.engine.getSystem('orgs').found(p, params); },
   'org:invite'(ctx, p, params) { return ctx.engine.getSystem('orgs').invite(p, params); },
   'org:join'(ctx, p, params) { return ctx.engine.getSystem('orgs').join(p, params); },
