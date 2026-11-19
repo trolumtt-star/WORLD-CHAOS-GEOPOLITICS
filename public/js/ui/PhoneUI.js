@@ -10,7 +10,7 @@ const APPS = [
   ['order', '🛵', 'Sipariş', 'g-orange'], ['ilan', '🏠', 'Sahibinden', 'g-yellow'], ['bank', '🏦', 'Banka', 'g-blue'], ['match', '⚽', 'Bahis', 'g-pitch'],
   ['news', '📰', 'Haberler', 'g-red'], ['econ', '📈', 'Ekonomi', 'g-teal'], ['map', '🗺️', 'Harita', 'g-map'], ['garage', '🚗', 'Garaj', 'g-dark'],
   ['wardrobe', '👕', 'Gardırop', 'g-pink'], ['court', '⚖️', 'Adalet', 'g-brown'], ['props', '🏘️', 'Mülklerim', 'g-indigo'], ['bag', '🎒', 'Çanta', 'g-amber'],
-  ['vote', '🗳️', 'Seçim', 'g-crimson'], ['city', '🏛️', 'Şehir', 'g-slate'], ['rank', '🏆', 'Sıralama', 'g-gold'],
+  ['org', '🕴️', 'Örgüt', 'g-dark'], ['vote', '🗳️', 'Seçim', 'g-crimson'], ['city', '🏛️', 'Şehir', 'g-slate'], ['rank', '🏆', 'Sıralama', 'g-gold'],
   ['settings', '⚙️', 'Ayarlar', 'g-grey2'],
 ];
 const DOCK = ['messages', 'call', 'camera', 'social'];
@@ -50,6 +50,9 @@ export class PhoneUI {
     window.addEventListener('popstate', this.onPop);
     this.onKey = (e) => { if (this.isOpen && (e.key === 'Escape' || e.key === 'Backspace') && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) { e.preventDefault(); e.stopPropagation(); this.back(); } };
     window.addEventListener('keydown', this.onKey, true);
+    // Kullanıcı kaydırırken / sürgü çekerken ekranı yeniden çizme (yukarı zıplama, sürgü sıfırlanması olmasın)
+    const busy = () => { this._busyUntil = performance.now() + 2500; };
+    for (const ev of ['pointerdown', 'touchstart', 'touchmove', 'wheel', 'input', 'scroll', 'keydown']) this.screen.addEventListener(ev, busy, { passive: true, capture: true });
     setInterval(() => { const d = new Date(); this.statusTime.textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}`; }, 1000);
   }
 
@@ -84,7 +87,24 @@ export class PhoneUI {
     this.isOpen ? this.close() : this.open();
   }
 
-  setSelf(s) { this.self = { ...this.self, ...s }; if (this.isOpen && ['bank', 'garage', 'wardrobe', 'court', 'order'].includes(this.view) && !this._typing) this.openApp(this.view, true); }
+  setSelf(s) {
+    this.self = { ...this.self, ...s };
+    if (!this.isOpen || !['bank', 'garage', 'wardrobe', 'court', 'order', 'org'].includes(this.view) || this._typing) return;
+    // Sadece o uygulamayı ilgilendiren bir şey değiştiyse yenile
+    const S = this.self;
+    const sig = JSON.stringify([this.view, Math.round(S.balance), S.loan, S.cars, S.car, S.outfit, S.owned, S.pendingCase, S.org]);
+    if (sig === this._sig) return;
+    if ((this._busyUntil ?? 0) > performance.now() || ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName)) { clearTimeout(this._later); this._later = setTimeout(() => this.setSelf({}), 1200); return; }
+    this._sig = sig;
+    this.rerender();
+  }
+
+  /** Kaydırma konumunu koruyarak aynı uygulamayı yeniden çiz */
+  async rerender() {
+    const scrollers = [...this.screen.querySelectorAll('*')].filter((n) => n.scrollTop > 0).map((n) => [n.className, n.scrollTop]);
+    await this.openApp(this.view, true);
+    requestAnimationFrame(() => { for (const [cls, top] of scrollers) { const n = [...this.screen.querySelectorAll('*')].find((m) => m.className === cls); if (n) n.scrollTop = top; } });
+  }
   setMatch(m) { this.match = m; if (this.isOpen && this.view === 'match') this.openApp('match', true); }
 
   // ------------------------------------------------------------------ ana ekran
@@ -122,15 +142,26 @@ export class PhoneUI {
 
   btn(label, cls, fn) { return el('button', { class: `ph-btn ${cls ?? ''}`, onClick: async (e) => { e.stopPropagation(); this.h.sfx?.('click'); await fn(); } }, label); }
   slider(min, max, step, value, fmt) {
+    // Yeniden çizimde sürgü en başa dönmesin: aynı ekrandaki n'inci sürgünün değerini hatırla
+    const key = `${this.view}:${this._sliderN = (this._sliderN ?? 0) + 1}`;
+    this.sliderMem = this.sliderMem ?? {};
+    if (this.sliderMem[key] != null) value = Math.max(min, Math.min(max, this.sliderMem[key]));
     const out = el('b', {}, fmt(value));
     const i = el('input', { type: 'range', min, max, step, value, class: 'ph-range' });
-    i.addEventListener('input', () => { out.textContent = fmt(Number(i.value)); });
+    i.value = value;
+    const mem = () => { this.sliderMem[key] = Number(i.value); out.textContent = fmt(Number(i.value)); };
+    i.addEventListener('input', mem);
+    i.addEventListener('change', mem);
+    // sürgüyü çekerken telefon ekranı kaymasın
+    for (const ev of ['touchstart', 'touchmove', 'pointerdown']) i.addEventListener(ev, (e) => e.stopPropagation(), { passive: true });
     return { node: el('div', { class: 'ph-slider' }, i, out), get value() { return Number(i.value); } };
   }
   act(type, params) { return this.h.action(type, params); }
 
   async openApp(id, refresh) {
     const H = this.h;
+    this._sliderN = 0;
+    if (!refresh && id !== this.view) this.sliderMem = {};
     // Telefonun dışında açılan menüler (harita, haberler...) son uygulama olarak hatırlanmasın
     const external = ['map', 'news', 'props', 'tech', 'army', 'city', 'rank', 'bag', 'settings'];
     this.view = external.includes(id) ? null : id;
@@ -158,6 +189,7 @@ export class PhoneUI {
       case 'wardrobe': return this.appWardrobe();
       case 'court': return this.appCourt();
       case 'vote': return this.appVote();
+      case 'org': return this.appOrg();
       default: return this.home();
     }
   }
@@ -367,6 +399,84 @@ export class PhoneUI {
   }
 
   // ------------------------------------------------------------------ banka
+  // ------------------------------------------------------------------ örgüt / kartel
+  appOrg() {
+    const O = this.self.org ?? {};
+    const o = O.org;
+    const body = this.page(o ? `🕴️ ${o.name}` : '🕴️ Örgüt');
+    const run = (type, params, confirm) => this.h.runAction({ type, params, confirm }).then(() => setTimeout(() => this.openApp('org', true), 250));
+    if (O.kidnapped) {
+      body.append(el('div', { class: 'ph-card hl danger' }, el('b', {}, `🥷 KAÇIRILDIN! (${O.kidnapped.org})`), el('small', {}, `Fidye ${tl(O.kidnapped.ransom)} · ${O.kidnapped.left} sn sonra zorla alınır`),
+        this.btn(`💸 Fidyeyi Öde`, 'primary wide', () => run('org:ransom', {}))));
+    }
+    if (!o) {
+      const name = el('input', { class: 'ph-input', maxlength: 24, placeholder: 'Örgüt adı (ör. Kurtlar Vadisi)' });
+      name.addEventListener('focus', () => { this._typing = true; });
+      name.addEventListener('blur', () => { this._typing = false; });
+      body.append(el('div', { class: 'ph-bankcard' }, el('small', {}, 'YERALTI DÜNYASI'), el('div', { class: 'ph-big' }, '🕴️ Kendi örgütünü kur'),
+        el('small', {}, 'Koruma, katil, bombacı, tetikçi, kaçırıcı tut. Duvarlı depoyu karargah yap. Arkadaşlarını davet et, birlikte dalın.')),
+      el('h4', {}, `Örgüt kur · ${tl(5000 * (this.self.econ?.mul ?? 1))}`), name, this.btn('🕴️ Örgütü Kur', 'primary wide', () => run('org:found', { name: name.value })));
+      for (const inv of O.invites ?? []) body.append(el('div', { class: 'ph-card hl' }, el('b', {}, `📨 Davet: ${inv.name}`), this.btn('🤝 Katıl', 'primary', () => run('org:join', { orgId: inv.id }))));
+    } else {
+      const men = o.men ?? {};
+      body.append(el('div', { class: 'ph-bankcard' }, el('small', {}, `Lider: ${o.leader} · ${o.members.length} üye · ${o.turf} bölge`),
+        el('div', { class: 'ph-big' }, o.hq ? `🏴 ${o.hq.name}` : '🏚️ Karargah yok'),
+        el('small', {}, o.hq ? 'İçeride matbaa, kapıda korumalar' : 'Haritada 🏭 Terk Edilmiş Depo bul, kapısına git, "Karargah Yap"')));
+      if (o.hq) body.append(this.btn('📍 Karargahı Haritada Göster', '', () => { this.close(); this.h.showOnMap({ x: o.hq.x, z: o.hq.z, label: `🏴 ${o.hq.name}` }); }));
+      else body.append(this.btn('📍 En yakın boş depoyu göster', '', () => { this.close(); this.h.showNearest?.('compound'); }));
+      // Adamlar
+      body.append(el('h4', {}, '👥 Adamlar (boşta / toplam)'));
+      const MEN_UI = [['guard', '🛡️', 'Koruma', 800], ['hitman', '🎯', 'Kiralık Katil', 1500], ['bomber', '💣', 'Bombacı', 2000], ['enforcer', '🔫', 'Tetikçi', 1000], ['kidnapper', '🥷', 'Kaçırıcı', 1500]];
+      const mul = this.self.econ?.mul ?? 1;
+      for (const [k, ic, lb, pr] of MEN_UI) {
+        const m = men[k] ?? { free: 0, total: 0 };
+        body.append(el('div', { class: 'ph-card org-man' }, el('b', {}, `${ic} ${lb}`), el('small', {}, `${m.free} / ${m.total} · tanesi ${tl(pr * mul)}`),
+          el('div', { class: 'ph-row-actions' }, this.btn('+1', '', () => run('org:hire', { type: k, n: 1 })), this.btn('+5', 'primary', () => run('org:hire', { type: k, n: 5 })))));
+      }
+      // Korumalar
+      body.append(el('h4', {}, `🛡️ Yanımdaki korumalar: ${o.escort}`),
+        el('div', { class: 'ph-row-actions' }, ...[0, 2, 4, 6].map((n) => this.btn(n ? `${n} koruma` : 'Gönder', n === o.escort ? 'primary' : '', () => run('org:escort', { n })))));
+      // Görevler
+      body.append(el('h4', {}, '🚙 Görev ver (adamlar araçlarla gider)'));
+      const T = this.h.orgTargets?.() ?? { buildings: [], players: [] };
+      const MS = [
+        ['hit', '🎯 Suikast', 'player', 'hitman'], ['kidnap', '🥷 Adam Kaçır', 'player', 'kidnapper'],
+        ['bomb', '💣 Bombala', 'building', 'bomber'], ['raid', '🚙 Mekan Bas', 'building', 'enforcer'], ['turf', '🏴 Bulunduğum Bölgeyi Ele Geçir', 'here', 'enforcer'],
+      ];
+      for (const [kind, label, tk, mt] of MS) {
+        const free = men[mt]?.free ?? 0;
+        const sel = tk === 'here' ? null : el('select', { class: 'ph-input' }, el('option', { value: '' }, tk === 'player' ? '— hedef oyuncu —' : '— hedef bina —'),
+          ...(tk === 'player' ? T.players : T.buildings).map((x) => el('option', { value: x.id }, x.label)));
+        if (sel) { sel.addEventListener('focus', () => { this._typing = true; }); sel.addEventListener('blur', () => { this._typing = false; }); }
+        const cnt = this.slider(1, Math.max(1, free), 1, Math.max(1, Math.min(free, 4)), (v) => `${v} adam · ${Math.ceil(v / 3)} araç`);
+        body.append(el('div', { class: 'ph-card org-mis' }, el('b', {}, label), el('small', {}, free ? `${free} boşta` : 'Boşta adam yok — önce adam tut'),
+          sel ?? '', free ? cnt.node : '', this.btn('Başlat', free ? 'danger wide' : 'wide', () => {
+            if (sel && !sel.value) return this.h.ui.toast('Hedef seç.', 'warn');
+            run('org:order', { kind, targetId: sel?.value, n: cnt.value }, kind === 'bomb' ? 'Bomba konulsun mu? Etraftaki herkes ölebilir.' : null);
+          })));
+      }
+      if (o.missions?.length) {
+        const PH = { drive: '🚙 yolda', act: '🔥 iş başında', remount: '🏃 araçlara biniyor', escape: '💨 kaçıyor' };
+        body.append(el('h4', {}, '📡 Sahadaki ekipler'), ...o.missions.map((m) => el('div', { class: 'ph-card' }, el('b', {}, `${m.kind} · ${m.n} adam`), el('small', {}, PH[m.phase] ?? m.phase))));
+      }
+      // Üyeler
+      body.append(el('h4', {}, '🤝 Üyeler'), ...o.members.map((m) => el('div', { class: 'ph-card' }, el('b', {}, `${m.online ? '🟢' : '⚫'} ${m.name}`))));
+      const people = this.contacts();
+      if (people.length) {
+        const who = el('select', { class: 'ph-input' }, ...people.map((r) => el('option', { value: r.id }, r.name)));
+        body.append(who, this.btn('📨 Örgüte Davet Et', '', () => run('org:invite', { playerId: who.value })));
+      }
+      body.append(this.btn('🚪 Örgütten Ayrıl', 'ghost wide', () => run('org:leave', {}, 'Örgütten ayrılmak istediğine emin misin?')));
+    }
+    // Rakipler
+    const rivals = (O.orgs ?? []).filter((x) => x.id !== o?.id);
+    if (rivals.length) {
+      body.append(el('h4', {}, '☠️ Yeraltı Haritası'));
+      for (const r of rivals) body.append(el('div', { class: `ph-card ${r.enemy ? 'danger' : ''}` }, el('b', { style: { color: r.color } }, `${r.icon} ${r.name}${r.ai ? ' (NPC kartel)' : ''}`),
+        el('small', {}, `💪 ${r.power} adam · ${r.hq ? `🏴 ${r.hq}` : 'karargahsız'} · ${r.turf} bölge${r.enemy ? ' · ⚔️ SİZE DÜŞMAN' : ''}`)));
+    }
+  }
+
   appBank() {
     const s = this.self;
     const body = this.page('Banka');

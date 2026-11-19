@@ -46,7 +46,7 @@ export const TECHS = {
   tank:         { era: 5, label: 'Tank',             icon: '🛡️', requires: ['otomobil', 'tufek'], unlocks: { units: ['tank'] }, desc: 'Zırhlı muharebe aracı.' },
   radyo:        { era: 5, label: 'Radyo',            icon: '📻', requires: ['telefon'], unlocks: { ads: ['radyo'] }, desc: 'Radyo reklamı.' },
   radar:        { era: 5, label: 'Radar',            icon: '📡', requires: ['radyo'], unlocks: { buildings: ['air_defense'] }, desc: 'Hava savunma sistemi.' },
-  ucak:         { era: 5, label: 'Savaş Uçağı',      icon: '✈️', requires: ['otomobil'], unlocks: { buildings: ['airbase'], air: ['jet'] }, desc: 'Hava üssü ve savaş jeti: hedefe füze bırakır.' },
+  ucak:         { era: 5, label: 'Savaş Uçağı',      icon: '✈️', requires: ['otomobil'], unlocks: { buildings: ['airbase'], air: ['jet', 'bomber'] }, desc: 'Hava üssü, savaş jeti ve bombardıman uçağı (halı bombardımanı: 5 m çaplı bombalar).' },
 
   // ---------------- 6. SOĞUK SAVAŞ
   fuze:         { era: 6, label: 'Roket Bilimi',     icon: '🚀', requires: ['radar'], unlocks: { buildings: ['missile_silo'], missiles: ['tactical', 'ballistic'] }, desc: 'Füze rampası, taktik ve balistik füze.' },

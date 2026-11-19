@@ -21,7 +21,9 @@ export class PlayerController {
     const drive = this.getDrive?.() ?? 0;
     if (anim.pose && anim.pose !== 'dead' && !drive && inp.mag > 0.3) this.onInputWhilePosed?.();
     const slow = anim.slow ?? 1;
-    if (!this.locked && inp.mag > 0.05 && (!anim.pose || drive || inp.mag > 0.3)) {
+    // Otururken/yatarken joystick = kalk (sunucu mobilyanın önüne koyar), o an yürüme
+    const seated = (anim.pose === 'sit' || anim.pose === 'sleep') && !drive;
+    if (!this.locked && !seated && inp.mag > 0.05 && (!anim.pose || drive || inp.mag > 0.3)) {
       const yaw = this.rig.yaw;
       const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
       const rx = Math.cos(yaw), rz = -Math.sin(yaw);

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { PartBuilder, textSprite } from './geometry.js';
 import { createBuildingModel, MAT } from './BuildingFactory.js';
 
-const NAMED = new Set(['town_hall', 'market', 'cafe', 'restaurant', 'tech_store', 'gun_shop', 'bar', 'factory', 'palace', 'police', 'bank', 'hospital', 'prison', 'apartment', 'barracks', 'missile_silo', 'air_defense', 'park', 'villa']);
+const NAMED = new Set(['town_hall', 'market', 'cafe', 'restaurant', 'tech_store', 'gun_shop', 'bar', 'factory', 'palace', 'police', 'bank', 'hospital', 'prison', 'apartment', 'barracks', 'missile_silo', 'air_defense', 'park', 'villa', 'compound', 'hideout']);
 const tl = (n) => `₺${Math.round(n).toLocaleString('tr-TR')}`;
 
 /**
@@ -237,7 +237,7 @@ export class CityRenderer {
       const same = prev.data.type === b.type && prev.data.destroyed === b.destroyed && prev.data.subtype === b.subtype
         && (prev.data.construction?.progress ?? -1) === (b.construction?.progress ?? -1)
         && prev.data.ownerId === b.ownerId && prev.data.forSale === b.forSale && prev.data.price === b.price
-        && prev.data.width === b.width;
+        && prev.data.width === b.width && (prev.data.org?.name ?? null) === (b.org?.name ?? null);
       const hpChange = prev.data.hp !== b.hp;
       prev.data = { ...prev.data, ...b };
       if (same) {
@@ -268,6 +268,12 @@ export class CityRenderer {
     if (b.construction) {
       const s = textSprite(`🏗️ İNŞAAT %${Math.round(b.construction.progress * 100)}`, { bg: 'rgba(230,160,20,0.92)', color: '#1a1a1a' });
       s.position.set(0, Math.max(b.height * b.construction.progress, 4) + 6, 0);
+      group.add(s);
+    }
+    // Örgüt karargahı pankartı
+    if (b.org && !b.destroyed) {
+      const s = textSprite(`${b.org.icon ?? '🏴'} ${b.org.name}`, { bg: 'rgba(10,10,12,0.9)', color: b.org.color, border: b.org.color, scale: 1.1 });
+      s.position.set(0, b.height + 9, 0);
       group.add(s);
     }
     // Oyuncu mülkü bayrağı

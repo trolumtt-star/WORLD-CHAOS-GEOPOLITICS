@@ -212,7 +212,14 @@ export class DiplomacySystem {
   canStrike(p, x, z) {
     const owner = this.ctx.world.ownerAt(x, z);
     const pres = this.ctx.world.republic?.presidentId;
-    if (owner === 'state' && !(pres && this.ctx.world.atWar(p.id, pres))) return { ok: false, error: 'Tarafsız Merkez Kasaba vurulamaz.' };
+    if (owner === 'state' && !(pres && this.ctx.world.atWar(p.id, pres))) {
+      // Merkez şehir de vurulabilir: ama bu bir terör saldırısıdır (aranırsın; şehir kendini yeniden inşa eder)
+      if (pres === p.id) return { ok: false, error: 'Kendi yönettiğin şehri vuramazsın.' };
+      p.wanted = Math.min(5, (p.wanted ?? 0) + 3);
+      this.ctx.world.logCrime?.(p, 'Merkez şehre saldırı (terör)');
+      this.ctx.bus.news('crime', `🚨 TERÖR: ${p.countryName ?? p.name} merkez şehre saldırdı!`);
+      return { ok: true, terror: true };
+    }
     if (owner && owner !== p.id && !this.ctx.world.atWar(p.id, owner)) return { ok: false, error: `Önce ${this.nameOf(owner)}'a savaş ilan etmelisin.` };
     if (owner === p.id) return { ok: false, error: 'Kendi toprağını vuramazsın.' };
     return { ok: true };

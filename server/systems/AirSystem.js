@@ -93,6 +93,15 @@ export class AirSystem {
         this.bombs.push({ x: tx, z: tz, at: now + 3200, ownerId: u.ownerId });
         bus.emit('net:missile', { t: 'bomb', id: `bomb${u.id}`, x: tx, z: tz, alt: u.alt, fallMs: 3200 });
         bus.emit('net:alert', { level: 'nuclear', text: `☢️ NÜKLEER BOMBA ATILDI! ${owner?.countryName ?? owner?.name ?? ''}'ın B-2 Spirit'i`, etaMs: 3200 });
+      } else if (def.attack === 'carpet') {
+        // Halı bombardımanı: hedef boyunca 5 m çaplı bombalar sırayla düşer
+        const dir = Math.atan2(tx - m.bx, tz - m.bz);
+        for (let k = 0; k < def.strikes; k++) {
+          const along = (k - def.strikes / 2) * 4.5;
+          const bx = tx + Math.sin(dir) * along + (rng.next() - 0.5) * 4, bz = tz + Math.cos(dir) * along + (rng.next() - 0.5) * 4;
+          this.bombs.push({ x: bx, z: bz, at: now + 900 + k * 160, ownerId: u.ownerId, small: def });
+          bus.emit('net:missile', { t: 'bomb', id: `cb${u.id}_${k}`, x: bx, z: bz, alt: u.alt, fallMs: 900 + k * 160, small: 1 });
+        }
       } else {
         for (let k = 0; k < m.strikes; k++) {
           const ox = (rng.next() - 0.5) * def.radius, oz = (rng.next() - 0.5) * def.radius;
@@ -106,6 +115,11 @@ export class AirSystem {
     // Düşen nükleer bombalar
     this.bombs = this.bombs.filter((b) => {
       if (now < b.at) return true;
+      if (b.small) {
+        bus.emit('net:fx', { t: 'airstrike', x: b.x, z: b.z, r: b.small.radius });
+        missiles.blast(ctx, b.x, b.z, { radius: b.small.radius, damage: b.small.damage, label: b.small.label }, b.ownerId);
+        return false;
+      }
       const def = MISSILE_TYPES.nuclear;
       bus.emit('net:missile', { t: 'impact', id: `nuke${b.at}`, type: 'nuclear', x: b.x, z: b.z, radius: def.radius });
       missiles.blast(ctx, b.x, b.z, def, b.ownerId, { nuclear: true });

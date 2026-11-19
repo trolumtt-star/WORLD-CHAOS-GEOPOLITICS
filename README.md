@@ -112,6 +112,17 @@ NPC ülkeler de bunu yapar: insan oyuncuyu kukla yapar, birbirlerini çoğunlukl
 - Kovalanmıyorsan aranma yıldızları her 2 oyun saatinde 1 düşer (içerideysen daha hızlı).
 - Haritanın 4 köşesinde **Yeraltı İni** var. İçerideki Patron'a para verip iş yaptırırsın: 💵 sahte para (×10, 1 saat), 🔫 dükkan taratma, 💼 haraç (3 gün %15), 🎯 kiralık katil, 💥 darbe. Çete üyeleri haritada yürüyerek gider; polis %50 ihtimalle yakalar, bazen de seni ispiyonlarlar.
 
+## 🕴️ v0.22: Örgütler, karteller, sokak savaşı
+- **Örgüt kur** (Telefon › 🕴️ Örgüt, ₺5.000): arkadaşlarını davet et, adamlar ortak.
+- **Adam tut**: 🛡️ Koruma (yanında gezer, sana ateş edeni vurur, kurşun üstlenir; karargah nöbeti), 🎯 Kiralık Katil, 💣 Bombacı (her bina yıkılabilir), 🔫 Tetikçi (mekan basma, bölge ele geçirme), 🥷 Kaçırıcı (fidye).
+- **Karargah**: haritadaki 6 duvarlı 🏭 Terk Edilmiş Depo'dan birini al (₺10.000): içeride matbaa (baskın riski %20), dışarıda nöbetçiler.
+- **Görevler araçla**: siyah kartel araçları gider, adamlar iner, vurur/patlatır/kaçırır, araçlara binip kaçar. O toprağın güvenlik gücü (merkezde polis + özel harekât, ülkelerde o ülkenin askeri) gelir ve çatışır.
+- **Rakip NPC karteller**: Kızıl Akrep, Kara Yılan, Demir Yumruk — her gün güçlenir, oyuncuların işyerlerini basar/patlatır, zenginleri kaçırır, kin tutar. Karargahlarının nöbetçilerini öldürüp baskın yaparsan depo senin olur.
+- **Polisi vurabilirsin**: polise ateş eden ⭐⭐ aranır, özel harekât sana ateş eder.
+- **Merkez şehir** de vurulabilir (terör: ⭐⭐⭐); hasarı saat saat onarılır, yıkılan bina 12 saatte yeniden yapılır. Aday çıkmazsa NPC cumhurbaşkanı yönetir.
+- **Savaş**: kara birlikleri 2,5 kat dayanıklı (uzun savaşlar), 🛩️ Bombardıman Uçağı 12 adet 5 m çaplı bomba bırakır; NPC ülkeler savaşta her saat bombalar/füzeler.
+- Düzeltmeler: koltuktan kalkınca mobilyaya sıkışma, telefonda kaydırınca yukarı zıplama ve kredi sürgüsünün sıfırlanması.
+
 ## 🧭 v0.21: Harita, temiz ses, kira, görünür dükkanlar, maliyetli savaş
 - **Detaylı harita**: mini haritaya dokun → tam ekran harita. Sürükle/yakınlaştır, her dükkan ikonlu ve isimli, kategori filtreleri, arama. Binaya dokun → "📍 İşaretle & Git": dünyada kırmızı ışık sütunu + yön oku ve mesafe.
 - **Sesli sohbet**: 16 kHz, kenar yumuşatma, yumuşak kazanç/sınırlayıcı, AudioWorklet yakalama, tıksız birleştirme → cızırtı yok.

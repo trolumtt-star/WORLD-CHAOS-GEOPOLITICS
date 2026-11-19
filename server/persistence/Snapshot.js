@@ -53,6 +53,7 @@ export function serializeRoom(room) {
       hazards: world.hazards,
       casualties: world.casualties ?? {},
       republic: world.republic ?? null,
+      orgs: world.orgs ?? null,
       society: world.society ? { ...world.society, posts: (world.society.posts ?? []).slice(0, 12), messages: (world.society.messages ?? []).slice(-120) } : null,
       wars: world.wars,
       justifications: world.justifications,
@@ -86,6 +87,7 @@ export function restoreWorld(world, s) {
   world.casualties = w.casualties ?? {};
   if (w.society) world.society = w.society;
   if (w.republic) world.republic = w.republic;
+  if (w.orgs) world.orgs = w.orgs;
   world.wars = w.wars instanceof Map ? w.wars : new Map();
   world.justifications = w.justifications instanceof Map ? w.justifications : new Map();
   world.tiles = w.tiles.map((t) => ({ ...t, exploredBy: t.exploredBy instanceof Set ? t.exploredBy : new Set() }));

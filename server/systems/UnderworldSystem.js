@@ -137,7 +137,7 @@ export class UnderworldSystem {
 
   nearBoss(p) {
     const b = this.ctx.world.buildings.get(p.inside);
-    if (b?.type !== 'hideout') return null;
+    if (b?.type !== 'hideout' && !(b?.type === 'compound' && b.orgId && b.orgId === p.orgId)) return null;
     const s = spotById(interiorLayout(b.type), 'boss');
     const o = interiorOrigin(b.id);
     return Math.hypot(p.x - (o.x + s.x), p.z - (o.z + s.z)) < 6 ? b : null;
@@ -166,7 +166,7 @@ export class UnderworldSystem {
     p.balance -= cost;
     world.touchPlayer(p);
     if (job === 'fake') {
-      this.crews.set(`f${++this.seq}`, { id: `f${this.seq}`, ownerId: p.id, job, cost, readyAt: clock.totalHours + 1, members: [] });
+      this.crews.set(`f${++this.seq}`, { id: `f${this.seq}`, ownerId: p.id, job, cost, readyAt: clock.totalHours + 1, members: [], safe: hide.type === 'compound' });
       return { ok: true, message: `💵 Matbaa çalışıyor... 1 saat sonra ${tl(cost * 10)} sahte para hazır.`, sfx: 'cash' };
     }
     const n = job === 'coup' ? 8 : job === 'hit' ? 1 : job === 'racket' ? 2 : 3 + (Math.random() < 0.5 ? 1 : 0);
@@ -296,7 +296,7 @@ export class UnderworldSystem {
     this.crews.delete(c.id);
     const p = world.players.get(c.ownerId);
     if (!p) return;
-    if (rng.chance(0.5)) {
+    if (rng.chance(c.safe ? 0.2 : 0.5)) {
       // Polis baskını
       bus.news('crime', '🚔 Polis kaçak bir matbaaya baskın yaptı, sahte paralara el konuldu!');
       if (rng.chance(0.3)) { p.wanted = Math.min(5, p.wanted + 2); world.logCrime?.(p, 'Kalpazanlık'); this.say(p, '🚔 Matbaaya baskın! Basılan paraya el konuldu ve seni ispiyonladılar ⭐⭐', 'err', 'siren'); this.startChase(p); }

@@ -137,6 +137,7 @@ export class Game {
     });
     this.life = new LifeUI(this.ui, {
       onAttack: () => this.attack(),
+      onRansom: () => this.runAction({ type: 'org:ransom', params: {} }),
       onCycleWeapon: () => this.cycleWeapon(),
       onZoom: (f) => this.rig.zoomBy(f),
       onMic: () => this.toggleMic(),
@@ -187,6 +188,16 @@ export class Game {
       flash: () => { const f = el('div', { class: 'photo-flash' }); document.body.append(f); setTimeout(() => f.remove(), 400); },
       myShops: () => [...this.city.entries.values()].map((e) => e.data).filter((b) => b.ownerId === this.selfId && this.init.catalog.buildings[b.type]?.category === 'commercial'),
       icon: (t) => this.init.catalog.buildings[t]?.icon ?? '🏠',
+      orgTargets: () => {
+        const me = this.self.g.position;
+        const cat = this.init.catalog.buildings;
+        const buildings = [...this.city.entries.values()].map((e) => e.data).filter((b) => !b.destroyed && b.type !== 'land' && b.type !== 'park' && b.ownerId !== this.selfId)
+          .sort((a, b) => Math.hypot(a.x - me.x, a.z - me.z) - Math.hypot(b.x - me.x, b.z - me.z)).slice(0, 40)
+          .map((b) => ({ id: b.id, label: `${cat[b.type]?.icon ?? '🏢'} ${b.name ?? cat[b.type]?.label} · ${Math.round(Math.hypot(b.x - me.x, b.z - me.z))} m` }));
+        const players = [...this.roster.values()].filter((r) => !r.isAI && r.id !== this.selfId).map((r) => ({ id: r.id, label: `👤 ${r.name}` }));
+        return { buildings, players };
+      },
+      showNearest: (type) => this.showBuildingType?.(type) ?? this.ui.toast('Haritada 🏭 depoları ara.', 'info'),
       hourNow: () => (this.clockBase.day - 1) * 24 + this.clockBase.hour,
       isOwner: () => !!this.init.isOwner,
       openAdmin: () => this.admin.open(),
@@ -328,6 +339,7 @@ export class Game {
       else if (kind === 'unit') {
         const u = this.entities.removeUnit(id);
         if (u && reason === 'shot_down') this.effects.explosion(u.g.position.x, u.g.position.y, u.g.position.z, 1.2);
+        else if (u && reason === 'destroyed' && u.type === 'gangcar') this.effects.explosion(u.g.position.x, 1, u.g.position.z, 0.8);
       }
       else if (kind === 'vehicle') {
         const v = this.entities.removeVehicle(id);
@@ -832,6 +844,21 @@ export class Game {
     this.tvTex.needsUpdate = true;
   }
 
+  /** Örgüt karargahı içi: matbaa + örgüt yönetimi */
+  openCompound(b) {
+    const s = this.ui.self;
+    const mine = b.org && s.org?.org?.hq?.id === b.id;
+    if (!mine) return this.ui.toast(b.org ? `🏴 Burası "${b.org.name}" karargahı.` : '🏭 Sahipsiz depo. Örgütün varsa kapıdan "Karargah Yap".', 'info');
+    const fakeAmt = el('input', { type: 'range', min: 100, max: Math.max(100, Math.min(20000, Math.floor(s.balance / 100) * 100)), step: 100, value: 100, class: 'uw-range' });
+    const fakeOut = el('b', {}, `${tl(100)} ver → ${tl(1000)} sahte para`);
+    fakeAmt.addEventListener('input', () => { fakeOut.textContent = `${tl(fakeAmt.value)} ver → ${tl(fakeAmt.value * 10)} sahte para`; });
+    this.ui.openSheet('compound', { icon: '🏴', title: b.org.name, subtitle: 'Karargah · matbaa burada daha güvenli (baskın riski %20)' },
+      el('div', { class: 'col' },
+        el('div', { class: 'uw-card' }, el('div', { class: 'uw-h' }, el('span', {}, '💵'), el('b', {}, 'Matbaa: Sahte Para Bas')), el('small', {}, '1 saat sonra 10 katı. Karargahta polis baskını riski düşük.'), fakeOut, fakeAmt,
+          el('button', { class: 'btn primary', onClick: () => this.runAction({ type: 'under:order', params: { job: 'fake', amount: Number(fakeAmt.value) } }).then((r) => { if (r?.ok) this.ui.closeSheet(); }) }, 'Matbaayı Çalıştır')),
+        el('button', { class: 'btn wide', onClick: () => { this.ui.closeSheet(); this.phone.open('org'); } }, '🕴️ Örgüt Yönetimi (adam tut, görev ver)')));
+  }
+
   /** Yeraltı patronu: parayı ver, adamlar işi yapsın */
   openUnderworld() {
     const s = this.ui.self;
@@ -936,7 +963,11 @@ export class Game {
       return;
     }
     this._standing = true;
-    this.net.action('life:stand', {}).finally(() => { this._standing = false; });
+    // Sunucu bizi mobilyanın önüne ışınlayana kadar yürüme (koltuğun içinde sıkışma olmasın)
+    this.controller.locked = true;
+    const unlock = () => { const t = this.ui.self; this.controller.locked = (!!t.jailed && !t.myCase) || !!t.dead || !!t.rideWith || !!t.myCase; };
+    setTimeout(unlock, 700);
+    this.net.action('life:stand', {}).finally(() => { this._standing = false; setTimeout(unlock, 150); });
     this.ui.setSelf({ pose: '', tv: false });
     this.life.set({ pose: '', tv: false });
   }
@@ -1016,7 +1047,7 @@ export class Game {
         if (b.type === 'bank') return this.phone.open('bank');
         return this.openShop(b, !!(b.type === 'cafe' || b.type === 'restaurant' || b.type === 'bar'), spot);
       case 'bench': return this.phone.open('court');
-      case 'boss': return this.openUnderworld();
+      case 'boss': return b.type === 'compound' ? this.openCompound(b) : this.openUnderworld();
       case 'tribune': return open(act('🏟️ Tribüne Otur ve İzle', 'primary', 'sit'), el('p', { class: 'muted' }, this.match?.status === 'live' ? '🔴 Maç canlı!' : `Maç her gün 14:00'te · 2 dakika sürer`), el('button', { class: 'btn ghost', onClick: () => this.phone.open('match') }, '🎟️ Bahis & Kadro'));
       case 'mirror': return this.phone.open('wardrobe');
       case 'pitch': return this.match?.status === 'live' ? this.ui.toast('⚽ Kadrodaysan ekrandaki ⚽ Şut butonuna bas!', 'info') : this.phone.open('match');
@@ -1091,6 +1122,9 @@ export class Game {
     };
     if (!this.interior.active) for (const n of this.entities.npcs.values()) if (n.visible) consider('npc', n.id, n.x, n.z);
     for (const e of this.entities.players.values()) if (e.id !== this.selfId && e.g.visible && e.pose !== 'dead') consider('player', e.id, e.g.position.x, e.g.position.z);
+    // Sokak birimleri: polis, özel harekât, kartel adamları (kendi örgütün hariç)
+    const myOrg = this.ui.self.org?.org?.id;
+    if (!this.interior.active) for (const u of this.entities.units.values()) if (u.g.userData.street && u.ownerId !== `org:${myOrg}`) consider('unit', u.id, u.g.position.x, u.g.position.z);
     this.selfAttackT = 0.3;
     if (!best) {
       if (w.melee) this.audio.play('whoosh', { vol: 0.4 });

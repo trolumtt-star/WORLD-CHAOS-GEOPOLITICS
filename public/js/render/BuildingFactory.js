@@ -372,6 +372,43 @@ const BUILDERS = {
     for (let i = 0; i < 3; i++) pb.box(w * 0.6, 0.4, 1, 0, 0.2 + i * 0.4, d * 0.35 + 2.6 - i * 0.9, 0xd8d0bc);
   },
 
+  /** Örgüt karargahı olabilecek duvarlı depo: çevre duvarı, dikenli tel, nöbet kuleleri, büyük ambar */
+  compound({ pb, win, glow, w, d, h, lotSize, extras, b }) {
+    lotBase(pb, lotSize, 0x3a3833);
+    const wall = 0x6e6a62, wh = 3.6;
+    // çevre duvarı (önde kapı boşluğu)
+    pb.box(w, wh, 0.6, 0, wh / 2, -d / 2, wall);
+    pb.box(0.6, wh, d, -w / 2, wh / 2, 0, wall);
+    pb.box(0.6, wh, d, w / 2, wh / 2, 0, wall);
+    pb.box(w / 2 - 3, wh, 0.6, -w / 4 - 1.5, wh / 2, d / 2, wall);
+    pb.box(w / 2 - 3, wh, 0.6, w / 4 + 1.5, wh / 2, d / 2, wall);
+    // dikenli tel
+    for (const [x, z, sx, sz] of [[0, -d / 2, w, 0.1], [-w / 2, 0, 0.1, d], [w / 2, 0, 0.1, d]]) pb.box(sx || 0.1, 0.35, sz || 0.1, x, wh + 0.4, z, 0x9a9a9a);
+    // demir kapı
+    pb.box(5.6, 3.2, 0.25, 0, 1.6, d / 2 + 0.25, 0x2b2b2b);
+    for (let i = -2; i <= 2; i++) pb.box(0.12, 3.2, 0.3, i * 1.1, 1.6, d / 2 + 0.3, 0x111111);
+    // ambar
+    const aw = w * 0.62, ad = d * 0.5;
+    pb.box(aw, h, ad, 0, h / 2, -d * 0.15, 0x5b4d3f);
+    pb.box(aw + 0.6, 0.5, ad + 0.6, 0, h + 0.25, -d * 0.15, 0x3a2f25);
+    pb.box(aw * 0.5, h * 0.6, 0.2, 0, h * 0.3, -d * 0.15 + ad / 2 + 0.1, 0x7a3b22);
+    win.box(aw * 0.8, 0.6, 0.12, 0, h - 1.2, -d * 0.15 + ad / 2 + 0.12, 0xffd18a);
+    // nöbet kuleleri
+    for (const sx of [-1, 1]) {
+      const tx = sx * (w / 2 - 1.2), tz = d / 2 - 1.2;
+      for (const ox of [-0.8, 0.8]) for (const oz of [-0.8, 0.8]) pb.box(0.25, 7, 0.25, tx + ox, 3.5, tz + oz, 0x3b2f22);
+      pb.box(2.6, 0.3, 2.6, tx, 7, tz, 0x4a3b2a);
+      pb.box(2.6, 1, 0.15, tx, 7.6, tz + 1.25, 0x4a3b2a);
+      glow.box(0.5, 0.4, 0.5, tx, 8.4, tz, 0xfff2b0);
+    }
+    // kasalar, variller
+    for (let i = 0; i < 5; i++) pb.box(1.3, 1.3, 1.3, -w / 2 + 2.2 + (i % 3) * 1.4, 0.65 + Math.floor(i / 3) * 1.3, d / 2 - 4, 0x7a5a32);
+    for (let i = 0; i < 4; i++) pb.cyl(0.55, 0.55, 1.4, 10, w / 2 - 2.5, 0.7, d / 2 - 4 - i * 1.3, 0x2f4f6f);
+    // örgüt rengi bayrak
+    if (b?.org) glow.box(3, 1.8, 0.1, 0, h + 3.2, -d * 0.15, parseInt(String(b.org.color).slice(1), 16) || 0xff0000);
+    extras.signY = h + 5;
+  },
+
   hideout({ pb, glow, w, d, h, lotSize, extras }) {
     lotBase(pb, lotSize, 0x2a2a2a);
     pb.box(w, h, d, 0, h / 2, 0, 0x2b2622);

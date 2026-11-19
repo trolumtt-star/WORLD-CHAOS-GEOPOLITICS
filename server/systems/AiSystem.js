@@ -107,9 +107,11 @@ export class AiSystem {
       }
       const target = world.players.get(enemies[0]);
       const hall = target && world.buildings.get(target.homeId);
-      if (hall && time.hour % 3 === 0) {
+      if (hall) {
         const ids = [...world.units.values()].filter((u) => u.ownerId === ai.id && !u.def.air && u.def.combat !== false).map((u) => u.id);
-        ctx.engine.getSystem('military').move(ctx, ai, ids, hall.door.x, hall.door.z);
+        if (time.hour % 3 === 0) ctx.engine.getSystem('military').move(ctx, ai, ids, hall.door.x, hall.door.z);
+        // Bombalar, füzeler yağsın: her saat
+        if (rng.chance(0.55) && isUnlocked(ai, 'air', 'bomber') && ai.balance > AIR_TYPES.bomber.cost * 1.3) ctx.engine.getSystem('air').launch(ctx, ai, 'bomber', hall.x + (rng.next() - 0.5) * 40, hall.z + (rng.next() - 0.5) * 40);
         // Füze
         const missile = ['ballistic', 'tactical'].find((m) => isUnlocked(ai, 'missiles', m) && ai.balance > MISSILE_TYPES[m].cost * 1.5);
         if (missile) ctx.engine.getSystem('missiles').launch(ctx, ai, missile, hall.x + (rng.next() - 0.5) * 30, hall.z + (rng.next() - 0.5) * 30);
@@ -119,7 +121,7 @@ export class AiSystem {
       }
       // Barış
       const w = world.wars.get(world.warKey(ai.id, enemies[0]));
-      if (w && time.hour === 6 && time.totalHours - w.since > 48 && rng.chance(0.3)) dip.makePeace(ai.id, enemies[0]);
+      if (w && time.hour === 6 && time.totalHours - w.since > 96 && rng.chance(0.25)) dip.makePeace(ai.id, enemies[0]);
       return;
     }
 

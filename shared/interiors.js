@@ -20,7 +20,7 @@ const KIND_BY_TYPE = {
   market: 'shop', tech_store: 'shop', gun_shop: 'gunshop',
   cafe: 'cafe', restaurant: 'cafe', bar: 'bar',
   factory: 'factory', police: 'police', bank: 'bank', hospital: 'hospital', palace: 'office',
-  court: 'court', clothing: 'clothing', stadium: 'stadium', car_dealer: 'showroom', hideout: 'hideout',
+  court: 'court', clothing: 'clothing', stadium: 'stadium', car_dealer: 'showroom', hideout: 'hideout', compound: 'hideout',
 };
 
 export function interiorKind(type) { return KIND_BY_TYPE[type] ?? null; }

@@ -327,6 +327,16 @@ export const ACTIONS = {
   'under:order'(ctx, p, params) { return ctx.engine.getSystem('underworld').order(p, params); },
   'home:rent'(ctx, p, { buildingId }) { return ctx.engine.getSystem('society').rentHome(p, buildingId); },
   'home:leave'(ctx, p) { return ctx.engine.getSystem('society').leaveHome(p); },
+  'org:found'(ctx, p, params) { return ctx.engine.getSystem('orgs').found(p, params); },
+  'org:invite'(ctx, p, params) { return ctx.engine.getSystem('orgs').invite(p, params); },
+  'org:join'(ctx, p, params) { return ctx.engine.getSystem('orgs').join(p, params); },
+  'org:leave'(ctx, p) { return ctx.engine.getSystem('orgs').leave(p); },
+  'org:hire'(ctx, p, params) { return ctx.engine.getSystem('orgs').hire(p, params); },
+  'org:escort'(ctx, p, params) { return ctx.engine.getSystem('orgs').escort(p, params); },
+  'org:order'(ctx, p, params) { return ctx.engine.getSystem('orgs').order(p, params); },
+  'org:hq'(ctx, p, { buildingId }) { return ctx.engine.getSystem('orgs').claimHQ(p, buildingId); },
+  'org:ransom'(ctx, p) { return ctx.engine.getSystem('orgs').payRansom(p); },
+  'noop'() { return { ok: false, error: 'Telefon › Örgüt uygulamasından örgüt kur.' }; },
   'police:arrest'(ctx, p, { npcId }) { return life(ctx).arrest(p, String(npcId)); },
 
   // ---------------- TOPLUM (mahkeme, maç, banka, telefon, sosyal, sipariş, giyim, araba) ----------------

@@ -50,6 +50,9 @@ export class LifeUI {
     this.incident = el('div', { class: 'incident glass hidden' });
     this.trial = el('div', { class: 'trial glass hidden' });
     this.chase = el('div', { class: 'chase-ban hidden' });
+    this.kidText = el('span');
+    this.kid = el('div', { class: 'kid-ban glass hidden' }, this.kidText, el('button', { class: 'btn primary', onClick: (e) => { e.stopPropagation(); this.h.onRansom?.(); } }, '💸 Fidye Öde'));
+    hud.append(this.kid);
     this.chaseEdge = el('div', { class: 'chase-edge hidden' });
     hud.append(this.chase, this.chaseEdge);
     hud.append(this.insideBar, this.taskCard, this.incident, this.trial);
@@ -94,6 +97,10 @@ export class LifeUI {
     if (task) this.taskLabel.textContent = `👔 Görev ${s.shift.done + 1}: ${task.label}`;
     this.shiftBtn.classList.toggle('hidden', !(s.inside && s.jobBuildingId === s.inside));
     this.shiftBtn.textContent = s.shift ? '🏁 Mesaiyi Bitir' : '👔 Mesaiye Başla';
+    // kaçırılma
+    const kd = s.org?.kidnapped;
+    this.kid.classList.toggle('hidden', !kd);
+    if (kd) this.kidText.textContent = `🥷 KAÇIRILDIN (${kd.org}) · Fidye ${tl(kd.ransom)} · ${kd.left} sn`;
     // polis kovalamacası
     const ch = s.chase;
     this.chase.classList.toggle('hidden', !ch);

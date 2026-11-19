@@ -217,12 +217,13 @@ export class Effects {
 
   // B-2'den düşen nükleer bomba (patlamayı 'impact' olayı yapar)
   dropBomb(m) {
-    const mesh = new THREE.Mesh(new THREE.CapsuleGeometry(0.8, 2.6, 4, 10), new THREE.MeshStandardMaterial({ color: 0x3a3f44, metalness: 0.6 }));
+    const k = m.small ? 0.45 : 1;
+    const mesh = new THREE.Mesh(new THREE.CapsuleGeometry(0.8 * k, 2.6 * k, 4, 10), new THREE.MeshStandardMaterial({ color: 0x3a3f44, metalness: 0.6 }));
     mesh.position.set(m.x, m.alt, m.z);
     this.scene.add(mesh);
     this.bombs ??= [];
     this.bombs.push({ mesh, start: performance.now(), dur: m.fallMs, x: m.x, z: m.z, alt: m.alt });
-    this.audio?.play('whoosh', { vol: 1.5, minGap: 0 });
+    this.audio?.play('whoosh', { vol: m.small ? 0.6 : 1.5, minGap: m.small ? 120 : 0 });
   }
 
   tracer(a, b, kind, ay) {

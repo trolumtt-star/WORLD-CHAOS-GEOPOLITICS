@@ -70,6 +70,7 @@ export class Building {
       hp: this.maxHp ? Math.round((this.hp / this.maxHp) * 100) / 100 : 1,
       destroyed: this.destroyed,
       active: this.active,
+      org: this.orgTag ?? null,
     };
   }
 }

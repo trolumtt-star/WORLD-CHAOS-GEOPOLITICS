@@ -31,8 +31,9 @@ export class SocietySystem {
     config.economy.wageMul = S.econ.mul;
     this.slow = 0;
     // Merkez devlet bir cumhuriyet: cumhurbaşkanını sadece OYUNCULAR telefondan seçer (NPC ülkeler olsa da)
+    if (world.republic && !world.republic.presidentId && !world.republic.npcPresident) world.republic.npcPresident = 'Hasan Kaya';
     if (!world.republic) {
-      world.republic = { name: 'Kaos Cumhuriyeti', presidentId: null, candidates: [], votes: {}, nextDay: ctx.clock.day, techs: [], electionHour: 20 };
+      world.republic = { name: 'Kaos Cumhuriyeti', presidentId: null, npcPresident: 'Hasan Kaya', candidates: [], votes: {}, nextDay: ctx.clock.day, techs: [], electionHour: 20 };
     }
     world.logCrime = (p, text) => { p.crimeLog = [...(p.crimeLog ?? []), `${ctx.clock.label?.() ?? ''} ${text}`].slice(-8); };
     world.societyFor = (p) => this.privateFor(p);
@@ -70,7 +71,7 @@ export class SocietySystem {
     const R = world.republic;
     if (R) {
       out.republic = {
-        name: R.name, presidentId: R.presidentId, president: world.players.get(R.presidentId)?.name ?? null, nextDay: R.nextDay, hour: R.electionHour,
+        name: R.name, presidentId: R.presidentId, president: world.players.get(R.presidentId)?.name ?? (R.npcPresident ? `${R.npcPresident} (NPC)` : null), nextDay: R.nextDay, hour: R.electionHour,
         candidates: R.candidates.map((id) => ({ id, name: world.players.get(id)?.name ?? '?', votes: Object.values(R.votes).filter((v) => v === id).length })),
         myVote: R.votes[p.id] ?? null, isPresident: R.presidentId === p.id,
       };
@@ -370,7 +371,15 @@ export class SocietySystem {
   runElection({ world, bus, rng }, time) {
     const R = world.republic;
     R.nextDay = time.day + 2;
-    if (!R.candidates.length) { bus.news('politics', `🗳️ ${R.name}: aday çıkmadı, seçim ertelendi.`); return; }
+    if (!R.candidates.length) {
+      // Aday oyuncu yoksa devleti bir NPC cumhurbaşkanı yönetir
+      if (!R.presidentId) {
+        const n = rng.pick([...world.npcs.values()].filter((x) => x.alive));
+        R.npcPresident = n ? n.name : 'Hasan Kaya';
+        bus.news('politics', `🗳️ ${R.name}: oyuncu adayı çıkmadı, halk ${R.npcPresident}'yı Cumhurbaşkanı seçti.`);
+      } else bus.news('politics', `🗳️ ${R.name}: aday çıkmadı, mevcut cumhurbaşkanı görevine devam ediyor.`);
+      return;
+    }
     const tally = Object.fromEntries(R.candidates.map((c) => [c, 0]));
     for (const v of Object.values(R.votes)) if (v in tally) tally[v]++;
     const best = Math.max(...Object.values(tally));
@@ -409,6 +418,7 @@ export class SocietySystem {
     np.countryName = R.name;
     np.title = 'Cumhurbaşkanı';
     R.presidentId = np.id;
+    R.npcPresident = null;
     // Cumhurbaşkanı devleti yönetir: vergi oranları, hazine, kamu binaları
     for (const p of world.players.values()) if (p.isMayor && p !== np) { p.isMayor = false; world.touchPlayer(p); }
     np.isMayor = true;

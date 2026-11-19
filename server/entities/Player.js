@@ -114,6 +114,7 @@ export class Player {
       followers: this.followers ?? 0,
       admin: this.admin ?? null,
       chase: world.chaseFor?.(this) ?? null,
+      org: world.orgFor?.(this) ?? null,
       ...(world.societyFor?.(this) ?? {}),
     };
   }

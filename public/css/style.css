@@ -669,3 +669,7 @@ textarea.ph-input { border-radius: 12px; resize: none; }
 .pin-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .pin-chip small { color: #aaa; }
 .gender-row { display: flex; gap: 8px; } .gender-row .btn { flex: 1; }
 .tech-modal .btn.wide { flex-direction: column; gap: 2px; } .tech-modal .btn small { font-weight: 500; opacity: 0.8; font-size: 11px; }
+.ph-body { min-height: 0; touch-action: pan-y; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; } .ph-body > * { flex-shrink: 0; } .ph-range { touch-action: none; }
+.kid-ban { position: absolute; left: 50%; top: calc(140px + var(--sat)); transform: translateX(-50%); display: flex; gap: 10px; align-items: center; padding: 8px 12px; border-radius: 16px; border: 1px solid rgba(255,60,60,0.6); font-weight: 800; font-size: 13px; z-index: 9; }
+.ph-card.danger { border: 1px solid rgba(255,70,70,0.55); background: rgba(80,10,14,0.55); }
+.org-man, .org-mis { display: flex; flex-direction: column; gap: 6px; }

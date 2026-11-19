@@ -14,7 +14,7 @@ const tl = (n) => `₺${Math.round(n).toLocaleString('tr-TR')}`;
 const clamp = (v) => Math.max(0, Math.min(100, v));
 const fail = (error) => ({ ok: false, error });
 
-const ENTERABLE_CIVIC = new Set(['police', 'bank', 'hospital', 'palace', 'town_hall', 'court', 'stadium', 'hideout']);
+const ENTERABLE_CIVIC = new Set(['police', 'bank', 'hospital', 'palace', 'town_hall', 'court', 'stadium', 'hideout', 'compound']);
 
 export class LifeSystem {
   name = 'life';
@@ -54,7 +54,7 @@ export class LifeSystem {
       p.water = clamp(p.water - L.waterPerHour * hrs * (sleeping ? 0.4 : 1));
       if (sleeping) {
         p.energy = clamp(p.energy + L.sleepEnergyPerHour * hrs * (p.inside ? 1 : 0.6));
-        if (p.energy >= 100) { p.pose = ''; this.say(p, '☀️ Dinç uyandın! Enerjin full.', 'ok'); }
+        if (p.energy >= 100) { p.pose = ''; this.unseat(p); this.say(p, '☀️ Dinç uyandın! Enerjin full.', 'ok'); }
       } else {
         p.energy = clamp(p.energy - L.energyPerHour * hrs * (p.shift ? 1.1 : 1));
         if (p.energy <= 0 && p.pose !== 'sleep') this.passOut(p);
@@ -170,6 +170,13 @@ export class LifeSystem {
       if (owner || this.isStaff(p, b)) return { ok: true };
       return fail('Fabrikaya sadece çalışanlar girebilir. (Kapıdan işe başvurabilirsin.)');
     }
+    if (b.type === 'compound') {
+      // Karargah: sadece örgüt üyeleri; sahipsizse herkes bakabilir; nöbetçiler ölmüşse baskıncı girer
+      if (!b.orgId || b.orgId === p.orgId) return { ok: true };
+      const org = world.orgs?.[b.orgId];
+      const guards = (org?.posted ?? []).filter((id) => world.units.has(id)).length;
+      return guards ? fail(`🏴 "${org?.name}" karargahı. Kapıda ${guards} silahlı nöbetçi var!`) : { ok: true };
+    }
     if (ENTERABLE_CIVIC.has(b.type)) return { ok: true };
     return fail('Bu yapının içine girilemiyor.');
   }
@@ -194,6 +201,7 @@ export class LifeSystem {
 
   exit(p, msg) {
     if (p.pendingCase) return fail('⚖️ Duruşma bitmeden adliyeden çıkamazsın!');
+    if (p.kidnapped) return fail(`🥷 Kaçırıldın! Fidyeyi öde (${tl(p.kidnapped.ransom)}) ya da bekle.`);
     const b = this.ctx.world.buildings.get(p.inside);
     p.inside = null;
     p.pose = '';
@@ -222,12 +230,15 @@ export class LifeSystem {
   }
 
   seat(p, r) {
+    p.seatExit = null;
     const seats = r.s.seats;
     if (!seats?.length) return;
     const { world } = this.ctx;
     const taken = (sx, sz) => [...world.players.values()].some((o) => o !== p && o.inside === p.inside && o.pose && Math.hypot(o.x - sx, o.z - sz) < 0.6);
     const free = seats.find(([x, z]) => !taken(r.o.x + x, r.o.z + z)) ?? seats[0];
     p.rotY = free[2] ?? 0;
+    // Kalkınca koltuğun içine sıkışmasın: oturmadan önce durduğu yere geri dönecek
+    p.seatExit = { x: r.x, z: r.z };
     this.teleport(p, r.o.x + free[0], r.o.z + free[1]);
   }
 
@@ -330,7 +341,15 @@ export class LifeSystem {
     if (p.pose === 'sleep' && p.energy < 15) return fail('😵 Çok yorgunsun, gözlerini açamıyorsun... (enerji %15 olunca kalkabilirsin)');
     p.pose = '';
     p.tv = false;
+    this.unseat(p);
     return { ok: true };
+  }
+
+  /** Oturduğu/yattığı yerden kaldır: mobilyanın önüne ışınla */
+  unseat(p) {
+    const e = p.seatExit;
+    p.seatExit = null;
+    if (e && p.inside) this.teleport(p, e.x, e.z);
   }
 
   consume(p, item) {
@@ -593,6 +612,10 @@ export class LifeSystem {
       npc = world.npcs.get(id);
       if (!npc || !npc.alive || npc.state === 'inside' || p.inside) return fail('Hedef görünmüyor.');
       target = npc;
+    } else if (kind === 'unit') {
+      const u = world.units.get(id);
+      if (!u || !u.def?.street || p.inside) return fail('Hedef görünmüyor.');
+      target = u;
     } else if (kind === 'player') {
       victim = world.players.get(id);
       if (!victim || victim === p || !victim.online || victim.dead || victim.inside !== p.inside) return fail('Hedef görünmüyor.');
@@ -611,6 +634,12 @@ export class LifeSystem {
       ? { t: 'punch', by: p.id, a: [p.x, p.z], b: [target.x, target.z], w: p.weapon }
       : { t: 'gun', by: p.id, a: [p.x, p.z], b: [target.x, target.z], w: p.weapon, hit: hit ? 1 : 0 });
 
+    if (kind === 'unit') {
+      let killed = false;
+      if (hit) killed = engine.getSystem('orgs').playerHitUnit(p, target, dmg);
+      world.touchPlayer(p);
+      return { ok: true, quiet: true, message: killed ? `☠️ ${target.def.label} etkisiz hale getirildi.` : null, hit, dmg };
+    }
     const robber = npc && npc.robberUntil > world.clockHours();
     let msg = null;
     if (npc && hit) {
@@ -635,6 +664,7 @@ export class LifeSystem {
         if (!robber && p.wanted < 1) { p.wanted = 1; this.callPolice(p); world.logCrime?.(p, `Darp: ${npc.name}`); }
       }
     } else if (victim && hit) {
+      victim.lastHitBy = { id: p.id, at: Date.now() };
       this.damage(victim, dmg, p, 'saldırı');
       this.say(victim, `🩸 ${p.name} sana saldırıyor! (-${dmg} can)`, 'err', 'hurt');
       if (victim.dead) { p.wanted = Math.min(5, p.wanted + 2); world.logCrime?.(p, `Cinayet: ${victim.name}`); engine.getSystem('underworld')?.startChase(p, true); }

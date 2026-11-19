@@ -412,35 +412,68 @@ function makeAircraft(type, color) {
   return g;
 }
 
-function makeStreetUnit(type) {
+// Sokak birimleri: polis, özel harekât, çete/kartel adamları ve kartel araçları
+const STREET_LOOK = {
+  cop:       { shirt: 0x1f3a93, pants: 0x1b2440, outfit: { hat: 'cap_black' }, tag: '👮 POLİS', tc: '#5aa0ff', siren: true },
+  swat:      { shirt: 0x1c2333, pants: 0x141a26, outfit: { hat: 'beanie', acc: 'glasses' }, tag: '🪖 ÖZEL HAREKÂT', tc: '#7fb2ff', vest: 0x0d1117, siren: true },
+  gang:      { shirt: 0x151515, pants: 0x0a0a0a, outfit: { top: 'hoodie_grey', acc: 'sunglasses' }, tag: '🕶️', dark: true },
+  guard:     { shirt: 0x111111, pants: 0x111111, outfit: { top: 'suit_black', acc: 'sunglasses' }, tag: '🛡️' },
+  hitman:    { shirt: 0x111111, pants: 0x111111, outfit: { top: 'suit_black', hat: 'fedora', acc: 'sunglasses' }, tag: '🎯' },
+  bomber:    { shirt: 0x2b2b2b, pants: 0x1a1a1a, outfit: { hat: 'beanie' }, tag: '💣', vest: 0xff7a00 },
+  enforcer:  { shirt: 0x1a1a1a, pants: 0x0e0e0e, outfit: { top: 'jacket_lthr', acc: 'chain' }, tag: '🔫' },
+  kidnapper: { shirt: 0x0c0c0c, pants: 0x0c0c0c, outfit: { hat: 'beanie', top: 'hoodie_grey' }, tag: '🥷', dark: true },
+};
+
+function makeStreetUnit(type, color, tagText) {
   const g = new THREE.Group();
-  const cop = type === 'cop';
-  const ch = makeCharacter(cop ? 0x1f3a93 : 0x111111, { seed: Math.random() * 1e6, pants: cop ? 0x1b2440 : 0x0a0a0a, outfit: cop ? { hat: 'cap_black' } : { top: 'hoodie_grey', acc: 'sunglasses' } });
-  if (!cop) ch.traverse((m) => { if (m.isMesh && m.material?.color?.getHex?.() === 0x7f8c8d) m.material = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.8 }); });
-  g.add(ch);
-  if (cop) {
-    // Omuzda yanıp sönen mavi-kırmızı ışık
-    const r = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff2020 }));
-    const b = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), new THREE.MeshBasicMaterial({ color: 0x2060ff }));
-    r.position.set(-0.45, 2.75, 0); b.position.set(0.45, 2.75, 0);
-    g.add(r, b);
-    g.userData.siren = [r, b];
-    const tag = textSprite('👮 POLİS', { color: '#5aa0ff', border: '#5aa0ff', scale: 0.55 });
-    tag.position.y = 4.3; g.add(tag);
+  if (type === 'gangcar') {
+    // Siyah kartel aracı + örgüt renginde şerit
+    const car = makeCar('gwagon');
+    car.traverse((m) => { if (m.isMesh && m.material?.color?.getHex?.() === 0x2d2d2d) m.material = new THREE.MeshStandardMaterial({ color: 0x0b0b0d, roughness: 0.25, metalness: 0.7 }); });
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(2.35, 0.18, 4.2), new THREE.MeshBasicMaterial({ color }));
+    stripe.position.y = 1.35;
+    g.add(car, stripe);
+    if (tagText) { const tag = textSprite(`🚙 ${tagText}`, { color: '#' + color.getHexString(), border: '#' + color.getHexString(), scale: 0.5 }); tag.position.y = 4.4; g.add(tag); }
+    g.userData.street = true;
+    g.userData.car = true;
   } else {
-    const tag = textSprite('🕶️', { color: '#ff4040', border: '#ff4040', scale: 0.5 });
-    tag.position.y = 4.2; g.add(tag);
+    const L = STREET_LOOK[type] ?? STREET_LOOK.gang;
+    const ch = makeCharacter(L.shirt, { seed: Math.random() * 1e6, pants: L.pants, outfit: L.outfit });
+    if (L.dark) ch.traverse((m) => { if (m.isMesh && m.material?.color?.getHex?.() === 0x7f8c8d) m.material = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.8 }); });
+    if (L.vest) { const v = new THREE.Mesh(new THREE.BoxGeometry(0.98, 0.7, 0.62), new THREE.MeshStandardMaterial({ color: L.vest, roughness: 0.7 })); v.position.y = 2.05; ch.add(v); }
+    // Elinde silah
+    const gun = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.16, 0.8), new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.6 }));
+    gun.position.set(0.55, 1.75, 0.45);
+    ch.add(gun);
+    g.add(ch);
+    if (L.siren) {
+      const r = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff2020 }));
+      const b = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), new THREE.MeshBasicMaterial({ color: 0x2060ff }));
+      r.position.set(-0.45, 2.75, 0); b.position.set(0.45, 2.75, 0);
+      g.add(r, b);
+      g.userData.siren = [r, b];
+    }
+    // Örgüt adamları: örgüt renginde kol bandı
+    if (!L.siren) { const band = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.16, 8), new THREE.MeshBasicMaterial({ color })); band.position.set(-0.56, 2.25, 0); ch.add(band); }
+    const label = L.siren ? (tagText ?? L.tag) : `${L.tag}${tagText ? ` ${tagText}` : ''}`;
+    const tc = L.siren ? L.tc : '#' + color.getHexString();
+    const tag = textSprite(label, { color: tc, border: tc, scale: 0.5 });
+    tag.position.y = 4.3; g.add(tag);
+    g.userData.soldiers = [ch];
+    g.userData.street = true;
   }
   const hp = new THREE.Sprite(new THREE.SpriteMaterial({ color: 0x3dff6a, depthTest: false, transparent: true, opacity: 0 }));
   hp.scale.set(0.01, 0.01, 1);
+  hp.position.y = g.userData.car ? 3.6 : 3.7;
   g.add(hp);
   g.userData.hpBar = hp;
-  g.userData.soldiers = [ch];
   return g;
 }
 
-function makeUnit(type, color) {
-  if (type === 'cop' || type === 'gang') return makeStreetUnit(type);
+const STREET_TYPES = new Set(['cop', 'swat', 'gang', 'guard', 'hitman', 'bomber', 'enforcer', 'kidnapper', 'gangcar']);
+
+function makeUnit(type, color, tag) {
+  if (STREET_TYPES.has(type)) return makeStreetUnit(type, color, tag);
   const g = new THREE.Group();
   const olive = new THREE.MeshStandardMaterial({ color: 0x556b2f, roughness: 0.8 });
   const team = new THREE.MeshStandardMaterial({ color, roughness: 0.6 });
@@ -786,7 +819,7 @@ export class EntityManager {
   // ---------- Birlikler ----------
   addUnit(u) {
     if (this.units.has(u.id)) return;
-    const g = u.air ? makeAircraft(u.type, new THREE.Color(u.color)) : makeUnit(u.type, new THREE.Color(u.color));
+    const g = u.air ? makeAircraft(u.type, new THREE.Color(u.color)) : makeUnit(u.type, new THREE.Color(u.color), u.tag);
     g.position.set(u.x, u.alt ?? 0, u.z);
     g.rotation.y = u.rotY ?? 0;
     this.markPick(g, 'unit', u.id);
@@ -933,12 +966,13 @@ export class EntityManager {
         if (u.g.userData.rotor) { u.g.userData.rotor.rotation.y += dt * 25; u.g.userData.tailRotor.rotation.x += dt * 30; }
         continue;
       }
-      if (u.speed > 0.5) u.g.rotation.y = lerpAngle(u.g.rotation.y, u.target.rot, ku);
+      if (u.speed > 0.5 || u.g.userData.street) u.g.rotation.y = lerpAngle(u.g.rotation.y, u.target.rot, ku);
       if (u.g.userData.turret) u.g.userData.turret.rotation.y = lerpAngle(u.g.userData.turret.rotation.y, u.target.aim - u.g.rotation.y, ku);
       if (u.g.userData.soldiers) for (const s of u.g.userData.soldiers) animateWalk(s, u.speed, dt);
       if (u.g.userData.siren) { const on = Math.floor(performance.now() / 180) % 2; u.g.userData.siren[0].visible = !!on; u.g.userData.siren[1].visible = !on; }
       if (u.g.userData.horse) animateHorse(u.g.userData.horse, u.speed, dt);
       const bar = u.g.userData.hpBar;
+      if (u.g.userData.street) { bar.material.opacity = u.target.hp < 0.99 ? 1 : 0; bar.scale.y = 0.22; }
       bar.scale.x = 3 * Math.max(0.05, u.target.hp);
       bar.material.color.setHSL(0.33 * u.target.hp, 1, 0.5);
     }

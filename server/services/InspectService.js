@@ -105,6 +105,12 @@ function describeBuilding(ctx, b, p) {
     const access = ctx.engine.getSystem('life').canEnter(p, b);
     A(access.ok ? '🚪 İçeri Gir' : `🔒 ${access.error.replace(/^🔒 |^🌙 /, '')}`, 'building:enter', {}, { style: access.ok ? 'primary' : 'ghost' });
   }
+  if (b.type === 'compound') {
+    const org = b.orgId && ctx.world.orgs?.[b.orgId];
+    rows.push(['Durum', org ? `🏴 "${org.name}" karargahı` : 'Sahipsiz · örgüt karargahı yapılabilir']);
+    if (org) rows.push(['Nöbetçi', `${(org.posted ?? []).filter((id) => ctx.world.units.has(id)).length} silahlı koruma`]);
+    if (!org || org.id !== p.orgId) A(p.orgId ? `🏴 Karargah Yap · ${tl(10000 * (ctx.world.society?.econ.mul ?? 1))}` : '🕴️ Önce örgüt kur (Telefon › Örgüt)', p.orgId ? 'org:hq' : 'noop', {}, { style: p.orgId && !org ? 'primary' : 'ghost' });
+  }
   if (def.category === 'residential' && b.operational) {
     const soc = ctx.engine.getSystem('society');
     if (b.id === p.homeId) {

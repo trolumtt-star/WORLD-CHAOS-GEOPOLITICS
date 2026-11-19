@@ -22,7 +22,7 @@ export class Unit {
   get def() { return UNIT_TYPES[this.type] ?? AIR_TYPES[this.type]; }
 
   toMeta() {
-    return { id: this.id, type: this.type, ownerId: this.ownerId, color: this.color, x: this.x, z: this.z, rotY: this.rotY, hp: 1, air: !!this.def.air, alt: this.alt ?? 0 };
+    return { id: this.id, type: this.type, ownerId: this.ownerId, color: this.color, x: this.x, z: this.z, rotY: this.rotY, hp: 1, air: !!this.def.air, alt: this.alt ?? 0, tag: this.tag };
   }
 
   toSnapshot() {

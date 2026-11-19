@@ -25,6 +25,7 @@ export function generateWorld(world, rng, config) {
   electFirstMayor(world, rng);
   spawnAiNations(world, rng, config);
   ensureHideouts(world, rng, config);
+  ensureCompounds(world, rng, config);
   world.dirtyTiles.clear();
   world.dirtyBuildings.clear();
   return world.stats();
@@ -413,8 +414,29 @@ export function ensureHideouts(world, rng, config) {
   return made;
 }
 
+/** Örgüt karargahı olabilecek duvarlı depolar: kenar ortaları ve ara noktalar */
+export function ensureCompounds(world, rng, config) {
+  if ([...world.buildings.values()].some((b) => b.type === 'compound')) return [];
+  const g = config.world.gridSize, c = Math.floor(g / 2);
+  const made = [];
+  const ctx = { counters: { street: 970 }, usedNames: {} };
+  for (const [ci, cj] of [[c, 1], [c, g - 2], [1, c], [g - 2, c], [Math.floor(g / 4), Math.floor(g / 4) * 3], [Math.floor(g / 4) * 3, Math.floor(g / 4)]]) {
+    const t = world.tiles.filter((x) => !x.owner && !x.buildingId && x.terrain !== 'w' && Math.max(Math.abs(x.i - ci), Math.abs(x.j - cj)) <= 3)
+      .sort((a, b) => Math.hypot(a.i - ci, a.j - cj) - Math.hypot(b.i - ci, b.j - cj))[0];
+    if (!t) continue;
+    t.terrain = 'p';
+    world.setTileOwner(t, 'underworld');
+    const bl = createBuilding(world, rng, config, { i: t.i, j: t.j, x: -world.half + t.i * world.blockSize + world.blockSize / 2, z: -world.half + t.j * world.blockSize + world.blockSize / 2, type: 'compound', subtype: null }, ctx);
+    world.addBuilding(bl);
+    t.buildingId = bl.id;
+    made.push(bl);
+  }
+  return made;
+}
+
 export function ensureTownExtras(world, rng, config) {
   ensureHideouts(world, rng, config);
+  try { ensureCompounds(world, rng, config); } catch (e) { console.warn('[compound]', e.message); }
   const need = ['court', 'stadium', 'clothing', 'car_dealer'].filter((t) => ![...world.buildings.values()].some((b) => b.type === t));
   if (!need.length) return [];
   const { a, b } = townRange(world, config);

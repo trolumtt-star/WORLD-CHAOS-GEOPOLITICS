@@ -38,6 +38,7 @@ import { LifeSystem } from '../systems/LifeSystem.js';
 import { SocietySystem } from '../systems/SocietySystem.js';
 import { UnderworldSystem } from '../systems/UnderworldSystem.js';
 import { IndoorSystem } from '../systems/IndoorSystem.js';
+import { OrgSystem } from '../systems/OrgSystem.js';
 import { interiorLayout, interiorOrigin } from '../../shared/interiors.js';
 
 const COLORS = ['#ff4d4d', '#3ddc84', '#ffd23f', '#a06cff', '#2ec4ff', '#ff8c42', '#ff5fa2', '#00e0b8', '#c0ff3e', '#ffffff'];
@@ -109,6 +110,7 @@ export class Room {
       .use(new SocietySystem())
       .use(new UnderworldSystem())
       .use(new IndoorSystem())
+      .use(new OrgSystem())
       .use(new NetworkSyncSystem(io, this.code));
     this.ctx = this.engine.ctx;
     this.ctx.room = this;
@@ -276,7 +278,7 @@ export class Room {
       return;
     }
     player.moveBudget -= dist;
-    if (dist > 0.4 && player.pose && player.pose !== 'dead' && player.pose !== 'drive') { player.pose = ''; player.tv = false; world.touchPlayer(player); }
+    if (dist > 0.4 && player.pose && player.pose !== 'dead' && player.pose !== 'drive') { player.pose = ''; player.tv = false; world.touchPlayer(player); if (player.seatExit) { this.engine.getSystem('life').unseat(player); return; } }
     if (player.inside) {
       // İç mekânda: odanın duvarları içinde kal
       const b = world.buildings.get(player.inside);
