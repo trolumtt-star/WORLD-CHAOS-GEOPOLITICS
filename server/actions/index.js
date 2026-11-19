@@ -327,6 +327,8 @@ export const ACTIONS = {
   'under:order'(ctx, p, params) { return ctx.engine.getSystem('underworld').order(p, params); },
   'home:rent'(ctx, p, { buildingId }) { return ctx.engine.getSystem('society').rentHome(p, buildingId); },
   'home:leave'(ctx, p) { return ctx.engine.getSystem('society').leaveHome(p); },
+  'ceo:hire'(ctx, p, params) { return ctx.engine.getSystem('society').ceoHire(p, params); },
+  'ceo:fire'(ctx, p, params) { return ctx.engine.getSystem('society').ceoFire(p, params); },
   'org:found'(ctx, p, params) { return ctx.engine.getSystem('orgs').found(p, params); },
   'org:invite'(ctx, p, params) { return ctx.engine.getSystem('orgs').invite(p, params); },
   'org:join'(ctx, p, params) { return ctx.engine.getSystem('orgs').join(p, params); },

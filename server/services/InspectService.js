@@ -1,3 +1,4 @@
+import { CEO_TIERS } from '../systems/SocietySystem.js';
 import { interiorLayout } from '../../shared/interiors.js';
 import { JOBS, ACTIVITY_LABELS, inHours, wageOf } from '../data/jobs.js';
 import { PRODUCTS } from '../data/products.js';
@@ -146,6 +147,14 @@ function describeBuilding(ctx, b, p) {
       A('💰 Kasadan Çek', 'property:withdraw', {}, { input: { title: `Kasa: ${tl(b.balance)}`, fields: [{ key: 'amount', label: 'Tutar', kind: 'number', min: 1, max: Math.floor(b.balance), value: Math.floor(b.balance) }] } });
       A('🏦 Kasaya Koy', 'property:deposit', {}, { style: 'ghost', input: { title: 'Kasaya para koy', fields: [{ key: 'amount', label: 'Tutar', kind: 'number', min: 1, max: Math.floor(p.balance), value: 500 }] } });
       manage = buildManage(ctx, b);
+      // CEO: işletmeyi yönetir, her gün sahibine kâr aktarır
+      if (b.ceo) {
+        rows.push(['👔 CEO', `${b.ceo.name} · ${CEO_TIERS[b.ceo.tier]?.label ?? ''}`]);
+        rows.push(['CEO kazancı', `dün ${tl(b.ceo.last)} · toplam ${tl(b.ceo.total)}`]);
+        A(`👋 ${b.ceo.name}'u Kov`, 'ceo:fire', {}, { style: 'ghost', confirm: 'CEO kovulsun mu? Günlük kâr aktarımı durur.' });
+      } else {
+        for (const [k, T] of Object.entries(CEO_TIERS)) A(`${T.icon} ${T.label} Ata · ${tl(T.fee)} (günde ${tl(T.min)}–${tl(T.max)})`, 'ceo:hire', { tier: k }, { style: k === 'junior' ? 'primary' : '', confirm: `${T.label} atansın mı?\nTransfer ücreti: ${tl(T.fee)}\nHer sabah sana ${tl(T.min)} – ${tl(T.max)} arası kâr aktarır.` });
+      }
     }
     if (b.type === 'town_hall') { /* konak satılamaz */ } else if (b.forSale) A('❌ İlanı Kaldır', 'property:unlist', {}, { style: 'ghost' });
     else A('📢 Satışa Çıkar', 'property:list', {}, { style: 'ghost', input: { title: 'Satış fiyatı', fields: [{ key: 'price', label: 'Fiyat (₺)', kind: 'number', min: 1, value: Math.round(b.value * 1.2) }] } });

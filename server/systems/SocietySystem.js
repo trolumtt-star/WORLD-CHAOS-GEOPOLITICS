@@ -18,6 +18,14 @@ export function defaultSociety() {
   return { econ: { mul: 1, history: [], lastDay: 0 }, cases: [], match: null, results: [], posts: [], messages: [], orders: [], seq: 1 };
 }
 
+export const CEO_TIERS = {
+  junior: { label: 'Genç CEO',      icon: '👔', fee: 15000,   min: 2000,   max: 25000 },
+  pro:    { label: 'Deneyimli CEO', icon: '💼', fee: 150000,  min: 25000,  max: 200000 },
+  legend: { label: 'Efsane CEO',    icon: '👑', fee: 1500000, min: 200000, max: 1000000 },
+};
+const CEO_FIRST = ['Kerem', 'Selin', 'Murat', 'Elif', 'Can', 'Zeynep', 'Burak', 'Defne', 'Emre', 'Aslı', 'Mert', 'Ece'];
+const CEO_LAST = ['Koç', 'Sabancı', 'Yıldırım', 'Aksoy', 'Demirtaş', 'Özdemir', 'Kaya', 'Arslan', 'Erdem', 'Tekin'];
+
 export class SocietySystem {
   name = 'society';
 
@@ -81,6 +89,55 @@ export class SocietySystem {
   }
 
   // ------------------------------------------------------------------ zaman
+  // ================================================================== CEO
+  ceoHire(p, { buildingId, tier }) {
+    const { world, bus, rng } = this.ctx;
+    const b = world.buildings.get(buildingId);
+    if (!b || b.ownerKind !== 'player' || b.ownerId !== p.id) return fail('Bu işletme senin değil.');
+    if (!b.isBusiness || !b.operational) return fail('CEO sadece çalışan işletmelere atanır.');
+    const T = CEO_TIERS[tier];
+    if (!T) return fail('Böyle bir CEO yok.');
+    if (b.ceo) return fail(`${b.name} zaten ${b.ceo.name} tarafından yönetiliyor. Önce kov.`);
+    if (p.balance < T.fee) return fail(`${T.label} transfer ücreti ${tl(T.fee)}.`);
+    p.balance -= T.fee;
+    const name = `${rng.pick(CEO_FIRST)} ${rng.pick(CEO_LAST)}`;
+    b.ceo = { name, tier, since: this.ctx.clock.day, last: 0, total: 0 };
+    world.touchPlayer(p);
+    world.touch(b);
+    bus.news('economy', `👔 ${b.name} yeni CEO'su ${name} (${T.label}) ile anlaştı!`);
+    return { ok: true, message: `👔 ${name} artık ${b.name} CEO'su! Her gün ${tl(T.min)} – ${tl(T.max)} arası kazandıracak.`, sfx: 'cash' };
+  }
+
+  ceoFire(p, { buildingId }) {
+    const b = this.ctx.world.buildings.get(buildingId);
+    if (!b || b.ownerId !== p.id || !b.ceo) return fail('Burada CEO yok.');
+    const n = b.ceo.name;
+    b.ceo = null;
+    this.ctx.world.touch(b);
+    return { ok: true, message: `👋 ${n} kovuldu.` };
+  }
+
+  /** Her sabah: CEO'lar sahibine kâr aktarır (kademeye göre 2.000 – 1.000.000 ₺) */
+  payCeos(world) {
+    const { rng } = this.ctx;
+    const byOwner = new Map();
+    for (const b of world.buildings.values()) {
+      if (!b.ceo) continue;
+      const p = b.ownerKind === 'player' && world.players.get(b.ownerId);
+      if (!p || b.destroyed) { if (!p) b.ceo = null; continue; }
+      const T = CEO_TIERS[b.ceo.tier] ?? CEO_TIERS.junior;
+      // iyi gün / kötü gün: kademenin aralığında, ortası daha olası
+      const r = (rng.next() + rng.next()) / 2;
+      const amt = Math.round(T.min + (T.max - T.min) * r);
+      p.balance += amt;
+      b.ceo.last = amt;
+      b.ceo.total += amt;
+      world.touch(b);
+      byOwner.set(p, [...(byOwner.get(p) ?? []), `${b.name} +${tl(amt)}`]);
+    }
+    for (const [p, list] of byOwner) { world.touchPlayer(p); this.say(p, `👔 CEO raporu: ${list.join(' · ')}`, 'ok', 'cash'); }
+  }
+
   // ================================================================== KİRA / EV / İŞ
   rentFor(b) {
     const own = b.ownerKind === 'player';
@@ -170,6 +227,7 @@ export class SocietySystem {
     const { world, rng, bus, config } = ctx;
     const S = this.S;
     this.collectRent(world, bus);
+    this.payCeos(world);
     // Enflasyon: her 3 günde bir maaşlar ve fiyatlar birlikte artar
     if (time.day % 3 === 0 && S.econ.lastDay !== time.day) {
       S.econ.lastDay = time.day;

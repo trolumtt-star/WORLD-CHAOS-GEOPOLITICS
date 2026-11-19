@@ -183,7 +183,8 @@ export class OrgSystem {
     if (!o) return fail('Önce telefondan örgüt kur.');
     const M = MEN[type];
     if (!M) return fail('Böyle bir adam yok.');
-    const k = Math.max(1, Math.min(20, Math.round(Number(n) || 1)));
+    // Sınır yok: paran neye yetiyorsa (tek seferde en çok 500)
+    const k = Math.max(1, Math.min(500, Math.round(Number(n) || 1)));
     const cost = Math.round(M.price * k * this.mul());
     if (p.balance < cost) return fail(`${k} ${M.label} = ${tl(cost)}.`);
     p.balance -= cost;
@@ -231,7 +232,7 @@ export class OrgSystem {
     o.posted = o.posted.filter((id) => this.world.units.has(id));
     if (!hq) return;
     const escorting = Object.values(o.escort).reduce((s, l) => s + l.length, 0);
-    const want = Math.min(16, Math.max(0, (o.men.guard ?? 0) - escorting));
+    const want = Math.min(40, Math.max(0, (o.men.guard ?? 0) - escorting)); // fazlası içeride bekler
     while (o.posted.length < want) {
       const k = o.posted.length;
       const a = (k / Math.max(6, want)) * Math.PI * 2;
@@ -249,7 +250,7 @@ export class OrgSystem {
     const o = this.orgOf(p);
     if (!o) return fail('Örgütün yok.');
     this.dismissEscort(o, p.id);
-    const k = Math.max(0, Math.min(6, Math.round(Number(n) || 0)));
+    const k = Math.max(0, Math.min(30, Math.round(Number(n) || 0)));
     if (!k) { this.postGuards(o); return { ok: true, message: '🛡️ Korumalar karargaha döndü.' }; }
     const used = Object.values(o.escort).reduce((s, l) => s + l.length, 0);
     if ((o.men.guard ?? 0) - used < k) return fail(`Boşta ${Math.max(0, (o.men.guard ?? 0) - used)} koruman var. Telefon › Örgüt › Adam Tut.`);
@@ -278,7 +279,7 @@ export class OrgSystem {
     const avail = this.available(o, M.men);
     const k = Math.max(1, Math.min(avail, Math.round(Number(n) || 1)));
     if (avail < 1) return fail(`Boşta ${MEN[M.men].label} yok. Telefon › Örgüt › Adam Tut.`);
-    const cars = Math.ceil(k / 3);
+    const cars = Math.min(40, Math.ceil(k / 3));
     const cost = Math.round((M.cost + cars * 150) * this.mul());
     if (p.balance < cost) return fail(`Görev masrafı (araç, cephane, yakıt) ${tl(cost)}.`);
     let target;
@@ -316,8 +317,8 @@ export class OrgSystem {
     const hq = this.hqOf(o);
     const from = hq ? { x: hq.door.x, z: hq.door.z + 6 } : this.edgePoint(target);
     const cars = [];
-    const nc = Math.max(1, Math.ceil(n / 3));
-    for (let i = 0; i < nc; i++) cars.push(this.spawn('gangcar', from.x + (i % 3) * 4 - 4, from.z + Math.floor(i / 3) * 6, `org:${o.id}`, o.color, { tag: o.name }).id);
+    const nc = Math.max(1, Math.min(40, Math.ceil(n / 3))); // 100 adam = 34 araçlık konvoy
+    for (let i = 0; i < nc; i++) cars.push(this.spawn('gangcar', from.x + (i % 4) * 4 - 6, from.z + Math.floor(i / 4) * 6, `org:${o.id}`, o.color, { tag: o.name }).id);
     const id = `m${++this.seq}`;
     const m = { id, orgId: o.id, kind, menType: M.men, n, cars, men: [], phase: 'drive', from, byId, t: 0, targetKind: M.target, targetId: target.id ?? null, tile: target.tile ?? null, tx: target.x, tz: target.z, loot: 0 };
     this.missions.set(id, m);
@@ -366,7 +367,8 @@ export class OrgSystem {
         // adamlar hedefe yürür (suikast/kaçırma: hedefi takip eder)
         m.men.forEach((id, i) => {
           const u = world.units.get(id);
-          const tx = T ? T.x + Math.cos(i * 1.3) * 3 : u.x, tz = T ? T.z + Math.sin(i * 1.3) * 3 : u.z;
+          const rr = 3 + Math.floor(i / 8) * 1.6;
+          const tx = T ? T.x + Math.cos(i * 0.785) * rr : u.x, tz = T ? T.z + Math.sin(i * 0.785) * rr : u.z;
           this.move(u, tx, tz, u.def.speed, dt);
         });
         if (!m.men.length) { m.phase = 'escape'; continue; }
@@ -581,7 +583,7 @@ export class OrgSystem {
     const owner = world.ownerAt(x, z) ?? 'state';
     if (owner === 'underworld' || owner === `org:${m.orgId}`) return;
     const ownerPlayer = world.players.get(owner);
-    const force = Math.min(14, Math.round(m.n * 1.1) + 2);
+    const force = Math.min(40, Math.round(m.n * 0.8) + 2);
     const ids = [];
     for (let i = 0; i < force; i++) {
       const a = Math.random() * Math.PI * 2, r = 55 + Math.random() * 25;
@@ -860,10 +862,11 @@ export class OrgSystem {
         const o = world.orgs[u.org];
         if (!b || !b.online || b.dead) { if (o) this.dismissEscort(o, u.boss); continue; }
         if (b.inside) { const hb = world.buildings.get(b.inside); if (hb) this.move(u, hb.door.x + (u.slot - 1.5) * 2, hb.door.z + 3, 15, dt); continue; }
-        const a = (u.slot / 6) * Math.PI * 2 + b.rotY;
+        const ring = Math.floor(u.slot / 8);
+      const a = ((u.slot % 8) / 8) * Math.PI * 2 + b.rotY;
         const d = Math.hypot(b.x - u.x, b.z - u.z);
         if (d > 60) { u.x = b.x; u.z = b.z; }
-        if (!u.engaged || d > 14) this.move(u, b.x + Math.cos(a) * 3, b.z + Math.sin(a) * 3, d > 6 ? 17 : 8, dt);
+        if (!u.engaged || d > 14) this.move(u, b.x + Math.cos(a) * (3 + ring * 2), b.z + Math.sin(a) * (3 + ring * 2), d > 6 ? 17 : 8, dt);
       } else if (u.law && u.goal) {
         if (u.leaveAt && now > u.leaveAt) { this.despawn(u.id); continue; }
         const m = this.missions.get(u.chaseMission);

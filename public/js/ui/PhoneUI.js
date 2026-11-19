@@ -431,11 +431,17 @@ export class PhoneUI {
       for (const [k, ic, lb, pr] of MEN_UI) {
         const m = men[k] ?? { free: 0, total: 0 };
         body.append(el('div', { class: 'ph-card org-man' }, el('b', {}, `${ic} ${lb}`), el('small', {}, `${m.free} / ${m.total} · tanesi ${tl(pr * mul)}`),
-          el('div', { class: 'ph-row-actions' }, this.btn('+1', '', () => run('org:hire', { type: k, n: 1 })), this.btn('+5', 'primary', () => run('org:hire', { type: k, n: 5 })))));
+          el('div', { class: 'ph-row-actions' }, ...[1, 10, 50, 100].map((n) => this.btn(`+${n}`, n === 10 ? 'primary' : '', () => run('org:hire', { type: k, n }, n >= 50 ? `${n} ${lb} = ${tl(pr * mul * n)}. Tutulsun mu?` : null)))),
+          (() => {
+            // istediğin kadar: paran neye yetiyorsa
+            const max = Math.max(1, Math.min(500, Math.floor((this.self.balance ?? 0) / (pr * mul))));
+            const sl = this.slider(1, max, 1, Math.min(max, 20), (v) => `${v} adam = ${tl(v * pr * mul)}`);
+            return el('div', { class: 'col' }, sl.node, this.btn(`✅ Sürgüdeki kadar tut (paran ${max} kişiye yeter)`, 'wide', () => run('org:hire', { type: k, n: sl.value })));
+          })()));
       }
       // Korumalar
       body.append(el('h4', {}, `🛡️ Yanımdaki korumalar: ${o.escort}`),
-        el('div', { class: 'ph-row-actions' }, ...[0, 2, 4, 6].map((n) => this.btn(n ? `${n} koruma` : 'Gönder', n === o.escort ? 'primary' : '', () => run('org:escort', { n })))));
+        el('div', { class: 'ph-row-actions' }, ...[0, 2, 6, 12, 30].map((n) => this.btn(n ? `${n}` : 'Gönder', n === o.escort ? 'primary' : '', () => run('org:escort', { n })))));
       // Görevler
       body.append(el('h4', {}, '🚙 Görev ver (adamlar araçlarla gider)'));
       const T = this.h.orgTargets?.() ?? { buildings: [], players: [] };
@@ -448,7 +454,7 @@ export class PhoneUI {
         const sel = tk === 'here' ? null : el('select', { class: 'ph-input' }, el('option', { value: '' }, tk === 'player' ? '— hedef oyuncu —' : '— hedef bina —'),
           ...(tk === 'player' ? T.players : T.buildings).map((x) => el('option', { value: x.id }, x.label)));
         if (sel) { sel.addEventListener('focus', () => { this._typing = true; }); sel.addEventListener('blur', () => { this._typing = false; }); }
-        const cnt = this.slider(1, Math.max(1, free), 1, Math.max(1, Math.min(free, 4)), (v) => `${v} adam · ${Math.ceil(v / 3)} araç`);
+        const cnt = this.slider(1, Math.max(1, free), 1, Math.max(1, free), (v) => `${v} adam · ${Math.min(40, Math.ceil(v / 3))} araç`);
         body.append(el('div', { class: 'ph-card org-mis' }, el('b', {}, label), el('small', {}, free ? `${free} boşta` : 'Boşta adam yok — önce adam tut'),
           sel ?? '', free ? cnt.node : '', this.btn('Başlat', free ? 'danger wide' : 'wide', () => {
             if (sel && !sel.value) return this.h.ui.toast('Hedef seç.', 'warn');

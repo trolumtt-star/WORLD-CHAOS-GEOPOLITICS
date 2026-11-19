@@ -112,6 +112,10 @@ NPC ülkeler de bunu yapar: insan oyuncuyu kukla yapar, birbirlerini çoğunlukl
 - Kovalanmıyorsan aranma yıldızları her 2 oyun saatinde 1 düşer (içerideysen daha hızlı).
 - Haritanın 4 köşesinde **Yeraltı İni** var. İçerideki Patron'a para verip iş yaptırırsın: 💵 sahte para (×10, 1 saat), 🔫 dükkan taratma, 💼 haraç (3 gün %15), 🎯 kiralık katil, 💥 darbe. Çete üyeleri haritada yürüyerek gider; polis %50 ihtimalle yakalar, bazen de seni ispiyonlarlar.
 
+## 👔 v0.23
+- Örgüte istediğin kadar adam: paran neye yetiyorsa (tek seferde 500'e kadar), 100 kişilik baskınlar (34 araçlık konvoy), 30 kişilik koruma ekibi.
+- İşletmene CEO ata: 👔 Genç (₺15.000 → günde ₺2.000–25.000), 💼 Deneyimli (₺150.000 → ₺25.000–200.000), 👑 Efsane (₺1.500.000 → ₺200.000–1.000.000). Her sabah kâr cebine.
+
 ## 🕴️ v0.22: Örgütler, karteller, sokak savaşı
 - **Örgüt kur** (Telefon › 🕴️ Örgüt, ₺5.000): arkadaşlarını davet et, adamlar ortak.
 - **Adam tut**: 🛡️ Koruma (yanında gezer, sana ateş edeni vurur, kurşun üstlenir; karargah nöbeti), 🎯 Kiralık Katil, 💣 Bombacı (her bina yıkılabilir), 🔫 Tetikçi (mekan basma, bölge ele geçirme), 🥷 Kaçırıcı (fidye).
