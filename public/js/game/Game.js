@@ -879,13 +879,16 @@ export class Game {
     const s = this.ui.self;
     const mine = b.org && s.org?.org?.hq?.id === b.id;
     if (!mine) return this.ui.toast(b.org ? `🏴 Burası "${b.org.name}" karargahı.` : '🏭 Sahipsiz depo. Örgütün varsa kapıdan "Karargah Yap".', 'info');
-    const fakeAmt = el('input', { type: 'range', min: 100, max: Math.max(100, Math.min(20000, Math.floor(s.balance / 100) * 100)), step: 100, value: 100, class: 'uw-range' });
-    const fakeOut = el('b', {}, `${tl(100)} ver → ${tl(1000)} sahte para`);
-    fakeAmt.addEventListener('input', () => { fakeOut.textContent = `${tl(fakeAmt.value)} ver → ${tl(fakeAmt.value * 10)} sahte para`; });
-    this.ui.openSheet('compound', { icon: '🏴', title: b.org.name, subtitle: 'Karargah · matbaa burada daha güvenli (baskın riski %20)' },
+    const press = s.org?.press;
+    const AM = [1000, 5000, 10000, 25000, 50000, 100000];
+    this.ui.openSheet('compound', { icon: '🏴', title: b.org.name, subtitle: 'Kendi karargahın · matbaa bedava' },
       el('div', { class: 'col' },
-        el('div', { class: 'uw-card' }, el('div', { class: 'uw-h' }, el('span', {}, '💵'), el('b', {}, 'Matbaa: Sahte Para Bas')), el('small', {}, '1 saat sonra 10 katı. Karargahta polis baskını riski düşük.'), fakeOut, fakeAmt,
-          el('button', { class: 'btn primary', onClick: () => this.runAction({ type: 'under:order', params: { job: 'fake', amount: Number(fakeAmt.value) } }).then((r) => { if (r?.ok) this.ui.closeSheet(); }) }, 'Matbaayı Çalıştır')),
+        el('div', { class: 'uw-card' }, el('div', { class: 'uw-h' }, el('span', {}, '🆓'), el('b', {}, 'Bedava Para Bas: ₺1.000')), el('small', {}, 'Para vermeden 1 saat sonra ₺1.000. Karargahta baskın riski %20.'),
+          el('button', { class: 'btn primary', onClick: () => this.runAction({ type: 'under:order', params: { job: 'fake', amount: 0 } }).then((r) => { if (r?.ok) this.ui.closeSheet(); }) }, '🖨️ Bedava Bas')),
+        el('div', { class: 'uw-card' }, el('div', { class: 'uw-h' }, el('span', {}, '🔁'), el('b', {}, 'Otomatik Matbaa')),
+          el('small', {}, press ? `Çalışıyor: her 5 saatte ${tl(press.amount)} · sonraki ${press.left} saat sonra` : 'Miktar seç: her 5 oyun saatinde (50 sn) bakiyene otomatik eklenir. Karargahı kaybedersen durur.'),
+          el('div', { class: 'row wrap' }, ...AM.map((a) => el('button', { class: `btn ${press?.amount === a ? 'primary' : ''}`, onClick: () => this.runAction({ type: 'org:press', params: { amount: a } }).then((r) => { if (r?.ok) this.ui.closeSheet(); }) }, tl(a)))),
+          press ? el('button', { class: 'btn ghost', onClick: () => this.runAction({ type: 'org:press', params: { amount: 0 } }).then(() => this.ui.closeSheet()) }, '⏹️ Durdur') : ''),
         el('button', { class: 'btn wide', onClick: () => { this.ui.closeSheet(); this.phone.open('org'); } }, '🕴️ Örgüt Yönetimi (adam tut, görev ver)')));
   }
 

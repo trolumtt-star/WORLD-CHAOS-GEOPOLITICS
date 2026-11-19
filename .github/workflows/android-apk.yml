@@ -41,6 +41,33 @@ jobs:
       - name: Android projesini oluştur
         run: npx cap add android
 
+      # SABİT İMZA: her sürüm aynı anahtarla imzalanır -> telefonda silmeden üstüne güncellenir.
+      # (İstersen ANDROID_KEYSTORE_B64 adlı bir repo secret'ı ile kendi anahtarını verebilirsin.)
+      - name: İmza anahtarını geri yükle
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: android-signing-key-v1
+
+      - name: İmza anahtarı yoksa oluştur
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          mkdir -p ~/.android
+          if [ -n "$KS_B64" ]; then echo "$KS_B64" | base64 -d > ~/.android/debug.keystore; fi
+          if [ ! -f ~/.android/debug.keystore ]; then
+            keytool -genkeypair -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android \
+              -keyalg RSA -keysize 2048 -validity 20000 -dname "CN=World Chaos,O=Kaos Studios,C=TR"
+          fi
+          keytool -list -v -keystore ~/.android/debug.keystore -storepass android | grep -m1 SHA256
+
+      - name: Sürüm numarası (her derlemede artar)
+        run: |
+          G=android/app/build.gradle
+          sed -i "s/versionCode [0-9]*/versionCode ${{ github.run_number }}/" "$G"
+          sed -i "s/versionName \"[^\"]*\"/versionName \"0.${{ github.run_number }}\"/" "$G"
+          grep -n "versionCode\|versionName" "$G"
+
       - name: Yatay ekran + HTTP sunucu izni
         run: |
           M=android/app/src/main/AndroidManifest.xml

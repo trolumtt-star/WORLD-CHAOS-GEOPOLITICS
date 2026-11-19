@@ -41,6 +41,7 @@ const AI_CARTELS = [
 ];
 
 const FOUND_COST = 5000;
+export const PRESS_AMOUNTS = [1000, 5000, 10000, 25000, 50000, 100000];
 const HQ_COST = 10000;
 const LAW = new Set(['cop', 'swat']);
 
@@ -973,8 +974,35 @@ export class OrgSystem {
   }
 
   // ------------------------------------------------------------------ zaman
+  /** Otomatik matbaa: kendi karargahında kur, her 5 saatte seçtiğin miktar bakiyene eklenir */
+  setPress(p, { amount }) {
+    const o = this.orgOf(p);
+    const hq = this.hqOf(o);
+    if (!hq || p.inside !== hq.id) return fail('Otomatik matbaayı kendi karargahının içinde kurabilirsin.');
+    const a = Math.max(0, Math.round(Number(amount) || 0));
+    if (!a) { p.press = null; this.world.touchPlayer(p); return { ok: true, message: '🖨️ Otomatik matbaa durduruldu.' }; }
+    if (!PRESS_AMOUNTS.includes(a)) return fail('Geçersiz miktar.');
+    p.press = { amount: a, nextAt: this.ctx.clock.totalHours + 5, hq: hq.id };
+    this.world.touchPlayer(p);
+    return { ok: true, message: `🖨️ Otomatik matbaa kuruldu: her 5 saatte bir ${tl(a)} bakiyene eklenecek.`, sfx: 'success' };
+  }
+
+  tickPress(hour) {
+    for (const p of this.world.players.values()) {
+      const pr = p.press;
+      if (!pr || hour < pr.nextAt) continue;
+      const o = this.orgOf(p);
+      if (!o || o.hqId !== pr.hq || !this.hqOf(o)) { p.press = null; this.say(p, '🖨️ Karargahını kaybettin, otomatik matbaa durdu.', 'warn'); continue; }
+      pr.nextAt = hour + 5;
+      p.balance += pr.amount;
+      this.world.touchPlayer(p);
+      this.say(p, `🖨️ Matbaadan para geldi: +${tl(pr.amount)} (sonraki 5 saat sonra)`, 'ok', 'cash');
+    }
+  }
+
   onHour(time) {
     this.aiTurn(time.totalHours);
+    this.tickPress(time.totalHours);
     this.regenState();
     // kaçırılanların süresi
     const now = Date.now();
@@ -1081,7 +1109,7 @@ export class OrgSystem {
     const hostages = [];
     for (const x of Object.values(world.orgs)) for (const h of x.hostages ?? []) if (h.ownerId === p.id) hostages.push({ id: h.id, name: `👔 ${h.name}`, ransom: h.ransom, left: Math.max(0, h.deadline - this.ctx.clock.totalHours), by: x.name });
     for (const q of world.players.values()) if (q.kidnapped && q !== p && ((p.orgId && q.orgId === p.orgId) || q.kidnapped.ai)) hostages.push({ playerId: q.id, name: `👤 ${q.name}`, ransom: q.kidnapped.ransom, left: Math.max(0, Math.round((q.kidnapped.until - Date.now()) / this.ctx.config.time.msPerGameHour)), by: world.orgs[q.kidnapped.orgId]?.name ?? '?' });
-    const out = { hostages, orgs: list, invites, kidnapped: p.kidnapped ? { ransom: p.kidnapped.ransom, left: Math.max(0, Math.round((p.kidnapped.until - Date.now()) / 1000)), org: world.orgs[p.kidnapped.orgId]?.name } : null };
+    const out = { press: p.press ? { amount: p.press.amount, left: Math.max(0, p.press.nextAt - this.ctx.clock.totalHours) } : null, hostages, orgs: list, invites, kidnapped: p.kidnapped ? { ransom: p.kidnapped.ransom, left: Math.max(0, Math.round((p.kidnapped.until - Date.now()) / 1000)), org: world.orgs[p.kidnapped.orgId]?.name } : null };
     if (o) {
       const men = {};
       for (const k of Object.keys(MEN)) men[k] = { total: o.men[k] ?? 0, free: this.available(o, k) };

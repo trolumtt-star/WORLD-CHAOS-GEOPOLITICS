@@ -150,7 +150,9 @@ export class UnderworldSystem {
     const J = JOBS_UNDERWORLD[job];
     if (!J) return fail('Böyle bir iş yok.');
     if ([...this.crews.values()].filter((c) => c.ownerId === p.id).length >= 2) return fail('Adamların hâlâ sahada, önce dönsünler.');
-    const cost = job === 'fake' ? Math.max(J.min, Math.min(J.max, Math.round(Number(amount) || 0))) : Math.round(J.cost * this.mul());
+    // Kendi karargahında matbaa bedava: ₺1.000 bas (para vermeden)
+    const ownHq = hide.type === 'compound';
+    const cost = job === 'fake' ? (ownHq ? 0 : Math.max(J.min, Math.min(J.max, Math.round(Number(amount) || 0)))) : Math.round(J.cost * this.mul());
     if (p.balance < cost) return fail(`Bu iş ${tl(cost)}.`);
     let target = null;
     if (job === 'shoot' || job === 'racket') {
@@ -166,8 +168,9 @@ export class UnderworldSystem {
     p.balance -= cost;
     world.touchPlayer(p);
     if (job === 'fake') {
-      this.crews.set(`f${++this.seq}`, { id: `f${this.seq}`, ownerId: p.id, job, cost, readyAt: clock.totalHours + 1, members: [], safe: hide.type === 'compound' });
-      return { ok: true, message: `💵 Matbaa çalışıyor... 1 saat sonra ${tl(cost * 10)} sahte para hazır.`, sfx: 'cash' };
+      const payout = ownHq ? 1000 : cost * 10;
+      this.crews.set(`f${++this.seq}`, { id: `f${this.seq}`, ownerId: p.id, job, cost, payout, readyAt: clock.totalHours + 1, members: [], safe: ownHq });
+      return { ok: true, message: ownHq ? `🆓 Karargah matbaası bedava çalışıyor... 1 saat sonra ${tl(payout)} hazır.` : `💵 Matbaa çalışıyor... 1 saat sonra ${tl(payout)} sahte para hazır.`, sfx: 'cash' };
     }
     const n = job === 'coup' ? 8 : job === 'hit' ? 1 : job === 'racket' ? 2 : 3 + (Math.random() < 0.5 ? 1 : 0);
     const members = [];
@@ -303,9 +306,10 @@ export class UnderworldSystem {
       else this.say(p, '🚔 Matbaaya baskın oldu, sahte paralar gitti. Neyse ki adın geçmedi.', 'warn');
       return;
     }
-    p.balance += c.cost * 10;
+    const pay = c.payout ?? c.cost * 10;
+    p.balance += pay;
     world.touchPlayer(p);
-    this.say(p, `💵 Sahte paralar hazır: +${tl(c.cost * 10)}. Dikkatli harca 😏`, 'ok', 'cash');
+    this.say(p, `💵 Sahte paralar hazır: +${tl(pay)}. Dikkatli harca 😏`, 'ok', 'cash');
   }
 
   onDay(_t, { world }) {
