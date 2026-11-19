@@ -883,8 +883,15 @@ export class Game {
     const AM = [1000, 5000, 10000, 25000, 50000, 100000];
     this.ui.openSheet('compound', { icon: '🏴', title: b.org.name, subtitle: 'Kendi karargahın · matbaa bedava' },
       el('div', { class: 'col' },
-        el('div', { class: 'uw-card' }, el('div', { class: 'uw-h' }, el('span', {}, '🆓'), el('b', {}, 'Bedava Para Bas: ₺1.000')), el('small', {}, 'Para vermeden 1 saat sonra ₺1.000. Karargahta baskın riski %20.'),
-          el('button', { class: 'btn primary', onClick: () => this.runAction({ type: 'under:order', params: { job: 'fake', amount: 0 } }).then((r) => { if (r?.ok) this.ui.closeSheet(); }) }, '🖨️ Bedava Bas')),
+        (() => {
+          // Sürgüyle miktar seç, para vermeden üret
+          const amt = el('input', { type: 'range', min: 1000, max: 200000, step: 1000, value: 100000, class: 'uw-range' });
+          const out = el('b', { class: 'uw-big' }, `🆓 ${tl(100000)} üret`);
+          amt.addEventListener('input', () => { out.textContent = `🆓 ${tl(amt.value)} üret`; });
+          return el('div', { class: 'uw-card' }, el('div', { class: 'uw-h' }, el('span', {}, '🖨️'), el('b', {}, 'Bedava Para Bas')),
+            el('small', {}, 'Miktarı sürükle, Üret\'e bas: para vermeden 1 saat (10 sn) sonra bakiyene geçer. Baskın riski %20.'), out, amt,
+            el('button', { class: 'btn primary', onClick: () => this.runAction({ type: 'under:order', params: { job: 'fake', amount: Number(amt.value) } }).then((r) => { if (r?.ok) this.ui.closeSheet(); }) }, '🖨️ Üret'));
+        })(),
         el('div', { class: 'uw-card' }, el('div', { class: 'uw-h' }, el('span', {}, '🔁'), el('b', {}, 'Otomatik Matbaa')),
           el('small', {}, press ? `Çalışıyor: her 5 saatte ${tl(press.amount)} · sonraki ${press.left} saat sonra` : 'Miktar seç: her 5 oyun saatinde (50 sn) bakiyene otomatik eklenir. Karargahı kaybedersen durur.'),
           el('div', { class: 'row wrap' }, ...AM.map((a) => el('button', { class: `btn ${press?.amount === a ? 'primary' : ''}`, onClick: () => this.runAction({ type: 'org:press', params: { amount: a } }).then((r) => { if (r?.ok) this.ui.closeSheet(); }) }, tl(a)))),

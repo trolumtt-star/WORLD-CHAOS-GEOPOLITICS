@@ -678,3 +678,4 @@ textarea.ph-input { border-radius: 12px; resize: none; }
 .wm-legend.pick { background: rgba(200,30,40,0.9); color: #fff; font-size: 14px; font-weight: 800; padding: 8px 14px; }
 .gal-tabs .ph-btn { font-size: 11px; padding: 6px 4px; } .ph-ok { color: #3ddc84; font-weight: 700; } .gal-item .ph-swatch { width: 26px; height: 26px; border-radius: 8px; }
 .ph-wall { min-height: 0; overflow: hidden; } .ph-wall .ph-grid { flex: 1 1 0; min-height: 0; overflow-y: auto; touch-action: pan-y; } .ph-wall .ph-dock { flex: none; }
+.uw-big { font-size: 18px; color: #3ddc84; }

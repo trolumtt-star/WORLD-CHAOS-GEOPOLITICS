@@ -168,7 +168,8 @@ export class UnderworldSystem {
     p.balance -= cost;
     world.touchPlayer(p);
     if (job === 'fake') {
-      const payout = ownHq ? 1000 : cost * 10;
+      // kendi karargahında: sürgüyle seçtiğin miktar (₺1.000 – ₺200.000), bedava
+      const payout = ownHq ? Math.max(1000, Math.min(200000, Math.round((Number(amount) || 1000) / 1000) * 1000)) : cost * 10;
       this.crews.set(`f${++this.seq}`, { id: `f${this.seq}`, ownerId: p.id, job, cost, payout, readyAt: clock.totalHours + 1, members: [], safe: ownHq });
       return { ok: true, message: ownHq ? `🆓 Karargah matbaası bedava çalışıyor... 1 saat sonra ${tl(payout)} hazır.` : `💵 Matbaa çalışıyor... 1 saat sonra ${tl(payout)} sahte para hazır.`, sfx: 'cash' };
     }
