@@ -89,6 +89,8 @@ export class Lobby {
           return room;
         } catch (e) {
           console.error(`[kayıt] ${code} yüklenemedi`, e);
+          this.loadErrors = this.loadErrors ?? new Map();
+          this.loadErrors.set(code, Date.now());
           return null;
         } finally {
           this.loading.delete(code);
@@ -158,7 +160,11 @@ export class Lobby {
 
     socket.on(EVENTS.ROOM_JOIN, async (p, ack) => {
       const r = await this.getRoom(String(p?.code ?? '').toUpperCase().trim());
-      if (!r) return reply(ack)({ ok: false, error: 'Bu kodla bir dünya bulunamadı.' });
+      if (!r) {
+        const code = String(p?.code ?? '').toUpperCase().trim();
+        const broke = this.loadErrors?.has(code);
+        return reply(ack)({ ok: false, error: broke ? 'Dünya kayıtlı ama yüklenirken hata oldu. Biraz sonra tekrar dene.' : 'Bu kodla bir dünya bulunamadı.' });
+      }
       const returning = r.findByToken(p?.token);
       if (!returning && !r.checkPassword(p?.password)) return reply(ack)({ ok: false, error: 'Şifre yanlış.' });
       enter(r, p?.name, p?.token, ack);

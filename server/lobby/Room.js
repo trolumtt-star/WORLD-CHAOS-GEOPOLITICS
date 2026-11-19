@@ -69,7 +69,11 @@ export class Room {
     this.rng = createRng(save ? Math.floor(Math.random() * 1e9) : config.seed);
     this.world = new World(config, this.bus);
     let stats = null;
-    if (save) { restoreWorld(this.world, save); ensureTownExtras(this.world, this.rng, config); }
+    if (save) {
+      restoreWorld(this.world, save);
+      // Yeni sürümde eklenen binalar (göç). Hata olsa bile dünya yine de açılsın.
+      try { ensureTownExtras(this.world, this.rng, config); } catch (e) { console.error(`[room ${this.code}] göç hatası`, e); }
+    }
     else stats = generateWorld(this.world, this.rng, config);
 
     // SIRA ÖNEMLİ

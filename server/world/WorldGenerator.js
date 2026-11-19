@@ -398,7 +398,7 @@ export function ensureTownExtras(world, rng, config) {
   const cands = world.tiles.filter((t) => !t.owner && t.terrain !== 'w' && t.terrain !== 'm'
     && Math.max(Math.max(a - t.i, t.i - b, 0), Math.max(a - t.j, t.j - b, 0)) === 1)
     .sort((x, y) => Math.abs(x.i - (a + b) / 2) + Math.abs(x.j - (a + b) / 2) - Math.abs(y.i - (a + b) / 2) - Math.abs(y.j - (a + b) / 2));
-  const ctx = { counters: { street: 900 } };
+  const ctx = { counters: { street: 900 }, usedNames: {} };
   const made = [];
   for (const type of need) {
     const t = cands.shift();
