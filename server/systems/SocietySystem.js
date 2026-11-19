@@ -30,6 +30,10 @@ export class SocietySystem {
     config.economy.priceMul = S.econ.mul;
     config.economy.wageMul = S.econ.mul;
     this.slow = 0;
+    // NPC ülke yoksa: herkes Kaos Cumhuriyeti vatandaşı, cumhurbaşkanını oyuncular seçer
+    if (!world.republic && ![...world.players.values()].some((p) => p.isAI)) {
+      world.republic = { name: 'Kaos Cumhuriyeti', presidentId: null, candidates: [], votes: {}, nextDay: ctx.clock.day, techs: [], electionHour: 20 };
+    }
     world.logCrime = (p, text) => { p.crimeLog = [...(p.crimeLog ?? []), `${ctx.clock.label?.() ?? ''} ${text}`].slice(-8); };
     world.societyFor = (p) => this.privateFor(p);
   }
@@ -63,6 +67,14 @@ export class SocietySystem {
       orders: S.orders.filter((o) => o.status !== 'done' && (o.buyerId === p.id || o.courierId === p.id)).map((o) => this.orderPublic(o)),
       courierJobs: S.orders.filter((o) => o.status === 'waiting' && o.buyerId !== p.id).length,
     };
+    const R = world.republic;
+    if (R) {
+      out.republic = {
+        name: R.name, presidentId: R.presidentId, president: world.players.get(R.presidentId)?.name ?? null, nextDay: R.nextDay, hour: R.electionHour,
+        candidates: R.candidates.map((id) => ({ id, name: world.players.get(id)?.name ?? '?', votes: Object.values(R.votes).filter((v) => v === id).length })),
+        myVote: R.votes[p.id] ?? null, isPresident: R.presidentId === p.id,
+      };
+    }
     if (this.jobOf(p) === 'judge') out.cases = S.cases.filter((c) => c.status === 'open');
     return out;
   }
@@ -116,6 +128,8 @@ export class SocietySystem {
       }
     }
     // Maç takvimi: her gün 00:00'da duyurulur, 14:00'te başlar
+    const R = world.republic;
+    if (R && time.hour === R.electionHour && time.day >= R.nextDay) this.runElection(ctx, time);
     const M = this.S.match;
     if ((!M || M.status === 'done') && time.hour === 0) this.scheduleMatch(ctx, time);
     if (M?.status === 'upcoming' && time.hour >= 14 && time.totalHours >= M.kickHour) this.kickoff(ctx);
@@ -243,6 +257,73 @@ export class SocietySystem {
       const death = c.wanted >= 5 && murders >= 2 && rng.chance(0.2);
       this.applyVerdict(c, p, { minutes, fine, death }, this.npcJudgeName());
     }
+  }
+
+  // ================================================================== CUMHURİYET SEÇİMİ
+  runFor(p) {
+    const R = this.ctx.world.republic;
+    if (!R) return fail('Bu dünyada cumhuriyet yok (NPC ülkeler var).');
+    if (p.village && R.presidentId !== p.id) return fail('Kendi ülkesi olan aday olamaz.');
+    if (R.candidates.includes(p.id)) return fail('Zaten adaysın.');
+    const fee = Math.round(1000 * this.mul());
+    if (p.balance < fee) return fail(`Adaylık ücreti ${tl(fee)}.`);
+    p.balance -= fee;
+    R.candidates.push(p.id);
+    this.ctx.bus.news('politics', `🗳️ ${p.name}, ${R.name} cumhurbaşkanlığına aday oldu!`);
+    return { ok: true, message: `🗳️ Adaylığın onaylandı. Seçim ${R.nextDay}. gün ${R.electionHour}:00'de.`, sfx: 'success' };
+  }
+
+  vote(p, { candidateId }) {
+    const R = this.ctx.world.republic;
+    if (!R) return fail('Bu dünyada seçim yok.');
+    if (!R.candidates.includes(candidateId)) return fail('Böyle bir aday yok.');
+    R.votes[p.id] = candidateId;
+    return { ok: true, message: `🗳️ Oyun kullanıldı: ${this.ctx.world.players.get(candidateId)?.name}`, sfx: 'click' };
+  }
+
+  runElection({ world, bus, rng }, time) {
+    const R = world.republic;
+    R.nextDay = time.day + 2;
+    if (!R.candidates.length) { bus.news('politics', `🗳️ ${R.name}: aday çıkmadı, seçim ertelendi.`); return; }
+    const tally = Object.fromEntries(R.candidates.map((c) => [c, 0]));
+    for (const v of Object.values(R.votes)) if (v in tally) tally[v]++;
+    const best = Math.max(...Object.values(tally));
+    const top = R.candidates.filter((c) => tally[c] === best);
+    const winner = world.players.get(rng.pick(top));
+    const summary = R.candidates.map((c) => `${world.players.get(c)?.name ?? '?'} ${tally[c]} oy`).join(' · ');
+    R.candidates = [];
+    R.votes = {};
+    if (!winner) return;
+    this.setPresident(winner);
+    bus.news('politics', `🗳️ SEÇİM SONUCU (${summary}) → ${R.name} Cumhurbaşkanı: ${winner.name}!`);
+    bus.emit('net:alert', { level: 'info', text: `🗳️ Yeni Cumhurbaşkanı: ${winner.name}` });
+  }
+
+  /** Cumhurbaşkanı değişince devletin toprakları, binaları, ordusu ve teknolojisi yeni başkana geçer */
+  setPresident(np) {
+    const { world, config } = this.ctx;
+    const R = world.republic;
+    const old = world.players.get(R.presidentId);
+    if (old === np) return;
+    const g = config.world.gridSize, c = Math.floor(g / 2);
+    if (old) {
+      R.techs = [...new Set([...R.techs, ...old.techs])];
+      old.techs = old.personalTechs ?? [];
+      old.village = null;
+      old.countryName = null;
+      old.title = 'Eski Cumhurbaşkanı';
+      world.touchPlayer(old);
+    }
+    for (const t of world.tiles) if (t.gov && old && t.owner === old.id) world.setTileOwner(t, np.id);
+    for (const b of world.buildings.values()) if (b.gov && old && b.ownerKind === 'player' && b.ownerId === old.id) world.setOwner(b, 'player', np.id);
+    for (const u of world.units.values()) if (old && u.ownerId === old.id) { u.ownerId = np.id; u.color = np.color; }
+    np.personalTechs = [...np.techs];
+    np.techs = [...new Set([...np.techs, ...R.techs])];
+    np.village = { i: c, j: c };
+    np.countryName = R.name;
+    np.title = 'Cumhurbaşkanı';
+    R.presidentId = np.id;
+    world.touchPlayer(np);
   }
 
   // ================================================================== ARABA YOLCULARI

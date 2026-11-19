@@ -78,6 +78,14 @@ export class Menu {
     const npcLbl = el('b', {}, '50');
     npc.addEventListener('input', () => { npcLbl.textContent = npc.value; });
     let sandbox = false;
+    let npcNations = true;
+    const npcBtns = el('div', { class: 'seg' });
+    const renderNpc = () => {
+      clear(npcBtns).append(
+        el('button', { class: `seg-b ${npcNations ? 'on' : ''}`, onClick: () => { npcNations = true; renderNpc(); } }, '🤖 NPC Ülkeler Var', el('small', {}, 'Savaşan yapay zekâ ülkeler')),
+        el('button', { class: `seg-b ${!npcNations ? 'on' : ''}`, onClick: () => { npcNations = false; renderNpc(); } }, '🗳️ Yok · Cumhuriyet', el('small', {}, 'Herkes tek ülkede, başkanı oylayın')));
+    };
+    renderNpc();
     const modeBtns = el('div', { class: 'seg' });
     const renderMode = () => {
       clear(modeBtns).append(
@@ -92,10 +100,11 @@ export class Menu {
         el('label', { class: 'field' }, el('span', {}, 'Şifre (isteğe bağlı)'), pw),
         el('label', { class: 'field' }, el('span', {}, 'NPC nüfusu: ', npcLbl), npc),
         el('div', { class: 'field' }, el('span', {}, 'Mod'), modeBtns),
+        el('div', { class: 'field' }, el('span', {}, 'Dünya'), npcBtns),
         el('button', { class: 'btn primary wide big', onClick: async () => {
           const name = nm.get();
           if (!name) return this.error('Takma ad gerekli.');
-          await this.app.enter(() => this.app.net.createRoom({ name, roomName: room.value.trim(), password: pw.value, sandbox, npcCount: Number(npc.value) }));
+          await this.app.enter(() => this.app.net.createRoom({ name, roomName: room.value.trim(), password: pw.value, sandbox, npcCount: Number(npc.value), npcNations }));
         } }, '🚀 DÜNYAYI YARAT')));
   }
 

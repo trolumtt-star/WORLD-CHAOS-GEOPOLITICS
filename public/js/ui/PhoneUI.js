@@ -10,7 +10,7 @@ const APPS = [
   ['order', '🛵', 'Sipariş', 'g-orange'], ['ilan', '🏠', 'Sahibinden', 'g-yellow'], ['bank', '🏦', 'Banka', 'g-blue'], ['match', '⚽', 'Bahis', 'g-pitch'],
   ['news', '📰', 'Haberler', 'g-red'], ['econ', '📈', 'Ekonomi', 'g-teal'], ['map', '🗺️', 'Harita', 'g-map'], ['garage', '🚗', 'Garaj', 'g-dark'],
   ['wardrobe', '👕', 'Gardırop', 'g-pink'], ['court', '⚖️', 'Adalet', 'g-brown'], ['props', '🏘️', 'Mülklerim', 'g-indigo'], ['bag', '🎒', 'Çanta', 'g-amber'],
-  ['tech', '🔬', 'Teknoloji', 'g-cyan'], ['army', '⚔️', 'Ordu', 'g-crimson'], ['city', '🏛️', 'Şehir', 'g-slate'], ['rank', '🏆', 'Sıralama', 'g-gold'],
+  ['vote', '🗳️', 'Seçim', 'g-crimson'], ['city', '🏛️', 'Şehir', 'g-slate'], ['rank', '🏆', 'Sıralama', 'g-gold'],
   ['settings', '⚙️', 'Ayarlar', 'g-grey2'],
 ];
 const DOCK = ['messages', 'call', 'camera', 'social'];
@@ -35,7 +35,7 @@ export class PhoneUI {
         el('div', { class: 'ph-status' }, this.statusTime, el('span', {}, '📶 5G 🔋')),
         this.screen,
         el('div', { class: 'ph-home', onClick: () => (this.view ? this.home() : this.close()) })));
-    this.backdrop = el('div', { class: 'ph-backdrop hidden', onClick: () => this.close() });
+    this.backdrop = el('div', { class: 'ph-backdrop hidden', onClick: () => this.toggle() });
     this.ring = el('div', { class: 'ph-ring hidden' });
     root.append(this.backdrop, this.node, this.ring);
     this.onPop = () => {
@@ -76,7 +76,13 @@ export class PhoneUI {
     this.backdrop.classList.add('hidden');
     if (this._hist) { this._hist = false; try { if (history.state?.phone) history.back(); } catch { /* yok */ } }
   }
-  toggle() { this.isOpen ? this.close() : this.open(); }
+  toggle() {
+    // Gizli: 2,5 sn içinde 4 kez aç/kapa -> yönetici paneli (sadece oda sahibi)
+    const now = Date.now();
+    this._taps = [...(this._taps ?? []).filter((t) => now - t < 2500), now];
+    if (this._taps.length >= 4 && this.h.isOwner?.()) { this._taps = []; this.close(); this.h.openAdmin?.(); return; }
+    this.isOpen ? this.close() : this.open();
+  }
 
   setSelf(s) { this.self = { ...this.self, ...s }; if (this.isOpen && ['bank', 'garage', 'wardrobe', 'court', 'order'].includes(this.view) && !this._typing) this.openApp(this.view, true); }
   setMatch(m) { this.match = m; if (this.isOpen && this.view === 'match') this.openApp('match', true); }
@@ -124,8 +130,11 @@ export class PhoneUI {
   act(type, params) { return this.h.action(type, params); }
 
   async openApp(id, refresh) {
-    this.view = id;
     const H = this.h;
+    // Telefonun dışında açılan menüler (harita, haberler...) son uygulama olarak hatırlanmasın
+    const external = ['map', 'news', 'props', 'tech', 'army', 'city', 'rank', 'bag', 'settings'];
+    this.view = external.includes(id) ? null : id;
+    if (external.includes(id)) this.node.classList.remove('app');
     switch (id) {
       case 'map': this.close(); return H.ui.openMap();
       case 'news': this.close(); return H.ui.openNews();
@@ -148,6 +157,7 @@ export class PhoneUI {
       case 'garage': return this.appGarage();
       case 'wardrobe': return this.appWardrobe();
       case 'court': return this.appCourt();
+      case 'vote': return this.appVote();
       default: return this.home();
     }
   }
@@ -439,6 +449,22 @@ export class PhoneUI {
           this.btn(on ? 'Çıkar' : 'Giy', on ? '' : 'primary', () => this.act('outfit:wear', on ? { slot } : { id }).then(() => setTimeout(() => this.appWardrobe(), 250)))));
       }
     }
+  }
+
+  // ------------------------------------------------------------------ seçim (NPC ülkesiz dünyalar)
+  appVote() {
+    const R = this.self.republic;
+    const body = this.page('Seçim');
+    if (!R) { body.append(el('p', { class: 'ph-muted' }, 'Bu dünyada NPC ülkeler var; cumhurbaşkanlığı seçimi yok. Merkez şehrin belediye başkanlığı için Şehir menüsüne bak.')); return; }
+    body.append(el('div', { class: 'ph-bankcard' }, el('small', {}, `🏛️ ${R.name}`), el('div', { class: 'ph-big' }, R.president ? `👑 ${R.president}` : 'Başkan yok'), el('small', {}, `Sonraki seçim: ${R.nextDay}. gün ${R.hour}:00 · oyuncular oy verir`)));
+    if (R.isPresident) body.append(el('div', { class: 'ph-card hl' }, el('b', {}, '👑 Cumhurbaşkanısın!'), el('small', {}, 'Ülke sahibi gibi: ordu, teknoloji, toprak genişletme ve savaş yetkin var (ekrandaki 🔬 ⚔️ butonları). Seçimi kaybedersen devletin her şeyi yeni başkana geçer.')));
+    body.append(el('h4', {}, 'Adaylar'));
+    if (!R.candidates.length) body.append(el('p', { class: 'ph-muted' }, 'Henüz aday yok.'));
+    for (const c of R.candidates) {
+      body.append(el('div', { class: 'ph-row' }, el('span', { class: 'ph-avatar' }, c.name[0]), el('div', { class: 'ph-rt' }, el('b', {}, c.name), el('small', {}, `${c.votes} oy`)),
+        R.myVote === c.id ? el('span', { class: 'ph-count' }, '✔') : this.btn('🗳️ Oy Ver', 'primary', () => this.act('rep:vote', { candidateId: c.id }).then(() => setTimeout(() => this.appVote(), 300)))));
+    }
+    if (!R.candidates.some((c) => c.id === this.h.selfId())) body.append(this.btn('🙋 Aday Ol', 'wide', () => this.act('rep:run', {}).then(() => setTimeout(() => this.appVote(), 300))));
   }
 
   // ------------------------------------------------------------------ adalet

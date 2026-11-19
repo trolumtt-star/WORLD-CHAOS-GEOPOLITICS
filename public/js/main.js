@@ -107,6 +107,7 @@ class App {
     if (!s) return;
     const res = await this.net.joinRoom({ code: s.code, token: s.token, name: s.name });
     if (!res?.ok) {
+      if (res?.update) return;
       this.toast('Oda kapanmış. Ana menüye dönülüyor.', 'err');
       this.leaveGame(false);
     }

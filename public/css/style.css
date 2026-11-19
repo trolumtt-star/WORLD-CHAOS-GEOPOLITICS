@@ -591,3 +591,41 @@ textarea.ph-input { border-radius: 12px; resize: none; }
 .phone.app .ph-home::after { background: rgba(0,0,0,0.55); }
 .trial { position: absolute; left: 50%; top: calc(56px + var(--sat)); transform: translateX(-50%); width: min(340px, 60vw); padding: 10px 14px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; text-align: center; border-color: rgba(201, 162, 39, 0.8); z-index: 7; }
 .trial b { color: #ffd34d; font-size: 15px; letter-spacing: 0.08em; }
+/* Ülke yönetimi (sadece ülke sahibi) */
+.country-bar { display: flex; flex-direction: column; gap: 6px; }
+.cb-btn { width: 50px; height: 50px; border-radius: 15px; border: 1px solid var(--hair); background: var(--lux); font-size: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; color: #fff; box-shadow: 0 6px 18px rgba(0,0,0,0.45); }
+.cb-btn small { font-size: 8px; font-weight: 800; letter-spacing: 0.03em; opacity: 0.85; }
+.cb-btn.red { background: linear-gradient(160deg, rgba(150, 20, 30, 0.9), rgba(60, 8, 12, 0.85)); }
+@media (max-height: 430px) { .cb-btn { width: 44px; height: 44px; font-size: 17px; } .dock { gap: 7px; } }
+
+/* Güncelleme ekranı */
+.update-gate { position: fixed; inset: 0; z-index: 100; background: radial-gradient(ellipse at center, rgba(20, 40, 90, 0.92), rgba(3, 4, 10, 0.98)); display: flex; align-items: center; justify-content: center; pointer-events: auto; }
+.ug-card { width: min(420px, 90vw); padding: 24px; border-radius: 22px; background: var(--lux); border: 1px solid var(--hair); display: flex; flex-direction: column; gap: 12px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
+.ug-icon { font-size: 56px; animation: float 2s ease-in-out infinite; }
+.ug-card h2 { color: var(--gold); letter-spacing: 0.06em; }
+.ug-card small { color: var(--muted); }
+
+/* Yönetici paneli */
+.admin { position: fixed; z-index: 50; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(720px, 94vw); max-height: 90vh; display: flex; flex-direction: column; border-radius: 20px; overflow: hidden; pointer-events: auto;
+  background: linear-gradient(160deg, rgba(30, 10, 10, 0.96), rgba(8, 8, 14, 0.96)); border: 1px solid rgba(255, 80, 80, 0.45); box-shadow: 0 30px 80px rgba(0,0,0,0.7); }
+.ad-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: rgba(255, 60, 60, 0.15); border-bottom: 1px solid rgba(255, 80, 80, 0.3); }
+.ad-head b { color: #ffd34d; letter-spacing: 0.1em; } .ad-head small { color: var(--muted); flex: 1; }
+.ad-body { overflow-y: auto; padding: 10px 14px 14px; display: grid; grid-template-columns: 1fr 1.4fr; gap: 12px; }
+.ad-body section { display: flex; flex-direction: column; gap: 8px; }
+.ad-body section:nth-child(n+3) { grid-column: 1 / -1; }
+.ad-body h4 { color: #ff8a8a; font-size: 12px; letter-spacing: 0.06em; }
+.ad-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; }
+.ad-btn { padding: 9px 10px; border-radius: 11px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.07); color: #fff; font-weight: 700; font-size: 12px; text-align: left; }
+.ad-btn.on { background: rgba(61, 220, 132, 0.3); border-color: #3ddc84; } .ad-btn.red { background: rgba(200, 30, 40, 0.25); } .ad-btn.strong { background: #c81e1e; }
+.ad-btn.gold { background: linear-gradient(180deg, #ffcc4d, #ff9f1c); color: #1d1405; } .ad-btn.x { width: 34px; text-align: center; }
+.ad-list { display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow-y: auto; }
+.ad-p { display: flex; flex-direction: column; align-items: flex-start; padding: 7px 10px; border-radius: 10px; border: 1px solid transparent; background: rgba(255,255,255,0.05); color: #fff; }
+.ad-p.on { border-color: #ffd34d; background: rgba(255, 211, 77, 0.12); } .ad-p small { color: var(--muted); }
+.ad-in { width: 100%; padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.15); background: rgba(0,0,0,0.4); color: #fff; }
+.ad-amount { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.ad-hint { color: var(--muted); font-size: 11px; }
+.ad-ban { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
+@media (max-height: 430px) { .ad-body { grid-template-columns: 1fr 1fr; } }
+/* Telefon, sağdaki 📱 butonunun solunda açılır: buton hep görünür (aç/kapa) */
+.phone { right: calc(84px + var(--sar)); }
+.dock { z-index: 42; }

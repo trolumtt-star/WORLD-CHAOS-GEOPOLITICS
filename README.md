@@ -100,6 +100,13 @@ NPC ülkeler de bunu yapar: insan oyuncuyu kukla yapar, birbirlerini çoğunlukl
 - **📺 TV:** Kanepede TV izlerken kamera koltuktan ekrana geçer; ekranda canlı haberler, ekonomi, sponsorlu paylaşımlar ve maç skoru döner.
 - **Sade arayüz:** Büyük buton ızgarası kalktı, her şey telefonda.
 
+## 👑 Oda sahibi, güncelleme, cumhuriyet
+
+- **Gizli yönetici paneli:** Sadece odayı kuran açar: 📱 butonuna 2,5 saniye içinde 4 kez bas (aç-kapa). Para ver/al, banla, trolle (hapis, dondur, ışınla, aç bırak, öldür, 5 yıldız, iflas), yanına git / yanına getir, kendine ölümsüzlük-uçuş-açlıksızlık, hapisten kurtul, son teknolojili şehir kur, zamanı ileri sar, güncelleme WhatsApp linki. Hiçbiri haberlere düşmez.
+- **Zorunlu güncelleme:** `shared/version.js` içindeki sürüm artınca eski APK'lar odaya giremez, "Güncelleme geldi" ekranı çıkar: WhatsApp grubunu (panelden ayarlanan link) ya da direkt indirme linkini açar.
+- **NPC ülkesiz dünya:** Oda kurarken "Yok · Cumhuriyet" seçilirse herkes Kaos Cumhuriyeti'nde doğar; 2 günde bir oyuncular telefondaki 🗳️ Seçim'den cumhurbaşkanını seçer. Başkan ülke sahibi yetkilerini alır (ordu, teknoloji, toprak, savaş); kaybedince devletin toprağı, binaları, ordusu ve teknolojisi yeni başkana geçer.
+- **Ülke butonları** (🔬 Teknoloji, ⚔️ Ordu, 🚩 Toprak) sadece ülke sahiplerinin ekranında, telefonda değil.
+
 ## 💾 Kalıcı Dünyalar (Supabase)
 
 Dünyalar her dakika ve sunucu kapanırken Supabase'e kaydedilir; boş dünya 10 dk sonra bellekten çıkar ("💤 Uyuyor") ve biri girince geri yüklenir. Sunucu uyurken geçen zaman (en fazla 5 oyun günü) hızlıca simüle edilir. **🌐 Sunucuya Katıl** ekranında tüm dünyalar listelenir; aynı telefondan dönen oyuncu aynı karakterle devam eder.

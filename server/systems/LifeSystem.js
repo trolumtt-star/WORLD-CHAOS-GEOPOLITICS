@@ -48,6 +48,7 @@ export class LifeSystem {
         continue;
       }
       if (p.jailedUntil > world.clockHours()) continue;
+      if (p.admin?.noNeeds) { p.food = p.water = p.energy = 100; p.health = Math.max(p.health, 100); continue; }
       const sleeping = p.pose === 'sleep';
       p.food = clamp(p.food - L.foodPerHour * hrs * (sleeping ? 0.4 : 1));
       p.water = clamp(p.water - L.waterPerHour * hrs * (sleeping ? 0.4 : 1));
@@ -536,7 +537,7 @@ export class LifeSystem {
   }
 
   damage(p, dmg, attacker, cause) {
-    if (p.dead) return;
+    if (p.dead || p.admin?.god) return;
     p.health = clamp(p.health - dmg);
     if (p.pose === 'sleep' || p.pose === 'sit') p.pose = '';
     this.ctx.world.touchPlayer(p);
@@ -545,7 +546,7 @@ export class LifeSystem {
 
   kill(p, attacker, cause) {
     const { world, bus, config } = this.ctx;
-    if (p.dead) return;
+    if (p.dead || (p.admin?.god && cause !== 'idam edilerek')) return;
     const loss = Math.round(Math.max(0, p.balance) * config.life.deathCashLoss);
     p.balance -= loss;
     if (attacker) attacker.balance += loss; else world.treasury += loss;

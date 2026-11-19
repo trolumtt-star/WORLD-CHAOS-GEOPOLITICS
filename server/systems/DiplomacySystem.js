@@ -206,7 +206,8 @@ export class DiplomacySystem {
   // Hedef geçerli mi? (füze / uçak)
   canStrike(p, x, z) {
     const owner = this.ctx.world.ownerAt(x, z);
-    if (owner === 'state') return { ok: false, error: 'Tarafsız Merkez Kasaba vurulamaz.' };
+    const pres = this.ctx.world.republic?.presidentId;
+    if (owner === 'state' && !(pres && this.ctx.world.atWar(p.id, pres))) return { ok: false, error: 'Tarafsız Merkez Kasaba vurulamaz.' };
     if (owner && owner !== p.id && !this.ctx.world.atWar(p.id, owner)) return { ok: false, error: `Önce ${this.nameOf(owner)}'a savaş ilan etmelisin.` };
     if (owner === p.id) return { ok: false, error: 'Kendi toprağını vuramazsın.' };
     return { ok: true };

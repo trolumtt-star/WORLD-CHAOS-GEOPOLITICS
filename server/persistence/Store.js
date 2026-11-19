@@ -48,6 +48,17 @@ export const store = {
     await this.req(`worlds?code=eq.${encodeURIComponent(code)}`, { method: 'DELETE' });
   },
 
+  async getSetting(key) {
+    if (!this.enabled) return null;
+    const rows = await this.req(`app_settings?key=eq.${encodeURIComponent(key)}&select=value&limit=1`);
+    return rows?.[0]?.value ?? null;
+  },
+
+  async setSetting(key, value) {
+    if (!this.enabled) return;
+    await this.req('app_settings?on_conflict=key', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ key, value: String(value), updated_at: new Date().toISOString() }) });
+  },
+
   /** Uzun süredir kimsenin oynamadığı Sandbox dünyalarını temizle */
   async prune() {
     if (!this.enabled) return;

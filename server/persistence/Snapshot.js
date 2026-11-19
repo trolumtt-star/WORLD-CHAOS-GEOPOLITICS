@@ -38,7 +38,8 @@ export function serializeRoom(room) {
     savedAt: Date.now(),
     meta: {
       code: room.code, name: room.name, passwordHash: room.passwordHash, sandbox: room.sandbox,
-      createdAt: room.createdAt, playerSeq: room._playerSeq, ownerName: room.ownerName ?? null,
+      createdAt: room.createdAt, playerSeq: room._playerSeq, ownerName: room.ownerName ?? null, ownerId: room.ownerId ?? null,
+      banned: [...(room.banned ?? [])], bannedNames: [...(room.bannedNames ?? [])],
     },
     config: room.config,
     clockMs: engine.clock.elapsedMs,
@@ -51,6 +52,7 @@ export function serializeRoom(room) {
       ids: world.ids,
       hazards: world.hazards,
       casualties: world.casualties ?? {},
+      republic: world.republic ?? null,
       society: world.society ? { ...world.society, posts: (world.society.posts ?? []).slice(0, 12), messages: (world.society.messages ?? []).slice(-120) } : null,
       wars: world.wars,
       justifications: world.justifications,
@@ -83,6 +85,7 @@ export function restoreWorld(world, s) {
   world.hazards = w.hazards ?? [];
   world.casualties = w.casualties ?? {};
   if (w.society) world.society = w.society;
+  if (w.republic) world.republic = w.republic;
   world.wars = w.wars instanceof Map ? w.wars : new Map();
   world.justifications = w.justifications instanceof Map ? w.justifications : new Map();
   world.tiles = w.tiles.map((t) => ({ ...t, exploredBy: t.exploredBy instanceof Set ? t.exploredBy : new Set() }));

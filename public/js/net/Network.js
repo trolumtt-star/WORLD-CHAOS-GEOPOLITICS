@@ -1,4 +1,6 @@
 import { EVENTS } from '../../shared/events.js';
+import { GAME_VERSION } from '../../shared/version.js';
+import { showUpdateGate } from '../ui/UpdateGate.js';
 
 /** Socket.io sarmalayıcı: lobi + oyun içi eylemler. Oyun kodu socket'e doğrudan dokunmaz. */
 export class Network {
@@ -39,9 +41,10 @@ export class Network {
     });
   }
 
-  listRooms() { return this.request(EVENTS.LOBBY_LIST, {}); }
-  createRoom(opts) { return this.request(EVENTS.ROOM_CREATE, opts, 15000); }
-  joinRoom(opts) { return this.request(EVENTS.ROOM_JOIN, opts, 35000); }
+  listRooms() { return this.gate(this.request(EVENTS.LOBBY_LIST, { v: GAME_VERSION })); }
+  createRoom(opts) { return this.gate(this.request(EVENTS.ROOM_CREATE, { ...opts, v: GAME_VERSION }, 15000)); }
+  joinRoom(opts) { return this.gate(this.request(EVENTS.ROOM_JOIN, { ...opts, v: GAME_VERSION }, 35000)); }
+  async gate(p) { const r = await p; if (r?.update) showUpdateGate(r); return r; }
   leaveRoom() { return this.request(EVENTS.ROOM_LEAVE, {}); }
 
   action(type, params = {}) { return this.request(EVENTS.ACTION, { action: type, params }); }

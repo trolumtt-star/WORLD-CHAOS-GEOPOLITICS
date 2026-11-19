@@ -30,11 +30,11 @@ export class PlayerController {
       const len = Math.hypot(mx, mz) || 1;
       mx /= len;
       mz /= len;
-      speed = drive ? drive * Math.min(1, inp.mag * 1.15) : this.speed * (inp.sprint && slow >= 1 ? this.sprintMultiplier : 1) * inp.mag * slow;
+      speed = this.noclip ? 55 * inp.mag : drive ? drive * Math.min(1, inp.mag * 1.15) : this.speed * (inp.sprint && slow >= 1 ? this.sprintMultiplier : 1) * inp.mag * slow;
       const p = this.object.position;
       p.x += mx * speed * dt;
       p.z += mz * speed * dt;
-      this.collide(p);
+      if (!this.noclip) this.collide(p);
       p.x = Math.max(-this.bounds, Math.min(this.bounds, p.x));
       p.z = Math.max(-this.bounds, Math.min(this.bounds, p.z));
       let d = Math.atan2(mx, mz) - this.object.rotation.y;
@@ -43,6 +43,9 @@ export class PlayerController {
       this.dirty = true;
     }
     animateWalk(this.object, anim.pose || drive ? 0 : speed, dt, drive ? { ...anim, pose: 'drive' } : anim);
+    // Yönetici uçuşu: karakter havada süzülür
+    const fy = this.noclip ? 7 + Math.sin(performance.now() / 400) * 0.6 : 0;
+    this.object.position.y += (fy - this.object.position.y) * Math.min(1, dt * 4);
 
     this.sendTimer += dt;
     if (this.dirty && this.sendTimer >= SEND_EVERY) {

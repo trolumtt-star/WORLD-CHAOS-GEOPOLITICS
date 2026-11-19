@@ -71,7 +71,12 @@ export class GameUI {
 
     this.phoneBadge = el('i', { class: 'dock-badge hidden' });
     this.phoneBtn = el('button', { class: 'dock-phone', title: 'Telefon (P)', onClick: (e) => { e.stopPropagation(); this.sfx('click'); this.h.onPhone(); } }, '📱', this.phoneBadge);
-    const dock = el('div', { class: 'dock' }, this.phoneBtn);
+    // Sadece ülke sahiplerinde (kurucu ya da cumhurbaşkanı) görünen ülke yönetimi
+    this.countryBar = el('div', { class: 'country-bar hidden' },
+      el('button', { class: 'cb-btn', title: 'Teknoloji', onClick: (e) => { e.stopPropagation(); this.sfx('click'); this.openTech(); } }, '🔬', el('small', {}, 'Teknoloji')),
+      el('button', { class: 'cb-btn red', title: 'Ordu (M)', onClick: (e) => { e.stopPropagation(); this.sfx('click'); this.openMilitary(); } }, '⚔️', el('small', {}, 'Ordu')),
+      el('button', { class: 'cb-btn', title: 'Toprak', onClick: (e) => { e.stopPropagation(); this.sfx('click'); this.openMap(); } }, '🚩', el('small', {}, 'Toprak')));
+    const dock = el('div', { class: 'dock' }, this.countryBar, this.phoneBtn);
     const actions = el('div', { class: 'actions hidden' },
       btn(el('span', {}, '🔍', el('small', {}, 'İncele')), 'big primary', () => this.h.onInteract()),
       btn(el('span', {}, '🏠', el('small', {}, 'Mülklerim')), 'big', () => this.h.onProperties()),
@@ -429,6 +434,8 @@ export class GameUI {
         el('div', { class: 'bc-icon' }, '🔒'), el('div', { class: 'bc-name' }, a.label), el('div', { class: 'bc-time' }, requiredTechLabel(c, 'ads', k))));
     this.openSheet('ads', { icon: '📣', title: 'Reklam Ver', subtitle: `Başarı şansı %${chance} · %${100 - chance} ihtimalle tutmaz` }, el('div', { class: 'card-grid' }, ...cards));
   }
+
+  setCountryBar(on) { this.countryBar.classList.toggle('hidden', !on); }
 
   setPhoneBadge(n) { this.phoneBadge.textContent = n ? String(n) : ''; this.phoneBadge.classList.toggle('hidden', !n); }
 

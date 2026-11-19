@@ -78,6 +78,7 @@ export const ACTIONS = {
     b.name = clean || (def.category === 'residential' ? makeName(type, null, b.address, rng, {}) : `${p.name} ${opt.label}`);
     b.value = Math.round(b.value + opt.cost * 0.9);
     b.construction = { progress: 0, hours: opt.hours };
+    if (world.tileAt(b.x, b.z)?.gov) b.gov = true;
     b.maxHp = buildingMaxHp(b);
     b.hp = b.maxHp;
     b.forSale = false;
@@ -346,6 +347,8 @@ export const ACTIONS = {
   'car:buy'(ctx, p, params) { return soc(ctx).buyCar(p, params); },
   'car:drive'(ctx, p, params) { return soc(ctx).drive(p, params); },
   'car:park'(ctx, p) { return soc(ctx).park(p); },
+  'rep:run'(ctx, p) { return soc(ctx).runFor(p); },
+  'rep:vote'(ctx, p, params) { return soc(ctx).vote(p, params); },
   'car:ride'(ctx, p, params) { return soc(ctx).ride(p, params); },
   'car:leave'(ctx, p) { return soc(ctx).leaveCar(p); },
   'market:listings'(ctx) {

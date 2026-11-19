@@ -22,7 +22,9 @@ export class TerritorySystem {
   }
 
   isAdjacent(world, t, playerId) {
-    return world.neighbors(t).some((n) => n.owner === playerId);
+    // Cumhurbaşkanı merkez şehrin (devletin) sınırından genişleyebilir
+    const pres = world.republic?.presidentId === playerId;
+    return world.neighbors(t).some((n) => n.owner === playerId || (pres && n.owner === 'state'));
   }
 
   scout(ctx, player, i, j) {
@@ -62,6 +64,7 @@ export class TerritorySystem {
     if (player.balance < cost) return { ok: false, error: `Yetersiz bakiye (${tl(cost)} gerekli).` };
     player.balance -= cost;
     world.setTileOwner(t, player.id);
+    if (world.republic?.presidentId === player.id) t.gov = true;
 
     if (t.terrain !== 'm') {
       const c = world.lotCenter(i, j);
@@ -73,6 +76,7 @@ export class TerritorySystem {
       setupOperations(land, rng, config, { fill: false });
       world.addBuilding(land);
       world.setOwner(land, 'player', player.id);
+      if (t.gov) land.gov = true;
     }
     world.touchPlayer(player);
     bus.news('estate', `🚩 ${player.name} topraklarını genişletti (${world.ownedTileCount(player.id)} parsel).`);

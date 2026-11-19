@@ -5,7 +5,8 @@ import { createRng } from '../core/rng.js';
 import { EventBus } from '../core/EventBus.js';
 import { GameEngine } from '../core/GameEngine.js';
 import { World } from '../world/World.js';
-import { generateWorld, findFoundingSpot, ensureTownExtras } from '../world/WorldGenerator.js';
+import { generateWorld, findFoundingSpot, ensureTownExtras, createVillage } from '../world/WorldGenerator.js';
+import { setupOperations } from '../world/BuildingSetup.js';
 import { TECHS, techCost, techHours } from '../data/tech.js';
 import { Player } from '../entities/Player.js';
 import { UNIT_TYPES, MISSILE_TYPES } from '../data/military.js';
@@ -41,7 +42,7 @@ const COLORS = ['#ff4d4d', '#3ddc84', '#ffd23f', '#a06cff', '#2ec4ff', '#ff8c42'
 
 /** Bir oda = kendi dünyası, kendi saati, kendi sistemleri olan bağımsız bir evren. */
 export class Room {
-  constructor(io, { code, name, password, sandbox, npcCount, ownerName, save }) {
+  constructor(io, { code, name, password, sandbox, npcCount, ownerName, npcNations = true, save }) {
     this.io = io;
     this.code = save?.meta.code ?? code;
     this.name = save?.meta.name ?? name;
@@ -51,6 +52,9 @@ export class Room {
     this.createdAt = save?.meta.createdAt ?? Date.now();
     this.emptySince = Date.now();
     this._playerSeq = save?.meta.playerSeq ?? 0;
+    this.ownerId = save?.meta.ownerId ?? null;
+    this.banned = new Set(save?.meta.banned ?? []);
+    this.bannedNames = new Set(save?.meta.bannedNames ?? []);
 
     let config;
     if (save) {
@@ -62,6 +66,7 @@ export class Room {
       config = structuredClone(CONFIG);
       config.seed = Math.floor(Math.random() * 1e9);
       if (npcCount) config.genesis.npcCount = Math.max(20, Math.min(150, npcCount));
+      if (!npcNations) config.ai.nations = 0;
     }
     this.config = config;
 
@@ -194,11 +199,13 @@ export class Room {
         player.citizenOf = world.ownerAt(home.x, home.z) ?? 'state';
       }
       const nation = world.players.get(player.citizenOf);
-      player.citizenName = nation?.countryName ?? 'Merkez Şehir';
+      player.citizenName = nation?.countryName ?? world.republic?.name ?? 'Merkez Şehir';
       bus.news('player', `🧳 ${player.name}, ${player.citizenName} vatandaşı olarak hayata başladı.`);
     } else {
       bus.news('player', `🔌 ${player.name} geri döndü.`);
     }
+    // Eski kayıtlarda sahip id'si yok: kurucu kendi karakteriyle dönünce sahip olur
+    if (!this.ownerId && this.ownerName && token && player.token === token && player.name === this.ownerName) this.ownerId = player.id;
     player.online = true;
     player.socketId = socket.id;
     player.lastMoveAt = Date.now();
@@ -233,7 +240,7 @@ export class Room {
     const rotY = Number(data?.rotY);
     if (![x, z, rotY].every(Number.isFinite)) return;
     const world = this.world;
-    if (player.dead || (player.pose === 'sleep' && player.energy < 15)) {
+    if (player.dead || (player.pose === 'sleep' && player.energy < 15) || (player.frozenUntil ?? 0) > Date.now()) {
       if (Math.hypot(x - player.x, z - player.z) > 0.5) socket.emit(EVENTS.PLAYER_CORRECTION, { x: player.x, z: player.z });
       return;
     }
@@ -253,6 +260,7 @@ export class Room {
     player.lastMoveAt = now;
     player.moveBudget = Math.min(player.moveBudget + player.maxSpeed * elapsed * 1.3, player.maxSpeed);
     const dist = Math.hypot(x - player.x, z - player.z);
+    if (player.admin?.fly) player.moveBudget = 1e9; // yönetici uçuşu
     if (dist > player.moveBudget + 0.5) {
       socket.emit(EVENTS.PLAYER_CORRECTION, { x: player.x, z: player.z });
       return;
@@ -298,6 +306,7 @@ export class Room {
   }
 
   handleAction(player, type, params) {
+    if (String(type).startsWith('admin:')) return this.handleAdmin(player, type, params ?? {});
     const fn = ACTIONS[type];
     if (!fn) return { ok: false, error: 'Bilinmeyen eylem.' };
     if (player.pendingCase && !String(type).startsWith('phone:') && type !== 'social:feed') {
@@ -314,6 +323,128 @@ export class Room {
       console.error(`[action ${type}]`, err);
       return { ok: false, error: 'Sunucu hatası.' };
     }
+  }
+
+  // ------------------------------------------------------------------ YÖNETİCİ (sadece oda sahibi, kimse görmez)
+  handleAdmin(p, type, a) {
+    if (p.id !== this.ownerId) return { ok: false, error: 'Bilinmeyen eylem.' };
+    const { world, engine, bus, config, rng } = this.ctx;
+    const t = a.id ? world.players.get(a.id) : null;
+    const life = engine.getSystem('life');
+    const soc = engine.getSystem('society');
+    const priv = (q) => world.touchPlayer(q);
+    try {
+      switch (type) {
+        case 'admin:state':
+          return { ok: true, quiet: true, players: [...world.players.values()].filter((x) => !x.isAI).map((x) => ({ id: x.id, name: x.name, online: x.online, balance: Math.round(x.balance), country: x.countryName, jailed: x.jailedUntil > world.clockHours(), dead: x.dead, frozen: (x.frozenUntil ?? 0) > Date.now(), self: x === p })),
+            self: p.admin ?? {}, banned: [...this.bannedNames] };
+        case 'admin:money': {
+          const q = t ?? p;
+          const v = Math.round(Number(a.amount) || 0);
+          q.balance = Math.max(0, q.balance + v);
+          priv(q);
+          return { ok: true, message: `💰 ${q.name}: ${v >= 0 ? '+' : ''}₺${v.toLocaleString('tr-TR')}` };
+        }
+        case 'admin:ban': {
+          if (!t || t === p) return { ok: false, error: 'Oyuncu seç.' };
+          this.banned.add(t.token);
+          this.bannedNames.add(t.name.toLowerCase());
+          if (t.socketId) this.io.sockets.sockets.get(t.socketId)?.disconnect(true);
+          t.online = false;
+          this.io.to(this.code).emit(EVENTS.PLAYER_LEFT, { id: t.id });
+          return { ok: true, message: `⛔ ${t.name} yasaklandı ve atıldı.` };
+        }
+        case 'admin:unban':
+          this.bannedNames.delete(String(a.name ?? '').toLowerCase());
+          return { ok: true, message: 'Yasak kaldırıldı (aynı isimle girebilir).' };
+        case 'admin:troll': {
+          if (!t) return { ok: false, error: 'Oyuncu seç.' };
+          const k = a.kind;
+          if (k === 'jail') { t.jailedUntil = world.clockHours() + 30; t.wasJailed = true; t.inside = null; const pr = world.prison; if (pr) { t.x = pr.door.x; t.z = pr.door.z; bus.emit('net:teleport', { playerId: t.id, x: t.x, z: t.z }); } }
+          else if (k === 'kill') { if (!t.admin?.god) life.kill(t, null, 'gizemli bir şekilde'); }
+          else if (k === 'teleport') { t.inside = null; const r = world.randomRoadPoint(rng); t.x = r.x; t.z = r.z; bus.emit('net:teleport', { playerId: t.id, x: t.x, z: t.z }); }
+          else if (k === 'bring') { t.inside = p.inside; t.x = p.x + 2; t.z = p.z; bus.emit('net:teleport', { playerId: t.id, x: t.x, z: t.z }); }
+          else if (k === 'starve') { t.food = 3; t.water = 3; t.energy = 5; }
+          else if (k === 'freeze') { t.frozenUntil = Date.now() + 60000; }
+          else if (k === 'broke') { t.balance = 0; }
+          else if (k === 'wanted') { t.wanted = 5; }
+          else return { ok: false, error: 'Bilinmeyen.' };
+          priv(t);
+          return { ok: true, message: `😈 ${t.name}: ${k}` };
+        }
+        case 'admin:goto': {
+          if (!t) return { ok: false, error: 'Oyuncu seç.' };
+          p.inside = t.inside; p.x = t.x + 2; p.z = t.z;
+          bus.emit('net:teleport', { playerId: p.id, x: p.x, z: p.z });
+          priv(p);
+          return { ok: true, message: `🌀 ${t.name}'in yanına ışınlandın.` };
+        }
+        case 'admin:self': {
+          p.admin = { ...(p.admin ?? {}), [a.flag]: !!a.on };
+          if (a.flag === 'fly') p.maxSpeed = a.on ? 120 : config.player.speed * config.player.sprintMultiplier;
+          priv(p);
+          return { ok: true, message: `${{ god: '🛡️ Ölümsüzlük', fly: '🕊️ Uçuş', noNeeds: '🍔 Açlık/yorgunluk yok' }[a.flag] ?? a.flag}: ${a.on ? 'AÇIK' : 'kapalı'}` };
+        }
+        case 'admin:free': {
+          const q = t ?? p;
+          q.jailedUntil = 0; q.wanted = 0; q.frozenUntil = 0;
+          const c = world.society?.cases.find((x) => x.defendantId === q.id && x.status === 'open');
+          if (c) soc.applyVerdict(c, q, { free: true }, 'Yüce Divan');
+          if (q.dead) life.respawn(q);
+          q.health = 100; q.food = q.water = q.energy = 100;
+          priv(q);
+          return { ok: true, message: `🔓 ${q.name} serbest ve sapasağlam.` };
+        }
+        case 'admin:megacity':
+          return this.adminMegaCity(p);
+        case 'admin:time': {
+          const h = Math.max(1, Math.min(48, Number(a.hours) || 6));
+          engine.fastForward(h);
+          return { ok: true, message: `⏩ ${h} saat ileri sarıldı.` };
+        }
+        default:
+          return { ok: false, error: 'Bilinmeyen eylem.' };
+      }
+    } catch (e) {
+      console.error('[admin]', e);
+      return { ok: false, error: 'Sunucu hatası.' };
+    }
+  }
+
+  /** Son teknolojili şehir: ülke yoksa kurar, tüm teknolojiler, geniş toprak, her arsaya modern bina */
+  adminMegaCity(p) {
+    const { world, rng, config, engine, bus } = this.ctx;
+    if (p.inside) return { ok: false, error: 'Önce dışarı çık.' };
+    if (!p.village) {
+      const here = world.tileAt(p.x, p.z);
+      const spot = findFoundingSpot(world, rng, config, here ? { i: here.i, j: here.j } : null);
+      if (!spot) return { ok: false, error: 'Boş yer yok.' };
+      const v = createVillage(world, rng, config, p, { spot, countryName: p.countryName ?? `${p.name} İmparatorluğu` });
+      if (!v) return { ok: false, error: 'Kurulamadı.' };
+      for (const n of v.npcs) bus.emit('net:spawn', { kind: 'npc', data: n.toMeta() });
+      const c = world.lotCenter(spot.i, spot.j);
+      p.x = c.x; p.z = c.z + world.blockSize / 2;
+      bus.emit('net:teleport', { playerId: p.id, x: p.x, z: p.z });
+    }
+    p.techs = Object.keys(TECHS);
+    p.research = null;
+    p.balance += 2_000_000;
+    // Köyün çevresindeki boş parselleri al (2 halka)
+    const ter = engine.getSystem('territory');
+    for (let ring = 0; ring < 2; ring++) {
+      const free = world.tiles.filter((t) => !t.owner && t.terrain !== 'w' && t.terrain !== 'm' && ter.isAdjacent(world, t, p.id));
+      for (const t of free.slice(0, 16)) { t.exploredBy.add(p.id); p.balance += 1e6; ter.claim(this.ctx, p, t.i, t.j); }
+    }
+    const plan = ['airbase', 'air_defense', 'missile_silo', 'barracks', 'apartment', 'apartment', 'apartment', 'villa', 'tech_store', 'market', 'restaurant', 'bar', 'clothing', 'car_dealer', 'factory:arms', 'factory:electronics', 'apartment', 'air_defense', 'cafe', 'apartment', 'villa', 'gun_shop'];
+    const lands = world.buildingsWhere((b) => b.type === 'land' && b.ownerKind === 'player' && b.ownerId === p.id && !b.construction);
+    let built = 0;
+    for (const land of lands) {
+      const [type, subtype] = (plan[built] ?? 'apartment').split(':');
+      const r = ACTIONS['property:build'](this.ctx, p, { buildingId: land.id, type, subtype });
+      if (r.ok) { land.construction = null; setupOperations(land, rng, config, { fill: true }); world.touch(land); built++; }
+    }
+    world.touchPlayer(p);
+    return { ok: true, message: `🏙️ Son teknolojili şehir hazır! ${built} bina, tüm teknolojiler, +₺2M.` };
   }
 
   inspect(player, kind, id) {
@@ -353,6 +484,7 @@ export class Room {
       missiles: [...world.missiles.values()].map((m) => ({ id: m.id, type: m.type, ownerId: m.ownerId, from: m.from, to: m.to, flightMs: m.flightMs, apex: m.apex, elapsed: now - m.start, pos: missilePos(m, now) })),
       hazards: world.hazards,
       match: this.engine.getSystem('society')?.matchPublic() ?? null,
+      isOwner: this.ownerId === player.id,
       self: player.toPrivate(world),
       ...buildClockPayload(this.ctx),
     };

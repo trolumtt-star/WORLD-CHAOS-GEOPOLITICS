@@ -3,6 +3,7 @@ import { CONFIG } from '../config.js';
 import { Room, sanitizeName } from './Room.js';
 import { store } from '../persistence/Store.js';
 import { serializeRoom, parseSnapshot, gzip, gunzip } from '../persistence/Snapshot.js';
+import { GAME_VERSION, APK_URL } from '../../shared/version.js';
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -17,7 +18,9 @@ export class Lobby {
     this.loading = new Map();
     this.saved = [];      // veritabanındaki dünyaların özeti (önbellek)
     this.savedAt = 0;
+    this.settings = { whatsapp: process.env.UPDATE_WHATSAPP_URL || '' };
     io.on('connection', (socket) => this.onConnection(socket));
+    store.getSetting('whatsapp').then((v) => { if (v) this.settings.whatsapp = v; }).catch(() => {});
     setInterval(() => this.cleanup(), 30_000).unref();
     if (store.enabled) {
       console.log('[kayıt] Supabase kaydı AÇIK — dünyalar kalıcı');
@@ -127,11 +130,15 @@ export class Lobby {
     const refill = setInterval(() => { actionBudget = 20; }, 1000);
 
     const reply = (ack) => (typeof ack === 'function' ? ack : () => {});
+    // Eski APK: oynamadan önce güncellemesi gerekir
+    const outdated = (p) => Number(p?.v ?? 0) < GAME_VERSION;
+    const updateReply = () => ({ ok: false, update: true, error: '📲 Yeni güncelleme var! İndirmeden oynayamazsın.', version: GAME_VERSION, apk: APK_URL, whatsapp: this.settings.whatsapp });
 
-    const enter = (r, name, token, ack) => {
+    const enter = (r, name, token, ack, owner = false) => {
       if (room) this.leave(socket, room, player);
       const p = r.addPlayer(socket, name, token);
       if (!p) return reply(ack)({ ok: false, error: 'Oda dolu.' });
+      if (owner) r.ownerId = p.id;
       room = r;
       player = p;
       socket.join(r.code);
@@ -140,9 +147,13 @@ export class Lobby {
       socket.to(r.code).emit(EVENTS.PLAYER_JOINED, p.toPublic());
     };
 
-    socket.on(EVENTS.LOBBY_LIST, async (_p, ack) => reply(ack)({ ok: true, rooms: await this.listAll(), persistent: store.enabled }));
+    socket.on(EVENTS.LOBBY_LIST, async (p, ack) => {
+      if (outdated(p)) return reply(ack)(updateReply());
+      reply(ack)({ ok: true, rooms: await this.listAll(), persistent: store.enabled });
+    });
 
     socket.on(EVENTS.ROOM_CREATE, (p, ack) => {
+      if (outdated(p)) return reply(ack)(updateReply());
       if (this.rooms.size >= CONFIG.maxRooms) return reply(ack)({ ok: false, error: 'Sunucu dolu, daha fazla oda açılamıyor.' });
       const code = this.newCode();
       const r = new Room(this.io, {
@@ -152,19 +163,22 @@ export class Lobby {
         sandbox: !!p?.sandbox,
         npcCount: Number(p?.npcCount) || undefined,
         ownerName: sanitizeName(p?.name),
+        npcNations: p?.npcNations !== false,
       });
       this.rooms.set(code, r);
-      enter(r, p?.name, null, ack);
+      enter(r, p?.name, null, ack, true);
       this.saveRoom(r).then(() => { this.savedAt = 0; }).catch((e) => console.error('[kayıt]', e.message));
     });
 
     socket.on(EVENTS.ROOM_JOIN, async (p, ack) => {
+      if (outdated(p)) return reply(ack)(updateReply());
       const r = await this.getRoom(String(p?.code ?? '').toUpperCase().trim());
       if (!r) {
         const code = String(p?.code ?? '').toUpperCase().trim();
         const broke = this.loadErrors?.has(code);
         return reply(ack)({ ok: false, error: broke ? 'Dünya kayıtlı ama yüklenirken hata oldu. Biraz sonra tekrar dene.' : 'Bu kodla bir dünya bulunamadı.' });
       }
+      if (r.banned?.has(String(p?.token ?? '')) || r.bannedNames?.has(sanitizeName(p?.name).toLowerCase())) return reply(ack)({ ok: false, error: '⛔ Bu dünyaya girişin yasaklandı.' });
       const returning = r.findByToken(p?.token);
       if (!returning && !r.checkPassword(p?.password)) return reply(ack)({ ok: false, error: 'Şifre yanlış.' });
       enter(r, p?.name, p?.token, ack);
@@ -185,8 +199,14 @@ export class Lobby {
       if (room && player) room.handleVoice(socket, player, d);
     });
 
-    socket.on(EVENTS.ACTION, (msg, ack) => {
+    socket.on(EVENTS.ACTION, async (msg, ack) => {
       if (!room || !player) return reply(ack)({ ok: false, error: 'Odada değilsin.' });
+      if (msg?.action === 'admin:updateLink' && room.ownerId === player.id) {
+        this.settings.whatsapp = String(msg.params?.url ?? '').trim().slice(0, 200);
+        store.setSetting('whatsapp', this.settings.whatsapp).catch(() => {});
+        return reply(ack)({ ok: true, message: '🔗 Güncelleme linki kaydedildi.' });
+      }
+      if (msg?.action === 'admin:state' && room.ownerId === player.id) return reply(ack)({ ...room.handleAction(player, 'admin:state', {}), whatsapp: this.settings.whatsapp });
       if (--actionBudget < 0) return reply(ack)({ ok: false, error: 'Çok hızlı! Biraz yavaşla.' });
       reply(ack)(room.handleAction(player, msg?.action, msg?.params ?? {}));
     });

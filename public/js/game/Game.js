@@ -16,6 +16,7 @@ import { VoiceChat } from '../net/VoiceChat.js';
 import { setWeapon } from '../entities/EntityManager.js';
 import { WEAPONS, canFoundAtTiles } from '../../shared/interiors.js';
 import { PhoneUI } from '../ui/PhoneUI.js';
+import { AdminUI } from '../ui/AdminUI.js';
 import { OUTFITS, CARS, CLUBS, priceOf } from '../../shared/catalogs.js';
 
 /** Bir oyun oturumu: sahne + ağ olayları + arayüz + döngü. */
@@ -167,7 +168,10 @@ export class Game {
       myShops: () => [...this.city.entries.values()].map((e) => e.data).filter((b) => b.ownerId === this.selfId && this.init.catalog.buildings[b.type]?.category === 'commercial'),
       icon: (t) => this.init.catalog.buildings[t]?.icon ?? '🏠',
       hourNow: () => (this.clockBase.day - 1) * 24 + this.clockBase.hour,
+      isOwner: () => !!this.init.isOwner,
+      openAdmin: () => this.admin.open(),
     });
+    this.admin = new AdminUI(app.ui, { action: (t, p) => this.net.action(t, p), toast: (t, k) => this.ui.toast(t, k), sfx: (n) => this.audio.play(n) });
     this.phone.setMatch(this.match);
     this.voice = new VoiceChat({
       audio: this.audio,
@@ -564,6 +568,8 @@ export class Game {
     if (s.tv && !before.tv) this.interior.setTv(['📺 HABERLER', this.ui.newsLog[0]?.text?.slice(0, 30) ?? 'Şehirde bugün']);
     this.incidentNpc = s.incident?.npcId ?? null;
     this.phone.setSelf({ ...this.ui.self });
+    this.ui.setCountryBar(!!s.village);
+    this.controller.noclip = !!s.admin?.fly;
     const me = this.entities.getPlayer(this.selfId);
     if (me) this.entities.setCar(me, s.driving ?? '');
     if (s.tv && !before.tv) this.enterTv();
@@ -1109,6 +1115,7 @@ export class Game {
     this.running = false;
     this.phone?.close();
     this.phone?.dispose();
+    this.admin?.node.remove();
     this.voice.dispose();
     this.interior.clear();
     document.removeEventListener('pointerlockchange', this.onLockChange);

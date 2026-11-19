@@ -110,6 +110,7 @@ export class Player {
       shift: this.shift ? { buildingId: this.shift.buildingId, done: this.shift.done, task: this.shift.task && { label: this.shift.task.label, spotId: this.shift.task.spotId, secs: this.shift.task.secs } } : null,
       incident: world.incidentFor?.(this) ?? null,
       followers: this.followers ?? 0,
+      admin: this.admin ?? null,
       ...(world.societyFor?.(this) ?? {}),
     };
   }
