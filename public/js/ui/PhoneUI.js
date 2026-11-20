@@ -10,7 +10,7 @@ const APPS = [
   ['order', '🛵', 'Sipariş', 'g-orange'], ['ilan', '🏠', 'Sahibinden', 'g-yellow'], ['bank', '🏦', 'Banka', 'g-blue'], ['match', '⚽', 'Bahis', 'g-pitch'],
   ['news', '📰', 'Haberler', 'g-red'], ['econ', '📈', 'Ekonomi', 'g-teal'], ['map', '🗺️', 'Harita', 'g-map'], ['garage', '🏎️', 'Galeri', 'g-dark'],
   ['wardrobe', '👕', 'Gardırop', 'g-pink'], ['court', '⚖️', 'Adalet', 'g-brown'], ['props', '🏘️', 'Mülklerim', 'g-indigo'], ['bag', '🎒', 'Çanta', 'g-amber'],
-  ['org', '🕴️', 'Örgüt', 'g-dark'], ['vote', '🗳️', 'Seçim', 'g-crimson'], ['city', '🏛️', 'Şehir', 'g-slate'], ['rank', '🏆', 'Sıralama', 'g-gold'],
+['vote', '🗳️', 'Seçim', 'g-crimson'], ['city', '🏛️', 'Şehir', 'g-slate'], ['rank', '🏆', 'Sıralama', 'g-gold'],
   ['settings', '⚙️', 'Ayarlar', 'g-grey2'],
 ];
 const DOCK = ['messages', 'call', 'camera', 'social'];
@@ -601,7 +601,7 @@ export class PhoneUI {
     const V = s.veh ?? { cars: (s.cars ?? []).map((c) => ({ ...c, parked: null })), helis: [] };
     const mul = s.econ?.mul ?? 1;
     const body = this.page('🏎️ Galeri');
-    const tabs = [['mine', '🔑 Araçlarım'], ['car', '🚗 Arabalar'], ['heli', '🚁 Helikopter'], ['org', '🕴️ Örgüt Filosu']];
+    const tabs = [['mine', '🔑 Araçlarım'], ['car', '🚗 Arabalar'], ['heli', '🚁 Helikopter']];
     body.append(el('div', { class: 'ph-row-actions gal-tabs' }, ...tabs.map(([k, l]) => this.btn(l, k === tab ? 'primary' : '', () => this.appGarage(k)))));
     const run = (type, params, confirm) => this.h.runAction({ type, params, confirm }).then(() => setTimeout(() => this.openApp('garage', true), 300));
     const swatch = (c) => el('span', { class: 'ph-swatch', style: { background: c.diamond ? 'linear-gradient(135deg,#fff,#bfefff,#fff)' : c.gold ? 'linear-gradient(135deg,#ffe58a,#d4af37,#8a6d1a)' : hex(c.color) } });

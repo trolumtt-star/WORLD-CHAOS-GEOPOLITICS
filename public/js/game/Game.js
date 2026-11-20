@@ -19,7 +19,7 @@ import { WEAPONS, canFoundAtTiles } from '../../shared/interiors.js';
 import { PhoneUI } from '../ui/PhoneUI.js';
 import { AdminUI } from '../ui/AdminUI.js';
 import { MatchSim } from './MatchSim.js';
-import { OUTFITS, CARS, HELIS, CLUBS, priceOf } from '../../shared/catalogs.js';
+import { OUTFITS, CARS, HELIS, CLUBS, priceOf, AD_TIERS, adTier } from '../../shared/catalogs.js';
 
 /** Bir oyun oturumu: sahne + ağ olayları + arayüz + döngü. */
 /** Onay sorulmadan direkt yapılan satın almalar */
@@ -132,6 +132,8 @@ export class Game {
         onSprintToggle: () => (this.controls.sprintToggle = !this.controls.sprintToggle),
         onTargetMissile: (type, def) => this.startTargeting({ kind: 'missile', type, def }),
         onTargetMove: () => this.startTargeting({ kind: 'move' }),
+        onNation: () => this.openNation(),
+        onPreviewAD: (buildingId, sub) => this.showRangeFor(this.city.get(buildingId), sub),
         onTargetAir: (type, def) => this.startTargeting({ kind: 'air', type, def }),
         onFound: () => this.runAction({ type: 'country:found', params: {}, input: { title: '🏳️ Ülkenin adı ne olsun?', fields: [{ key: 'name', label: 'Ülke adı', kind: 'text', value: `${this.roster.get(this.selfId)?.name ?? ''} Cumhuriyeti` }] } }),
         nameOf: (id) => this.roster.get(id)?.countryName ?? this.roster.get(id)?.name ?? id,
@@ -449,16 +451,35 @@ export class Game {
     }, 250);
   }
 
-  showRangeFor(b) {
+  /** Hava savunma menzil halkası. preview: inşa etmeden önce kademeyi göster + mevcut kalkanlarını soluk çiz */
+  showRangeFor(b, previewSub = null) {
     for (const r of this.adRings) this.kit.scene.remove(r);
     this.adRings = [];
-    if (b?.type !== 'air_defense') return;
-    const R = this.init.config.airDefenseRange;
-    const ring = new THREE.Mesh(new THREE.RingGeometry(R - 1, R, 64), new THREE.MeshBasicMaterial({ color: 0x3dff8a, transparent: true, opacity: 0.6, side: THREE.DoubleSide }));
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.set(b.x, 0.5, b.z);
-    this.kit.scene.add(ring);
-    this.adRings.push(ring);
+    if (!b || (b.type !== 'air_defense' && !previewSub)) return;
+    const ring = (x, z, R, color, op, fill) => {
+      const w = Math.max(1.2, R / 90);
+      const m = new THREE.Mesh(new THREE.RingGeometry(R - w, R, 96), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: op, side: THREE.DoubleSide, depthWrite: false }));
+      m.rotation.x = -Math.PI / 2; m.position.set(x, 0.6, z);
+      this.kit.scene.add(m); this.adRings.push(m);
+      if (fill) {
+        const d = new THREE.Mesh(new THREE.CircleGeometry(R - w, 96), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: fill, side: THREE.DoubleSide, depthWrite: false }));
+        d.rotation.x = -Math.PI / 2; d.position.set(x, 0.5, z);
+        this.kit.scene.add(d); this.adRings.push(d);
+      }
+    };
+    const T = previewSub ? AD_TIERS[previewSub] : adTier(b);
+    if (previewSub) {
+      for (const id of this.ui.self.owned ?? []) {
+        const o = this.city.get(id);
+        if (o?.type === 'air_defense' && o.id !== b.id) ring(o.x, o.z, adTier(o).range, 0x3d9bff, 0.35, 0.04);
+      }
+    }
+    ring(b.x, b.z, T.range, T.nuke ? 0xffcc33 : 0x3dff8a, 0.75, 0.08);
+    if (previewSub) {
+      this.ui.toast(`📡 ${T.label}: menzil ${T.range} m · isabet %${Math.round(T.hit * 100)}${T.nuke ? ' · ☢️ nükleer önler' : ''} (yeşil halka)`, 'info');
+      clearTimeout(this._adPrevT);
+      this._adPrevT = setTimeout(() => { if (!this.inspecting) this.showRangeFor(null); }, 20000);
+    }
   }
 
   interact() {
@@ -907,6 +928,55 @@ export class Game {
         el('button', { class: 'btn wide', onClick: () => { this.ui.closeSheet(); this.phone.open('org'); } }, '🕴️ Örgüt Yönetimi (adam tut, görev ver)')));
   }
 
+  /** 💻 Saray bilgisayarı: siber harekât */
+  async openHack(targetId = null) {
+    const res = await this.net.action('hack:info', {});
+    if (!res?.ok) return this.ui.toast(res?.error ?? 'Bilgisayar açılmadı.', 'err');
+    const { targets, ops } = res.data;
+    if (!targets.length) return this.ui.toast('Hacklenecek başka ülke yok.', 'warn');
+    let sel = targetId ?? targets[0].id;
+    const box = el('div', { class: 'col' });
+    const draw = () => {
+      box.replaceChildren(
+        el('small', { class: 'muted' }, 'Hedef ülke seç, sonra harekâtı başlat. Başarısız olursan hedef seni öğrenir. 🛡️ = hedefin siber savunması.'),
+        el('div', { class: 'row wrap' }, ...targets.map((t) => el('button', { class: `btn ${t.id === sel ? 'primary' : ''}`, onClick: () => { sel = t.id; draw(); } },
+          `${t.ai ? '🤖' : '👤'} ${t.country}${t.shield ? ` 🛡️%${t.shield}` : ''}`))),
+        ...ops.map((o) => el('div', { class: 'uw-card' },
+          el('div', { class: 'uw-h' }, el('b', {}, o.label)),
+          el('small', {}, `${o.desc} · Başarı %${Math.round(o.chance * 100)} · Bekleme ${Math.round(o.cooldown / 60000)} dk`),
+          el('button', { class: `btn ${o.ready ? '' : 'danger'}`, disabled: o.ready > 0, onClick: async () => {
+            const r = await this.runAction({ type: 'hack:run', params: { op: o.key, targetId: sel } });
+            if (r) this.openHack(sel);
+          } }, o.ready ? `⏳ ${o.ready} sn` : `💻 Başlat · ${tl(o.cost)}`))));
+    };
+    draw();
+    this.ui.openSheet('hack', { icon: '💻', title: 'Siber Harekât Merkezi', subtitle: 'Saray bilgisayarı · gizli operasyonlar' }, box);
+  }
+
+  /** 🏳️ Ülke paneli: nüfus, gelir, mutluluk, politikalar */
+  openNation() {
+    const n = this.ui.self.nation;
+    if (!n) return this.ui.toast('Henüz bir ülken yok.', 'warn');
+    const pol = (key, label, desc) => el('div', { class: 'uw-card' },
+      el('div', { class: 'uw-h' }, el('b', {}, label)), el('small', {}, desc),
+      el('button', { class: `btn ${n.policies[key] ? 'primary' : ''}`, onClick: () => this.runAction({ type: 'nation:policy', params: { key, on: !n.policies[key] } }).then(() => setTimeout(() => this.openNation(), 300)) }, n.policies[key] ? '✅ Açık (kapat)' : '⬜ Kapalı (aç)'));
+    const warn = [n.unrest && `🔥 İsyan: ${n.unrest} sn`, n.adLock && `📡 Hava savunması kilitli: ${n.adLock} sn`, n.bankLock && `🏦 Banka kilitli: ${n.bankLock} sn`].filter(Boolean);
+    this.ui.openSheet('nation', { icon: '🏳️', title: this.ui.self.countryName ?? 'Ülkem', subtitle: `${tl(n.perSec)}/sn gelir` },
+      el('div', { class: 'col' },
+        warn.length ? el('div', { class: 'uw-card' }, ...warn.map((w) => el('b', {}, w))) : '',
+        el('div', { class: 'uw-card' },
+          el('div', {}, `👥 Nüfus: ${n.pop.toLocaleString('tr-TR')} / ${n.cap.toLocaleString('tr-TR')} kapasite`),
+          el('div', {}, `😊 Mutluluk: %${n.happy}`),
+          el('div', {}, `💰 Gelir: ${tl(n.perSec)}/sn (binalar ${tl(n.fromBuildings)} + vergi ${tl(n.fromTax)})${n.mul < 1 ? ` ×${n.mul}` : ''}`),
+          el('div', {}, `🪖 Asker sınırı: ${n.soldierCap.toLocaleString('tr-TR')} (nüfusun %${n.policies.mobilize ? 25 : 10}'u)`),
+          el('small', { class: 'muted' }, n.factors.map(([l, v]) => `${l} ${v > 0 ? '+' : ''}${v}`).join(' · ') || 'Mutluluğu artırmak için hastane, okul, park, dükkan kur.')),
+        el('small', { class: 'muted' }, '🏠 Konut kur → kapasite artar (ev 1.000, apartman 10.000). Mutlu halk hızlı çoğalır ve diğer ülkelerden göç gelir. Her bina saniyede değerinin 1/600\'ü kadar para kazandırır.'),
+        pol('birth', '👶 Doğum Teşviki', 'Nüfus %50 daha hızlı artar. Her saat kişi başı ₺0,05 masraf.'),
+        pol('open', '🛂 Açık Kapı Göç', 'Göç 2 kat artar ama mutluluk -5.'),
+        pol('mobilize', '🚨 Seferberlik', 'Asker sınırı %10 → %25. Gelir -%15, mutluluk -10.'),
+        el('button', { class: 'btn wide', onClick: () => this.openHack() }, '💻 Siber Harekât (saray bilgisayarı)')));
+  }
+
   /** Yeraltı patronu: parayı ver, adamlar işi yapsın */
   openUnderworld() {
     const s = this.ui.self;
@@ -1101,9 +1171,11 @@ export class Game {
       case 'pitch': return this.match?.status === 'live' ? this.ui.toast('⚽ Kadrodaysan ekrandaki ⚽ Şut butonuna bas!', 'info') : this.phone.open('match');
       case 'reception':
         return open(act(`🩺 Tedavi Ol · ₺250`, 'primary', 'heal'), el('p', { class: 'muted' }, `❤️ Can %${Math.round(s.health)}`));
+      case 'pc': return this.openHack();
       case 'desk':
         if (b.type === 'bank') return this.phone.open('bank');
         if (b.type === 'town_hall') return open(
+          el('button', { class: 'btn primary', onClick: () => this.openNation() }, '🏳️ Ülke Yönetimi'),
           el('button', { class: 'btn primary', onClick: () => this.ui.openTech() }, '🔬 Teknoloji'),
           el('button', { class: 'btn danger', onClick: () => this.ui.openMilitary(this.myUnits().length) }, '⚔️ Ordu'),
           el('button', { class: 'btn', onClick: () => this.ui.openMap() }, '🗺️ Toprak'),

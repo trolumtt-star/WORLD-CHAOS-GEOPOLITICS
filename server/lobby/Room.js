@@ -40,6 +40,8 @@ import { UnderworldSystem } from '../systems/UnderworldSystem.js';
 import { IndoorSystem } from '../systems/IndoorSystem.js';
 import { OrgSystem } from '../systems/OrgSystem.js';
 import { VehicleSystem } from '../systems/VehicleSystem.js';
+import { NationSystem } from '../systems/NationSystem.js';
+import { HackSystem } from '../systems/HackSystem.js';
 import { interiorLayout, interiorOrigin } from '../../shared/interiors.js';
 
 const COLORS = ['#ff4d4d', '#3ddc84', '#ffd23f', '#a06cff', '#2ec4ff', '#ff8c42', '#ff5fa2', '#00e0b8', '#c0ff3e', '#ffffff'];
@@ -109,10 +111,11 @@ export class Room {
       .use(new AiSystem())
       .use(new LifeSystem())
       .use(new SocietySystem())
-      .use(new UnderworldSystem())
       .use(new IndoorSystem())
       .use(new OrgSystem())
       .use(new VehicleSystem())
+      .use(new NationSystem())
+      .use(new HackSystem())
       .use(new NetworkSyncSystem(io, this.code));
     this.ctx = this.engine.ctx;
     this.ctx.room = this;
@@ -203,19 +206,19 @@ export class Room {
       });
       world.players.set(player.id, player);
       if (this.sandbox) player.techs = Object.keys(TECHS);
-      if (home) {
-        player.citizenOf = world.ownerAt(home.x, home.z) ?? 'state';
-        // Kimsenin evi yok: herkes kirada başlar
-        this.engine.getSystem('society').setHome(player, home);
-      }
       player.gender = gender === 'f' ? 'f' : 'm';
-      // Başlangıçta rastgele bir iş: beğenmezsen gidip başka iş bulursun
-      if (!this.sandbox) this.engine.getSystem('society').assignJob(player);
+      // ÜLKE MODU: herkes kendi ülkesinin başkanı olarak başlar
+      if (!this.engine.getSystem('nation').ensureCountry(player) && home) {
+        // haritada yer kalmadıysa vatandaş olarak başlar
+        player.citizenOf = world.ownerAt(home.x, home.z) ?? 'state';
+        this.engine.getSystem('society').setHome(player, home);
+        player.rent = null;
+      }
       const nation = world.players.get(player.citizenOf);
-      player.citizenName = nation?.countryName ?? world.republic?.name ?? 'Merkez Şehir';
-      bus.news('player', `🧳 ${player.name}, ${player.citizenName} vatandaşı olarak hayata başladı.`);
+      player.citizenName = player.countryName ?? nation?.countryName ?? world.republic?.name ?? 'Merkez Şehir';
     } else {
       bus.news('player', `🔌 ${player.name} geri döndü.`);
+      if (!player.village) this.engine.getSystem('nation').ensureCountry(player);
     }
     // Eski kayıtlarda sahip id'si yok: kurucu kendi karakteriyle dönünce sahip olur
     if (!this.ownerId && this.ownerName && token && player.token === token && player.name === this.ownerName) this.ownerId = player.id;
@@ -333,6 +336,7 @@ export class Room {
     try {
       const r = fn(this.ctx, player, params ?? {}) ?? { ok: true };
       this.world.touchPlayer(player);
+      if (r && !r.ok && (player.bankLockUntil ?? 0) > Date.now()) return { ok: false, error: `🔒 Banka hesapların hacklendi! ${Math.ceil((player.bankLockUntil - Date.now()) / 1000)} sn harcama yapamazsın.` };
       return r;
     } catch (err) {
       console.error(`[action ${type}]`, err);

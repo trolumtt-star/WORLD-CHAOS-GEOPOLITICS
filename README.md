@@ -49,6 +49,14 @@ npx cap open android                                         # Android Studio'da
 | İncele | Bir şeye dokun / 🔍 | Tıkla / E |
 | Ordu / Mülkler / Şehir | Sağ alttaki butonlar | M / B / C |
 
+## 🏳️ v0.31 — Ülke Modu
+- Herkes kendi ülkesinin başkanı olarak başlar (başkent + köy otomatik kurulur, 25.000₺).
+- Karteller, soygun, açlık/kira/iş kalktı. Meslekleri NPC'ler yapar.
+- Her bina saniyede değerinin 1/600'ü kadar para getirir (~10 dakikada kendini öder). Askeri binalar gelir getirmez.
+- Nüfus: konutlar kapasite verir, mutluluk büyümeyi belirler, mutlu ülkeye göç olur. Politikalar: 👶 doğum teşviki, 🛂 açık kapı, 🚨 seferberlik. Asker sınırı nüfusun %10'u (seferberlikte %25).
+- 📡 11 kademeli hava savunması (Stinger ₺15.000 → Yıldız Kalkanı ₺12.000.000, 90 m → 1300 m). İnşa ederken menzil halkası görünür. Nükleeri sadece THAAD ve üstü durdurur.
+- 💻 Saray bilgisayarı: hava savunması kilitleme (3 dk), banka kilitleme + %10 çalma (2 dk), sahte paylaşımla isyan (%25, 10 dk). 🛡️ Siber Güvenlik Merkezi şansı düşürür.
+
 ## 🏰 Faz 1: Açık Dünya, Köyler, Teknoloji
 
 - **Açık dünya:** 20×20 parsellik harita. Ova, orman, karlı dağ sıraları, kıvrılan bir nehir ve ortada tarafsız Merkez Kasaba var.

@@ -26,6 +26,7 @@ function ownedBuilding(ctx, player, id) {
 
 function pay(ctx, player, amount) {
   if (player.balance < amount) return false;
+  if (amount > 0 && (player.bankLockUntil ?? 0) > Date.now()) return false; // hacklenmiş banka
   player.balance -= amount;
   ctx.world.touchPlayer(player);
   return true;
@@ -70,7 +71,7 @@ export const ACTIONS = {
     const def = BUILDING_TYPES[type];
     const maxFoot = world.blockSize - world.roadWidth - 4;
     b.type = type;
-    b.subtype = type === 'factory' || type === 'mansion' ? subtype : null;
+    b.subtype = type === 'factory' || type === 'mansion' || type === 'air_defense' ? subtype : null;
     b.variant = rng.int(0, 3);
     b.width = Math.round(Math.min(maxFoot, rng.range(def.footprint[0], def.footprint[1])));
     b.depth = Math.round(Math.min(maxFoot, rng.range(def.footprint[0], def.footprint[1])));
@@ -326,28 +327,19 @@ export const ACTIONS = {
   'job:task'(ctx, p) { return life(ctx).doTask(p); },
   'combat:attack'(ctx, p, { kind, id }) { return life(ctx).attack(p, String(kind), String(id)); },
   'combat:equip'(ctx, p, { weapon }) { return life(ctx).equip(p, String(weapon)); },
-  'under:order'(ctx, p, params) { return ctx.engine.getSystem('underworld').order(p, params); },
   'home:rent'(ctx, p, { buildingId }) { return ctx.engine.getSystem('society').rentHome(p, buildingId); },
   'home:leave'(ctx, p) { return ctx.engine.getSystem('society').leaveHome(p); },
   'ceo:hire'(ctx, p, params) { return ctx.engine.getSystem('society').ceoHire(p, params); },
   'ceo:fire'(ctx, p, params) { return ctx.engine.getSystem('society').ceoFire(p, params); },
+  'hack:info'(ctx, p) { return { ok: true, data: ctx.engine.getSystem('hack').info(p) }; },
+  'hack:run'(ctx, p, params) { return ctx.engine.getSystem('hack').run(p, params); },
+  'nation:policy'(ctx, p, params) { return ctx.engine.getSystem('nation').setPolicy(p, params); },
   'veh:buy'(ctx, p, params) { return ctx.engine.getSystem('vehicles').buy(p, params); },
   'veh:lock'(ctx, p, params) { return ctx.engine.getSystem('vehicles').lock(p, params); },
   'veh:steal'(ctx, p, params) { return ctx.engine.getSystem('vehicles').steal(p, params); },
   'heli:fly'(ctx, p, params) { return ctx.engine.getSystem('vehicles').fly(p, params); },
   'oheli:send'(ctx, p, params) { return ctx.engine.getSystem('vehicles').sendHeli(p, params); },
   'oheli:recall'(ctx, p) { return ctx.engine.getSystem('vehicles').recall(p); },
-  'org:found'(ctx, p, params) { return ctx.engine.getSystem('orgs').found(p, params); },
-  'org:invite'(ctx, p, params) { return ctx.engine.getSystem('orgs').invite(p, params); },
-  'org:join'(ctx, p, params) { return ctx.engine.getSystem('orgs').join(p, params); },
-  'org:leave'(ctx, p) { return ctx.engine.getSystem('orgs').leave(p); },
-  'org:hire'(ctx, p, params) { return ctx.engine.getSystem('orgs').hire(p, params); },
-  'org:escort'(ctx, p, params) { return ctx.engine.getSystem('orgs').escort(p, params); },
-  'org:order'(ctx, p, params) { return ctx.engine.getSystem('orgs').order(p, params); },
-  'org:hq'(ctx, p, { buildingId }) { return ctx.engine.getSystem('orgs').claimHQ(p, buildingId); },
-  'org:ransom'(ctx, p) { return ctx.engine.getSystem('orgs').payRansom(p); },
-  'org:press'(ctx, p, params) { return ctx.engine.getSystem('orgs').setPress(p, params); },
-  'org:payFor'(ctx, p, params) { return ctx.engine.getSystem('orgs').payFor(p, params); },
   'noop'() { return { ok: false, error: 'Telefon › Örgüt uygulamasından örgüt kur.' }; },
   'police:arrest'(ctx, p, { npcId }) { return life(ctx).arrest(p, String(npcId)); },
 
@@ -394,29 +386,7 @@ export const ACTIONS = {
   },
 
   // ---------------- SUÇ ----------------
-  'crime:rob'(ctx, p, { buildingId }) {
-    const { world, rng, bus, config, engine } = ctx;
-    const b = world.buildings.get(buildingId);
-    if (!b || b.category !== 'commercial' || !b.operational) return fail('Burası soyulamaz.');
-    if (b.ownerKind === 'player' && b.ownerId === p.id) return fail('Kendi dükkanını soyamazsın.');
-    if (!nearDoor(p, b)) return fail('Soygun için dükkanın kapısına git.');
-    if (Date.now() - p.lastRobAt < config.crime.playerRobCooldownMs) return fail('Ortalık hâlâ çok sıcak, biraz bekle.');
-    if (b.balance < 10) return fail('Kasa bomboş!');
-    p.lastRobAt = Date.now();
-    const steal = Math.round(Math.min(3000, b.balance * rng.range(0.2, 0.4)));
-    b.balance -= steal;
-    p.balance += steal;
-    p.wanted = Math.min(5, p.wanted + 2);
-    world.logCrime?.(p, `Silahlı soygun: ${b.name}`);
-    b.crimeHeat += 2;
-    world.touchPlayer(p);
-    bus.news('crime', `🚨 ${b.name} silahlı soyguna uğradı! Şüpheli: ${p.name}`);
-    bus.emit('net:fx', { t: 'alarm', x: b.x, z: b.z });
-    const crime = engine.getSystem('crime');
-    crime.dispatchPolice(b, 3);
-    engine.getSystem('underworld')?.startChase(p, true);
-    return { ok: true, message: `${tl(steal)} çaldın! Aranma seviyen: ${'⭐'.repeat(p.wanted)}`, sfx: 'cash' };
-  },
+  'crime:rob'() { return fail('Bu oyunda soygun yok: sen bir devlet başkanısın.'); },
 
   'crime:bail'(ctx, p) {
     const { world, config } = ctx;

@@ -116,6 +116,7 @@ export class Player {
       chase: world.chaseFor?.(this) ?? null,
       org: world.orgFor?.(this) ?? null,
       veh: world.vehFor?.(this) ?? null,
+      nation: world.nationFor?.(this) ?? null,
       ...(world.societyFor?.(this) ?? {}),
     };
   }

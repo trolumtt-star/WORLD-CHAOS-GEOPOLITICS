@@ -59,8 +59,18 @@ export class OrgSystem {
     // kayıttan dönüş: istasyonlar ve korumalar yeniden kurulsun
     for (const o of Object.values(world.orgs)) { o.posted = []; o.escort = {}; }
     for (const p of world.players.values()) { p.kidnapped = null; }
-    this.ensureCartels();
-    for (const o of Object.values(world.orgs)) if (!o.ai && this.hqOf(o)) this.postGuards(o);
+    // ÜLKE MODU: karteller, örgütler, yeraltı inleri ve depolar yok
+    world.orgs = {};
+    for (const u of [...world.units.values()]) if (u.def?.street && !u.def.keep) world.units.delete(u.id);
+    for (const b of [...world.buildings.values()]) if (b.type === 'hideout' || b.type === 'compound') {
+      const t = world.tileAt(b.x, b.z);
+      if (t && t.owner === 'underworld') world.setTileOwner(t, null);
+      if (t && t.buildingId === b.id) t.buildingId = null;
+      for (const id of b.occupants ?? []) { const n = world.npcs.get(id); const h = n && world.buildings.get(n.homeId); if (n && h) { n.state = 'inside'; n.locationId = h.id; h.occupants.add(n.id); } }
+      world.buildings.delete(b.id);
+    }
+    for (const t of world.tiles) if (t.owner === 'underworld') world.setTileOwner(t, null);
+    for (const p of world.players.values()) { p.orgId = null; p.press = null; p.kidnapped = null; p.wanted = 0; p.copHostileUntil = 0; }
     world.orgFor = (p) => this.privateFor(p);
     ctx.bus.on('building:destroyed', ({ building }) => { building.destroyedAt = ctx.clock.totalHours; });
   }
@@ -932,6 +942,7 @@ export class OrgSystem {
 
   /** Rakip kartellerin saatlik kararları: oyuncuların işyerlerini basar, patlatır, adam kaçırır */
   aiTurn(hour) {
+    return; // ülke modunda NPC kartel yok
     const { world, bus, rng } = this.ctx;
     const online = [...world.players.values()].filter((p) => p.online && !p.isAI && !p.dead);
     for (const o of Object.values(world.orgs)) {

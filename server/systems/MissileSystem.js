@@ -1,3 +1,4 @@
+import { adTier } from '../../shared/catalogs.js';
 import { MISSILE_TYPES, AIR_DEFENSE } from '../data/military.js';
 import { BUILDING_TYPES } from '../data/buildingTypes.js';
 import { isUnlocked, requiredTech, TECHS } from '../data/tech.js';
@@ -75,11 +76,14 @@ export class MissileSystem {
       if (now < m.engagedUntil) continue;
       for (const d of defenses) {
         if (d.ownerId === m.ownerId || (d.reloadUntil ?? 0) > now || !world.atWar(d.ownerId, m.ownerId)) continue;
+        const T = adTier(d);
+        if (m.type === 'nuclear' && !T.nuke) continue;
+        if ((world.players.get(d.ownerId)?.adLockUntil ?? 0) > now) continue; // hacklendi: sistem kilitli
         const hitAt = now + AIR_DEFENSE.interceptorFlightMs;
         if (hitAt > m.start + m.flightMs - 300) continue;
         const p = missilePos(m, hitAt);
         if (p.s < 0.1) continue;
-        if (Math.hypot(p.x - d.x, p.z - d.z) > BUILDING_TYPES.air_defense.range) continue;
+        if (Math.hypot(p.x - d.x, p.z - d.z) > T.range) continue;
         // Önleme füzesi de para: savunanın hazinesinden
         const owner = world.players.get(d.ownerId);
         const fee = owner?.isAI ? 0 : ctx.config.costs.interceptor;
@@ -88,10 +92,10 @@ export class MissileSystem {
           continue;
         }
         if (owner && fee) { owner.balance -= fee; world.touchPlayer(owner); }
-        const success = rng.chance(MISSILE_TYPES[m.type].interceptChance);
+        const success = rng.chance(Math.min(0.97, T.hit * (0.5 + (MISSILE_TYPES[m.type].interceptChance ?? 0.5) * 0.6)));
         const icp = { id: world.nextId('i'), missileId: m.id, hitAt, success, at: p };
         world.interceptors.push(icp);
-        d.reloadUntil = now + AIR_DEFENSE.reloadMs;
+        d.reloadUntil = now + T.reload;
         m.engagedUntil = hitAt + 100;
         bus.emit('net:missile', { t: 'intercept', id: icp.id, missileId: m.id, from: { x: d.x, y: 8, z: d.z }, at: p, flightMs: AIR_DEFENSE.interceptorFlightMs, success });
         break;
@@ -127,6 +131,9 @@ export class MissileSystem {
 
   // Patlama hasarı (füze, uçak saldırısı, nükleer bomba ortak)
   blast({ world, bus }, x, z, def, ownerId, { nuclear = false } = {}) {
+    // bombalanan ülke: mutluluk düşer, nüfus kaçar
+    const hitOwner = world.players.get(world.ownerAt(x, z));
+    if (hitOwner && hitOwner.id !== ownerId) { hitOwner.bombedAt = Date.now(); if (hitOwner.pop) hitOwner.pop = Math.round(hitOwner.pop * (nuclear ? 0.7 : 0.995)); }
     const r = def.radius;
     const m = { type: nuclear ? 'nuclear' : 'x', ownerId };
 

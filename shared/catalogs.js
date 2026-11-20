@@ -155,3 +155,22 @@ export const CLUBS = [
 ];
 
 export const priceOf = (base, mul = 1) => Math.round(base * mul);
+
+/**
+ * Hava savunma kademeleri (ucuzdan pahalıya). range: menzil (birim), hit: isabet,
+ * reload: yeniden dolum (ms), nuke: nükleeri durdurabilir mi.
+ */
+export const AD_TIERS = {
+  stinger:   { label: 'Stinger Bataryası',        tier: 1,  cost: 15000,    range: 90,   hit: 0.35, reload: 4000, color: 0x5b6b45 },
+  hisar_a:   { label: 'Hisar-A',                  tier: 2,  cost: 40000,    range: 130,  hit: 0.45, reload: 3500, color: 0x6b7b55 },
+  hisar_o:   { label: 'Hisar-O',                  tier: 3,  cost: 90000,    range: 180,  hit: 0.5,  reload: 3000, color: 0x55704a },
+  hawk:      { label: 'MIM-23 Hawk',              tier: 4,  cost: 160000,   range: 230,  hit: 0.55, reload: 2800, color: 0x8a8a6a },
+  irondome:  { label: 'Demir Kubbe',              tier: 5,  cost: 300000,   range: 280,  hit: 0.7,  reload: 1500, color: 0xb0b0a0 },
+  patriot:   { label: 'Patriot PAC-3',            tier: 6,  cost: 550000,   range: 360,  hit: 0.72, reload: 2200, color: 0x7a7a5a },
+  siper:     { label: 'Siper Uzun Menzil',        tier: 7,  cost: 900000,   range: 450,  hit: 0.76, reload: 2000, color: 0x4a5a3a },
+  s400:      { label: 'S-400 Triumf',             tier: 8,  cost: 1600000,  range: 560,  hit: 0.8,  reload: 1800, color: 0x3a4a2a },
+  thaad:     { label: 'THAAD (anti-balistik)',    tier: 9,  cost: 2800000,  range: 700,  hit: 0.85, reload: 1600, color: 0xd0d0c0, nuke: true },
+  laser:     { label: 'Lazer Kubbe',              tier: 10, cost: 5000000,  range: 900,  hit: 0.92, reload: 800,  color: 0x2a2a3a, nuke: true, laser: true },
+  starshield:{ label: 'Yıldız Kalkanı (Uzay)',    tier: 11, cost: 12000000, range: 1300, hit: 0.95, reload: 700,  color: 0x101828, nuke: true, laser: true },
+};
+export function adTier(b) { return AD_TIERS[b?.subtype] ?? AD_TIERS.hisar_a; }

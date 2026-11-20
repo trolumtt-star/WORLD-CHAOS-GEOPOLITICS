@@ -1,4 +1,4 @@
-import { LUX_HOUSES } from '../../shared/catalogs.js';
+import { LUX_HOUSES, AD_TIERS } from '../../shared/catalogs.js';
 /**
  * Teknoloji ağacı: gerçek dünya tarihine göre 8 çağ.
  * Her deneme parayla yapılır, araştırma süresi sonunda %30 (bonuslarla daha fazla) başarı şansı.
@@ -70,7 +70,7 @@ export const TECHS = {
 
 // Varsayılan (teknoloji gerektirmeyen) içerik
 export const DEFAULT_UNLOCKS = {
-  buildings: ['house', 'market', 'bar', 'factory:food', 'barracks', ...Object.keys(LUX_HOUSES).map((k) => `mansion:${k}`)],
+  buildings: ['house', 'market', 'bar', 'factory:food', 'barracks', 'cyber_center', ...Object.keys(LUX_HOUSES).map((k) => `mansion:${k}`), ...Object.keys(AD_TIERS).map((k) => `air_defense:${k}`)],
   units: ['swordsman', 'scout'],
   missiles: [],
   ads: ['tellal'],

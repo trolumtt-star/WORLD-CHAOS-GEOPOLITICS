@@ -22,6 +22,8 @@ export class LifeUI {
       return wrap;
     };
     this.needs = { food: bar('🍔', 'food'), water: bar('💧', 'water'), energy: bar('⚡', 'energy'), health: bar('❤️', 'health') };
+    // Ülke modu: açlık/su/enerji yok, sadece can
+    for (const k of ['food', 'water', 'energy']) this.needs[k].style.display = 'none';
     hud.querySelector('.status')?.append(el('div', { class: 'needs' }, ...Object.values(this.needs)));
 
     // Saldırı / silah / zoom

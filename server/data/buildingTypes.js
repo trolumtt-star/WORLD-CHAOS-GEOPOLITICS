@@ -1,4 +1,4 @@
-import { LUX_HOUSES } from '../../shared/catalogs.js';
+import { LUX_HOUSES, AD_TIERS } from '../../shared/catalogs.js';
 /**
  * Bina kataloğu. Kategori:
  *  residential | commercial | industrial | civic | military | nature | land
@@ -49,6 +49,7 @@ export const BUILDING_TYPES = {
   barracks:     { label: 'Kışla',                icon: '🪖', category: 'military', footprint: [26, 30], height: [6, 6],  value: [8000, 8000],   buildCost: 8000,  buildHours: 10 },
   missile_silo: { label: 'Füze Rampası',         icon: '🚀', category: 'military', footprint: [24, 24], height: [4, 4],  value: [20000, 20000], buildCost: 20000, buildHours: 16 },
   airbase:      { label: 'Hava Üssü',            icon: '🛫', category: 'military', footprint: [30, 32], height: [8, 8],  value: [25000, 25000], buildCost: 25000, buildHours: 16 },
+  cyber_center: { label: 'Siber Güvenlik Merkezi', icon: '🛡️', category: 'military', footprint: [20, 22], height: [10, 12], value: [60000, 60000], buildCost: 120000, buildHours: 10 },
   air_defense:  { label: 'Hava Savunma Sistemi', icon: '📡', category: 'military', footprint: [20, 20], height: [6, 6],  value: [15000, 15000], buildCost: 15000, buildHours: 12, range: 150 },
 };
 
@@ -64,7 +65,7 @@ export const FACTORY_SUBTYPES = {
 export function buildOptions() {
   const out = [];
   for (const [type, def] of Object.entries(BUILDING_TYPES)) {
-    if (!def.buildCost) continue;
+    if (!def.buildCost || type === 'air_defense') continue;
     if (type === 'factory') {
       for (const [sub, sd] of Object.entries(FACTORY_SUBTYPES)) {
         out.push({ key: `factory:${sub}`, type, subtype: sub, label: sd.label, icon: def.icon, category: def.category, cost: def.buildCost, hours: def.buildHours });
@@ -73,6 +74,8 @@ export function buildOptions() {
       out.push({ key: type, type, subtype: null, label: def.label, icon: def.icon, category: def.category, cost: def.buildCost, hours: def.buildHours });
     }
   }
+  // Hava savunması: 11 kademe (menzil ve isabet artar)
+  for (const [k, t] of Object.entries(AD_TIERS)) out.push({ key: `air_defense:${k}`, type: 'air_defense', subtype: k, label: `${t.label} · ${t.range} m`, icon: t.laser ? '🔆' : t.nuke ? '🛰️' : '📡', category: 'airdef', cost: t.cost, hours: Math.min(16, 4 + t.tier) });
   // Lüks evler: havuzlu villalar, cam köşkler, saraylar, kuleler
   for (const [k, h] of Object.entries(LUX_HOUSES)) out.push({ key: `mansion:${k}`, type: 'mansion', subtype: k, label: h.label, icon: h.pool ? '🏖️' : '🏰', category: 'luxury', cost: h.cost, hours: h.hours });
   return out;

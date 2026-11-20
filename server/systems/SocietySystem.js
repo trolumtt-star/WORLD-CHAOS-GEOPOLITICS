@@ -226,7 +226,7 @@ export class SocietySystem {
   onDay(time, ctx) {
     const { world, rng, bus, config } = ctx;
     const S = this.S;
-    this.collectRent(world, bus);
+    // ülke modu: kira yok
     this.payCeos(world);
     // Enflasyon: her 3 günde bir maaşlar ve fiyatlar birlikte artar
     if (time.day % 3 === 0 && S.econ.lastDay !== time.day) {

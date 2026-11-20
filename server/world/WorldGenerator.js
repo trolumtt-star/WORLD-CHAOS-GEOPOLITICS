@@ -24,8 +24,6 @@ export function generateWorld(world, rng, config) {
   assignOwnership(world, rng, config);
   electFirstMayor(world, rng);
   spawnAiNations(world, rng, config);
-  ensureHideouts(world, rng, config);
-  ensureCompounds(world, rng, config);
   world.dirtyTiles.clear();
   world.dirtyBuildings.clear();
   return world.stats();
@@ -436,8 +434,7 @@ export function ensureCompounds(world, rng, config) {
 }
 
 export function ensureTownExtras(world, rng, config) {
-  ensureHideouts(world, rng, config);
-  try { ensureCompounds(world, rng, config); } catch (e) { console.warn('[compound]', e.message); }
+
   const need = ['court', 'stadium', 'clothing', 'car_dealer'].filter((t) => ![...world.buildings.values()].some((b) => b.type === t));
   if (!need.length) return [];
   const { a, b } = townRange(world, config);

@@ -1,3 +1,4 @@
+import { adTier } from '../../shared/catalogs.js';
 import { Unit } from '../entities/Unit.js';
 import { AIR_TYPES, AIR_DEFENSE, MISSILE_TYPES } from '../data/military.js';
 import { BUILDING_TYPES } from '../data/buildingTypes.js';
@@ -140,10 +141,12 @@ export class AirSystem {
 
   airDefense(ctx, now) {
     const { world, bus, rng } = ctx;
-    const range = BUILDING_TYPES.air_defense.range;
     const defenses = world.buildingsWhere((b) => b.type === 'air_defense' && b.operational && b.ownerKind === 'player');
     for (const d of defenses) {
       if ((d.reloadUntil ?? 0) > now) continue;
+      if ((world.players.get(d.ownerId)?.adLockUntil ?? 0) > now) continue;
+      const T = adTier(d);
+      const range = T.range;
       for (const u of world.units.values()) {
         const def = AIR_TYPES[u.type];
         if (!def || u.dead || (u.engagedUntil ?? 0) > now) continue;
@@ -151,8 +154,8 @@ export class AirSystem {
         if (Math.hypot(u.x - d.x, u.z - d.z) > range) continue;
         const lead = 1.5;
         const at = { x: u.x + Math.sin(u.rotY) * def.speed * lead * (u.mission?.phase === 'hover' ? 0 : 1), y: u.alt, z: u.z + Math.cos(u.rotY) * def.speed * lead * (u.mission?.phase === 'hover' ? 0 : 1) };
-        const success = rng.chance(def.adHit);
-        d.reloadUntil = now + AIR_DEFENSE.reloadMs;
+        const success = rng.chance(Math.min(0.97, def.adHit * (0.6 + T.hit)));
+        d.reloadUntil = now + T.reload;
         u.engagedUntil = now + AIR_DEFENSE.interceptorFlightMs + 200;
         bus.emit('net:missile', { t: 'intercept', id: world.nextId('i'), missileId: u.id, from: { x: d.x, y: 8, z: d.z }, at, flightMs: AIR_DEFENSE.interceptorFlightMs, success });
         this.shots.push({ unitId: u.id, at: now + AIR_DEFENSE.interceptorFlightMs, success, pos: at, defenseOwner: d.ownerId });

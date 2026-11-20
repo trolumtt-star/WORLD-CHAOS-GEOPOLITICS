@@ -41,7 +41,7 @@ export const CONFIG = {
   player: {
     speed: 8,               // yürüme
     sprintMultiplier: 1.9,  // koşu ~15
-    startBalance: [500, 500], // herkes 500₺ ile başlar
+    startBalance: [25000, 25000], // ülke modu: başkan 25.000₺ ile başlar
     rentMul: 3,               // oyuncu kirası = ev başı kira × 3
     sandboxBalance: 10_000_000,
     maxUnits: 30,
@@ -89,9 +89,9 @@ export const CONFIG = {
 
   // Oyuncu hayatta kalma (saat başı değişim, 0..100)
   life: {
-    foodPerHour: 1.2,        // tam tok -> aç: ~83 oyun saati (~14 dk)
-    waterPerHour: 1.6,       // ~62 oyun saati (~10 dk)
-    energyPerHour: 1.8,      // uyanıkken ~55 oyun saati (~9 dk)
+    foodPerHour: 0,        // ülke modu: açlık/susuzluk/enerji yok        // tam tok -> aç: ~83 oyun saati (~14 dk)
+    waterPerHour: 0,       // ~62 oyun saati (~10 dk)
+    energyPerHour: 0,      // uyanıkken ~55 oyun saati (~9 dk)
     sleepEnergyPerHour: 24,
     starveDamagePerHour: 5,
     regenPerHour: 4,

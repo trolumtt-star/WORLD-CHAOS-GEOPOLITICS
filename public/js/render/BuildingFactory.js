@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { PartBuilder } from './geometry.js';
-import { LUX_HOUSES } from '../../shared/catalogs.js';
+import { LUX_HOUSES, adTier } from '../../shared/catalogs.js';
 
 /**
  * Prosedürel, düşük poligonlu ama karakterli binalar. Her tipin kendine has silueti var:
@@ -735,25 +735,51 @@ const BUILDERS = {
     extras.signY = 15;
   },
 
-  air_defense({ pb, glow, w, d, lotSize, extras, g }) {
+  air_defense({ pb, glow, w, d, lotSize, extras, g, b }) {
+    const T = adTier(b);
     lotBase(pb, lotSize, 0x7d7c70);
-    pb.box(w * 0.5, 2, d * 0.5, 0, 1, 0, 0x5b6b45);
-    for (let i = 0; i < 2; i++) {
-      const x = -w * 0.3 + i * w * 0.6;
+    pb.box(w * 0.5, 2, d * 0.5, 0, 1, 0, T.color);
+    // Kademe büyüdükçe daha çok rampa, daha yüksek radar
+    const n = T.tier >= 8 ? 4 : T.tier >= 4 ? 3 : 2;
+    if (T.laser) {
+      // Lazer kulesi: yüksek direk + parlak lens
+      pb.cyl(1.2, 2, 10 + T.tier, 10, w * 0.25, (10 + T.tier) / 2, d * 0.25, 0x2a2a3a);
+      glow.sphere(1.1, w * 0.25, 10.5 + T.tier, d * 0.25, T.tier >= 11 ? 0x66ccff : 0xff3344);
+      pb.cyl(1.2, 2, 8, 10, -w * 0.25, 4, d * 0.25, 0x2a2a3a);
+      glow.sphere(0.9, -w * 0.25, 8.5, d * 0.25, 0xff3344);
+    }
+    if (T.nuke) {
+      // Anti-balistik: büyük radar kubbesi
+      const dome = new THREE.Mesh(new THREE.SphereGeometry(3.4, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.5 }));
+      dome.position.set(-w * 0.28, 2, -d * 0.28); dome.castShadow = true; g.add(dome);
+    }
+    for (let i = 0; i < (T.laser ? 0 : n); i++) {
+      const x = -w * 0.3 + i * (w * 0.6 / Math.max(1, n - 1));
       pb.box(3, 1, 4, x, 0.5, d * 0.3, 0x4b5a32);
       pb.box(2.6, 2.4, 3, x, 2, d * 0.3, 0x5b6b45, { rx: -0.5 });
       for (let k = 0; k < 4; k++) pb.cyl(0.32, 0.32, 3.2, 8, x - 0.65 + (k % 2) * 1.3, 2.5 + Math.floor(k / 2) * 0.8, d * 0.3 - 0.5, 0x222222, { rx: 1.07 });
     }
-    pb.cyl(0.4, 0.6, 5, 8, 0, 4.5, -d * 0.1, 0x666666);
+    const ry = 7.4 + Math.min(8, T.tier * 0.7);
+    pb.cyl(0.4, 0.6, ry - 2.4, 8, 0, (ry - 2.4) / 2 + 2, -d * 0.1, 0x666666);
     const radar = new THREE.Group();
-    const dish = new THREE.Mesh(new THREE.SphereGeometry(2.6, 14, 8, 0, Math.PI * 2, 0, Math.PI / 3), new THREE.MeshStandardMaterial({ color: 0xdedede, side: THREE.DoubleSide, roughness: 0.4 }));
+    const dish = new THREE.Mesh(new THREE.SphereGeometry(2.6 + T.tier * 0.15, 14, 8, 0, Math.PI * 2, 0, Math.PI / 3), new THREE.MeshStandardMaterial({ color: 0xdedede, side: THREE.DoubleSide, roughness: 0.4 }));
     dish.rotation.x = -Math.PI / 2 - 0.4;
     dish.castShadow = true;
     radar.add(dish);
-    radar.position.set(0, 7.4, -d * 0.1);
+    radar.position.set(0, ry, -d * 0.1);
     g.add(radar);
     extras.radar = radar;
-    glow.sphere(0.35, 0, 7.4, -d * 0.1, 0x3dff8a);
-    extras.signY = 11;
+    glow.sphere(0.35, 0, ry, -d * 0.1, 0x3dff8a);
+    extras.signY = ry + 4;
+  },
+
+  cyber_center({ pb, win, glow, w, d, h, lotSize, extras }) {
+    lotBase(pb, lotSize, 0x3a3f48);
+    pb.box(w * 0.8, h, d * 0.7, 0, h / 2, 0, 0x1e2530);
+    for (let f = 1; f < h / 3; f++) win.box(w * 0.82, 0.5, d * 0.72, 0, f * 3, 0, 0x2ee6ff);
+    pb.cyl(0.25, 0.25, 6, 6, w * 0.3, h + 3, 0, 0x888888);
+    glow.sphere(0.4, w * 0.3, h + 6, 0, 0x2ee6ff);
+    for (let i = 0; i < 3; i++) pb.box(1.2, 2, 1.2, -w * 0.3 + i * 1.6, h + 1, -d * 0.2, 0x444b55);
+    extras.signY = h + 4;
   },
 };

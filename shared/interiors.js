@@ -16,7 +16,7 @@ export function interiorOrigin(buildingId) {
 export function isInteriorPos(x) { return x > INTERIOR_GRID.x - 60; }
 
 const KIND_BY_TYPE = {
-  house: 'home', villa: 'home', mansion: 'manor', apartment: 'home', town_hall: 'manor',
+  house: 'home', villa: 'home', mansion: 'manor', apartment: 'home', town_hall: 'statehall',
   market: 'shop', tech_store: 'shop', gun_shop: 'gunshop',
   cafe: 'cafe', restaurant: 'cafe', bar: 'bar',
   factory: 'factory', police: 'police', bank: 'bank', hospital: 'hospital', palace: 'office',
@@ -66,6 +66,13 @@ L.manor = {
     ['desk', -9, -7.5, 5, 2.4, 1.6, 0x5b3a1e], ['flag', -12.4, -9.4, 1, 1, 6], ['flag', -5.6, -9.4, 1, 1, 6],
   ],
   spots: [...L.home.spots.map((s) => (s.id === 'exit' ? { ...s, z: 9.6 } : s)), { id: 'desk', tag: 'desk', label: 'Devlet Masası', icon: '🏛️', x: -9, z: -5.3 }],
+};
+
+/** Ülke Sarayı: devlet masası + siber harekât bilgisayarı */
+L.statehall = {
+  ...L.manor,
+  items: [...L.manor.items, ['desk', 9, -7.5, 4, 2, 1.6, 0x2b2b2b], ['computer', 8.4, -7.9, 1.4, 0.3, 2.5], ['computer', 9.9, -7.9, 1.4, 0.3, 2.5]],
+  spots: [...L.manor.spots, { id: 'pc', tag: 'pc', label: 'Siber Harekât Bilgisayarı', icon: '💻', x: 9, z: -5.4 }],
 };
 
 L.shop = {

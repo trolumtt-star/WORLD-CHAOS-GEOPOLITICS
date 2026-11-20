@@ -1,3 +1,4 @@
+import { AD_TIERS } from '../../shared/catalogs.js';
 import { TECHS, techCost, isUnlocked, playerEra } from '../data/tech.js';
 import { UNIT_TYPES, AIR_TYPES, MISSILE_TYPES } from '../data/military.js';
 import { BUILDING_TYPES } from '../data/buildingTypes.js';
@@ -54,13 +55,20 @@ export class AiSystem {
       !has('barracks') && 'barracks',
       houses < 3 + era && (isUnlocked(ai, 'buildings', 'apartment') ? 'apartment' : 'house'),
       !has('airbase') && isUnlocked(ai, 'buildings', 'airbase') && 'airbase',
-      !has('air_defense') && isUnlocked(ai, 'buildings', 'air_defense') && 'air_defense',
+      mine.filter((b) => b.type === 'air_defense').length < 1 + era && 'air_defense',
       !has('missile_silo') && isUnlocked(ai, 'buildings', 'missile_silo') && 'missile_silo',
       mine.filter((b) => b.type === 'market').length < 2 && 'market',
       isUnlocked(ai, 'buildings', 'apartment') ? 'apartment' : 'house',
     ].find(Boolean);
-    if (!wish || ai.balance < (BUILDING_TYPES[wish].buildCost ?? 0) * 1.2) return;
-    ACTIONS['property:build'](ctx, ai, { buildingId: land.id, type: wish });
+    if (!wish) return;
+    let subtype;
+    if (wish === 'air_defense') {
+      // AI parasının yettiği ve teknolojisinin açtığı en iyi kademe
+      const opts = Object.entries(AD_TIERS).filter(([k, t]) => isUnlocked(ai, 'buildings', `air_defense:${k}`) && ai.balance > t.cost * 1.5);
+      if (!opts.length) return;
+      subtype = opts[opts.length - 1][0];
+    } else if (ai.balance < (BUILDING_TYPES[wish].buildCost ?? 0) * 1.2) return;
+    ACTIONS['property:build'](ctx, ai, { buildingId: land.id, type: wish, subtype });
   }
 
   expand(ctx, ai) {

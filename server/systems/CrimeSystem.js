@@ -67,6 +67,7 @@ export class CrimeSystem {
   }
 
   onDay(_time, { world, rng }) {
+    return; // Ülke modunda NPC soygunu yok
     const businesses = world.buildingsWhere((b) => b.category === 'commercial' && b.operational);
     for (const npc of world.npcs.values()) {
       const desperation = (npc.balance < 60) + (npc.happiness < 35) + (npc.job === 'unemployed') + (npc.hunger > 70);

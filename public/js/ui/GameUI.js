@@ -2,7 +2,7 @@ import { el, tl, pad, clear } from '../core/dom.js';
 import { Minimap } from './Minimap.js';
 import { WorldMap } from './WorldMap.js';
 
-const CATEGORY_LABELS = { luxury: '💎 Lüks Evler (havuzlu, saray, kule)', residential: '🏠 Konut', commercial: '🛍️ Ticaret', industrial: '🏭 Sanayi', military: '🪖 Askeri' };
+const CATEGORY_LABELS = { airdef: '📡 Hava Savunması (menzil halkası haritada görünür)', luxury: '💎 Lüks Evler (havuzlu, saray, kule)', residential: '🏠 Konut', commercial: '🛍️ Ticaret', industrial: '🏭 Sanayi', military: '🪖 Askeri' };
 export function unlocked(catalog, techs, kind, id) {
   if (catalog.defaultUnlocks?.[kind]?.includes(id)) return true;
   return (techs ?? []).some((t) => catalog.techs[t]?.unlocks[kind]?.includes(id));
@@ -47,7 +47,7 @@ export class GameUI {
     this.elTitle = el('div', { class: 'st-title' });
     this.elEra = el('div', { class: 'st-era' });
     this.elWar = el('div', { class: 'st-war hidden' });
-    const status = el('div', { class: 'glass status' }, this.elClock, this.elBalance, this.elEra, this.elWar, el('div', { class: 'st-row' }, this.elTitle, this.elWanted));
+    const status = el('div', { class: 'glass status', onClick: () => this.h.onNation?.() }, this.elClock, this.elBalance, this.elEra, this.elWar, el('div', { class: 'st-row' }, this.elTitle, this.elWanted));
     this.foundBtn = el('button', { class: 'found-btn hidden', onClick: () => { this.sfx('click'); this.h.onFound(); } }, '🏳️ ÜLKE KUR', el('small', {}, `Bulunduğun yere ülkeni kur · ${tl(this.catalog.costs?.foundCountry ?? 15000)}`));
 
     const roomChip = btn(`🔗 ${this.room.code}`, 'chip room', () => this.share());
@@ -142,7 +142,7 @@ export class GameUI {
   setSelf(s) {
     const prev = this.self;
     this.self = { ...this.self, ...s };
-    if (prev.balance !== undefined && s.balance !== prev.balance) {
+    if (prev.balance !== undefined && s.balance !== prev.balance && Math.abs(s.balance - prev.balance) > (s.nation?.perSec ?? 0) * 4 + 1) {
       const up = s.balance > prev.balance;
       this.elBalance.classList.remove('up', 'down');
       void this.elBalance.offsetWidth;
@@ -151,7 +151,7 @@ export class GameUI {
     this.elWanted.textContent = s.wanted ? '⭐'.repeat(s.wanted) : '';
     this.elWanted.classList.toggle('flash', s.wanted > 0);
     this.elTitle.textContent = s.countryName
-      ? `🏳️ ${s.countryName} · 👥 ${s.population ?? 0}${s.overlordName ? ` · 🎎 ${s.overlordName} kuklası` : ''}${s.puppets?.length ? ` · 👑 ${s.puppets.length} kukla` : ''}`
+      ? `🏳️ ${s.countryName} · 👥 ${(s.nation?.pop ?? s.population ?? 0).toLocaleString('tr-TR')}${s.nation ? ` · 💰 +${tl(s.nation.perSec)}/sn${s.nation.unrest ? ' · 🔥 İSYAN' : ''}` : ''}${s.overlordName ? ` · 🎎 ${s.overlordName} kuklası` : ''}${s.puppets?.length ? ` · 👑 ${s.puppets.length} kukla` : ''}`
       : `🧳 Vatandaş${s.citizenName ? ` · ${s.citizenName}` : ''}`;
     const wars = (s.wars ?? []).map((id) => this.h.nameOf?.(id) ?? id);
     this.elWar.textContent = wars.length ? `⚔️ SAVAŞ: ${wars.join(', ')}` : '';
@@ -360,11 +360,11 @@ export class GameUI {
       el('h4', {}, CATEGORY_LABELS[cat] ?? cat),
       el('div', { class: 'card-grid' }, ...opts.map((o) => unlocked(this.catalog, this.self.techs, 'buildings', o.key) ? el('button', {
         class: `build-card ${(this.self.balance ?? 0) < o.cost ? 'poor' : ''}`,
-        onClick: () => this.h.onAction({
+        onClick: () => { if (o.type === 'air_defense') this.h.onPreviewAD?.(buildingId, o.subtype); this.h.onAction({
           type: 'property:build',
           params: { buildingId, type: o.type, subtype: o.subtype },
           input: { title: `${o.icon} ${o.label} · ${tl(o.cost)} · ${o.hours} saat`, fields: [{ key: 'name', label: 'İşletme adı (boş bırakabilirsin)', kind: 'text', value: '' }] },
-        }),
+        }); },
       }, el('div', { class: 'bc-icon' }, o.icon), el('div', { class: 'bc-name' }, o.label), el('div', { class: 'bc-cost' }, tl(o.cost)), el('div', { class: 'bc-time' }, `⏱ ${o.hours} sa`))
         : el('button', { class: 'build-card locked', onClick: () => { this.sfx('error'); this.toast(`🔒 Gerekli: ${requiredTechLabel(this.catalog, 'buildings', o.key)}`, 'warn'); } },
           el('div', { class: 'bc-icon' }, '🔒'), el('div', { class: 'bc-name' }, o.label), el('div', { class: 'bc-time' }, requiredTechLabel(this.catalog, 'buildings', o.key)))))));

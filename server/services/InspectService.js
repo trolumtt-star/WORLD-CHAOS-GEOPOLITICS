@@ -168,7 +168,7 @@ function describeBuilding(ctx, b, p) {
       }
     }
     if (def.category === 'commercial') {
-      A('🔫 Soygun Yap', 'crime:rob', {}, { style: 'danger', confirm: 'Aranma seviyen artacak ve polis peşine düşecek. Emin misin?' });
+
     }
   }
 
